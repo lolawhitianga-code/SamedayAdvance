@@ -1107,7 +1107,10 @@ const SPEND_CATEGORY_RULES = [
   // as what they actually sold, not get swept into gambling wholesale — only
   // the cashier/cage and casino-located ATM draws (real gambling money) land
   // here, once the more specific keyword above hasn't already claimed them.
-  { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM|SKY\s?CITY|CASHIER MAIN|\bCAGE\b|CROWN CASINO|JUPITERS|TREASURY CASINO|WREST POINT/i },
+  // "TAB NZ" (New Zealand's totalisator/betting agency) — real example from
+  // an actual statement, distinct from "TAB.COM" (the Australian spelling
+  // already covered above).
+  { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM|\bTAB NZ\b|SKY\s?CITY|CASHIER MAIN|\bCAGE\b|CROWN CASINO|JUPITERS|TREASURY CASINO|WREST POINT/i },
   { category: "cash_withdrawal", label: "Cash Withdrawal", re: /ATM WITHDRAWAL|CASH OUT|CASH ADVANCE/i },
   { category: "transport", label: "Transport", re: /OPAL|MYKI|GO ?CARD|\bBP\b|\bSHELL\b|CALTEX|7-ELEVEN FUEL|UBER(?! ?EATS)|PARKMATE/i },
   { category: "bnpl_other_credit", label: "BNPL / Other Credit", re: /AFTERPAY|ZIP ?CO|ZIPPAY|\bHUMM\b|LATITUDE|PERSONAL LOAN|CASHIT|NIMBLE|MONEYME|SUNNY LOANS|FERRATUM/i },
@@ -1673,7 +1676,31 @@ const TXN_TYPE_HINTS = {
 // continuation line of whatever transaction preceded them.
 const NON_TXN_LINE_RE = /^(Totals? at end|Balance brought forward|Text$|AP Automatic Payment|Date\s+Transaction type|Opening balance$|Closing balance$)/i;
 
-function parseDateToken(tok) {
+// Real statements almost never carry a year on each individual transaction
+// row ("20 Oct", not "20 Oct 2023") — the year only appears once, in a
+// header line like "Statement period 20 Oct 2023 - 18 Dec 2023" or "as at
+// 18 December 2023". Defaulting a yearless date to *today's* year is wrong
+// for any backdated statement (a 2023 statement parsed in 2026 silently
+// became a 2026 one), so this pulls the real year from the statement's own
+// header text instead, with the current year only as a last resort if
+// nothing in the header can be found at all.
+function detectStatementYear(rows) {
+  for (const row of rows) {
+    const m = row.text.match(/Statement period\s+\d{1,2}\s+[A-Za-z]{3,9}\s+(\d{4})\s*[-–]\s*\d{1,2}\s+[A-Za-z]{3,9}\s+(\d{4})/i);
+    if (m) return { startYear: Number(m[1]), endYear: Number(m[2]) };
+  }
+  for (const row of rows) {
+    const m = row.text.match(/\bas at\s+\d{1,2}\s+[A-Za-z]{3,9}\s+(\d{4})/i);
+    if (m) { const y = Number(m[1]); return { startYear: y, endYear: y }; }
+  }
+  for (const row of rows) {
+    const m = row.text.match(/\b(19|20)\d{2}\b/);
+    if (m) { const y = Number(m[0]); return { startYear: y, endYear: y }; }
+  }
+  return null;
+}
+
+function parseDateToken(tok, defaultYear) {
   let m = tok.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (m) {
     let [, dd, mm, yy] = m;
@@ -1685,7 +1712,7 @@ function parseDateToken(tok) {
     const [, dd, mon, yy] = m;
     const monNum = MONTH_MAP[mon.slice(0, 3).toLowerCase()];
     if (!monNum) return null;
-    const year = yy ? (yy.length === 2 ? "20" + yy : yy) : String(new Date().getFullYear());
+    const year = yy ? (yy.length === 2 ? "20" + yy : yy) : String(defaultYear !== undefined ? defaultYear : new Date().getFullYear());
     return year + "-" + String(monNum).padStart(2, "0") + "-" + dd.padStart(2, "0");
   }
   return null;
@@ -1758,6 +1785,9 @@ async function extractPdfRows(file) {
 // detail / description continuation) until the next date, a non-transaction
 // marker line, or a sane line-count cap — whichever comes first. ----
 function groupIntoRecords(rows) {
+  const yearInfo = detectStatementYear(rows);
+  let currentYear = yearInfo ? yearInfo.startYear : new Date().getFullYear();
+  let lastMonth = null;
   const records = [];
   let current = null;
   let linesSinceStart = 0;
@@ -1767,16 +1797,27 @@ function groupIntoRecords(rows) {
     if (NON_TXN_LINE_RE.test(trimmed)) { current = null; return; }
 
     const tokens = trimmed.split(/\s+/);
-    let isoDate = parseDateToken(tokens[0]);
+    let isoDate = parseDateToken(tokens[0], currentYear);
     let dateTokLen = 1;
     if (!isoDate && tokens.length > 2) {
       const combo3 = tokens.slice(0, 3).join(" ");
       const combo2 = tokens.slice(0, 2).join(" ");
-      if (parseDateToken(combo3)) { isoDate = parseDateToken(combo3); dateTokLen = 3; }
-      else if (parseDateToken(combo2)) { isoDate = parseDateToken(combo2); dateTokLen = 2; }
+      if (parseDateToken(combo3, currentYear)) { isoDate = parseDateToken(combo3, currentYear); dateTokLen = 3; }
+      else if (parseDateToken(combo2, currentYear)) { isoDate = parseDateToken(combo2, currentYear); dateTokLen = 2; }
     }
 
     if (isoDate) {
+      // A statement spanning a year boundary (e.g. "Nov 2023 - Jan 2024")
+      // only states its start year up front — if the month sequence ever
+      // drops (Dec back down to Jan), that's the statement having rolled
+      // into the next calendar year, so bump the running year and correct
+      // the date already computed with the old one.
+      const month = Number(isoDate.slice(5, 7));
+      if (lastMonth !== null && month < lastMonth) {
+        currentYear++;
+        isoDate = currentYear + isoDate.slice(4);
+      }
+      lastMonth = month;
       if (current) records.push(current);
       let rest = tokens.slice(dateTokLen).join(" ");
       // "20 Apr Opening balance 10,445.96 OD" etc. — a real date-prefixed
@@ -1878,11 +1919,23 @@ function looksLikeAccountHolderName(s) { return looksLikePersonName(s, 2); }
 // merchant/business keyword rule has already had a chance to match, so a
 // real company that happens to route through a "BILL PAYMENT" transaction
 // type is still caught by its own keyword first.
-const BANK_PREFIX_RE = /^(BNZ|ASB|ANZ|WESTPAC|WBC|NAB|KIWIBANK|CBA|BOQ|SUNCORP|HSBC|TSB|CITIBANK|RABOBANK|SBS|COOP|COOPERATIVE)\s+/i;
+// The bank name is the actual signal, not just noise to strip — it's what
+// tells "sent to another bank account" (Mark, a person) apart from "sent to
+// a business that happens to have a short, non-corporate-sounding name"
+// (northland pest, Gateway Glass — real examples from an actual statement
+// that must NOT be swept in here; the user separately confirmed a
+// same-shaped case, "lmkb", should stay "other" rather than be guessed
+// either way). Real statements put the bank name on either side of the
+// person's name ("BNZ Mark" / "Mark kiwibank 01" — the trailing digits
+// there are an account-reference suffix, not part of anyone's name), so
+// this requires a bank name to appear *somewhere*, not just as a prefix.
+const BANK_NAME_RE = /\b(BNZ|ASB|ANZ|WESTPAC|WBC|NAB|KIWIBANK|CBA|BOQ|SUNCORP|HSBC|TSB|CITIBANK|RABOBANK|SBS|COOP|COOPERATIVE)\b/i;
 function isPersonToPersonBillPayment(description) {
   const m = description.match(/^(.*?)\s*BILL PAYMENT\b/i);
   if (!m || !m[1].trim()) return false;
-  const payee = m[1].trim().replace(BANK_PREFIX_RE, "").trim();
+  const payeeRaw = m[1].trim();
+  if (!BANK_NAME_RE.test(payeeRaw)) return false;
+  const payee = payeeRaw.replace(BANK_NAME_RE, "").replace(/\b\d{1,3}\b/g, "").trim();
   return looksLikePersonName(payee, 1);
 }
 

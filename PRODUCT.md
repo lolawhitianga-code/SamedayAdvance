@@ -804,3 +804,65 @@ declines need to be explainable.
     unchanged — no simulated applicant transaction contains "BILL
     PAYMENT" at all, confirmed by checking the underlying data directly)
     and the existing smoke test (no new errors).
+
+  **21. First time an actual real statement PDF could be read directly**
+  (attached to the conversation rather than described secondhand) — this
+  changed the nature of debugging from "guess and unit-test against an
+  assumed shape" to "verify against the literal real text," and it
+  surfaced three real, fixable things in one pass:
+  - **The actual bug reported: dates parsing as 2026 instead of 2023.**
+    Root cause was exactly what it looked like — real statement rows carry
+    no year at all ("20 Oct", not "20 Oct 2023"), and `parseDateToken`
+    filled in a missing year with `new Date().getFullYear()`, i.e.
+    *today's* year, silently turning every backdated statement into a
+    current-year one. New `detectStatementYear(rows)` pulls the real year
+    from the statement's own header ("Statement period 20 Oct 2023 - 18
+    Dec 2023", or "as at 18 December 2023" as a fallback, or any plausible
+    4-digit year as a last resort) and `groupIntoRecords` now threads it
+    through as the default instead. Also handles a statement that spans a
+    calendar year boundary (e.g. "Nov 2023 - Jan 2024"): tracks the month
+    sequence and bumps the running year forward the moment it sees a drop
+    (December back down to January), rewriting the already-computed date's
+    year prefix in place.
+  - **A necessary correction to step 20's rule, found by testing it
+    against real transactions instead of a made-up example.** The actual
+    statement contains three real "Mark kiwibank 01 BILL PAYMENT" debits
+    (the genuine transaction behind the earlier "BNZ MARK" example) — but
+    it *also* contains "northland pest BILL PAYMENT" and "Gateway Glass
+    BILL PAYMENT", real small-business payments with no company suffix,
+    which the original implementation would have wrongly swept into Cash
+    Withdrawal right alongside Mark. The actual distinguishing signal in
+    the user's own reasoning was "sent to *another bank account*" — so
+    `isPersonToPersonBillPayment` now *requires* a bank name (BNZ, ASB,
+    kiwibank, etc.) to appear somewhere in the payee text before treating
+    it as a person-to-person transfer, rather than merely stripping one if
+    present. Without a bank name, "northland pest" and "Gateway Glass"
+    correctly fall through untouched — consistent with the user's own
+    earlier call on the same-shaped "lmkb" case ("leave it as other").
+    Also handles the bank name landing *after* the person's name ("Mark
+    kiwibank 01") as well as before ("BNZ Mark"), and strips a short
+    trailing numeric account-reference suffix ("01") before the name
+    check.
+  - **"TAB NZ" added to the gambling keyword list.** A real transaction
+    ("TAB NZ OE TAB NZ OE...") didn't match the existing gambling rule,
+    which only had the Australian spelling "TAB.COM" — New Zealand's TAB
+    doesn't use that literal form. Straightforward keyword gap, no
+    judgment call involved (TAB is unambiguously a betting agency).
+  - Verified all three together end-to-end with a Playwright test built
+    directly from the real statement's actual header and transaction text
+    run through the full production pipeline
+    (`parseStatementRows` → `renderPdfReview` → `runUploadedStatement`):
+    account holder correctly detected as "MR M D CHATTERTON" straight from
+    the header this time (no fallback needed — this statement's account
+    block lists "Account name"/"Account number"/etc. as separate rows,
+    unlike the earlier statement's merged summary-table row), every parsed
+    date starts with "2023-" instead of "2026-", "Mark kiwibank 01 BILL
+    PAYMENT" lands in Cash Withdrawal, "TAB NZ..." lands in Gambling, and
+    "MERCURY NZ LTD"/"WAIKATO REGIONAL...RATE" still correctly land in
+    Bills & Utilities. Also directly unit-tested "northland pest BILL
+    PAYMENT" and "Gateway Glass BILL PAYMENT" to confirm neither gets
+    swept into Cash Withdrawal, and re-confirmed "lmkb..." is unaffected.
+    Re-ran the 100-applicant validation (58.4%, unchanged — the simulated
+    data already embeds explicit years and contains no "BILL PAYMENT"
+    text) and the full existing smoke/tab-split/fallback test suite (no
+    new errors).
