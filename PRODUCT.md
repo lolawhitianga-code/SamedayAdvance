@@ -715,3 +715,44 @@ declines need to be explainable.
     Income. Also re-ran the full 100-applicant validation (58.4%,
     unchanged — this only touches the real-PDF pipeline) and the existing
     smoke/tab-split tests (no new errors).
+
+  **19. The actual bug, finally: `detectAccountHolderName` was matching, but
+  matching garbage.** Step 18's new "always show the note" diagnostic did
+  its job — the user reported back the exact text on screen: `Account
+  holder detected as "Account number 06-0457-0778429-00" (from the
+  statement's own "Account name" field)`. Not a detection failure at all —
+  a *false positive*. This statement's summary block packs multiple
+  labelled fields onto the same Y-position row (a two-column "Account
+  name / Account number" layout), so `row.text` for that line reads
+  something like `"Account name Account number 06-0457-0778429-00"` — the
+  actual name wasn't on that row at all, but the regex's `(.+)` greedily
+  captured whatever text followed the label anyway, which happened to be
+  the *next* field's label and value. Every self-transfer check downstream
+  was then comparing transaction descriptions against the literal string
+  "ACCOUNT NUMBER 06-0457-0778429-00", which obviously never matched
+  anything, so it silently behaved exactly like a detection failure even
+  though the note claimed success.
+  - Added `looksLikeAccountHolderName(s)`: rejects anything containing a
+    digit, containing words that are themselves field labels ("account",
+    "number", "name", "bsb", "balance", "address", "branch", "period",
+    "sort code", "iban", "swift"), or that isn't 2-5 letter-only,
+    name-shaped tokens (still accepts bare initials like "M" or "D").
+    `detectAccountHolderName` now validates every candidate through this
+    before accepting it — both the same-row match and the label-then-
+    next-row match — and keeps scanning instead of returning garbage.
+  - A rejected match now correctly falls through to
+    `detectRepeatedSelfTransferName` (step 18), which is layout-agnostic
+    and doesn't depend on parsing a header field at all.
+  - Verified directly: `detectAccountHolderName` against a row reading
+    `"Account name Account number 06-0457-0778429-00"` now returns `null`
+    instead of the garbage string, while the legitimate `"Account name
+    M D Chatterton"` case is unaffected. Built a full Playwright
+    end-to-end test reproducing the user's exact screenshot text (the
+    "Account name"/"Account number" collision row, plus the debit and
+    credit "M D CHATTERTON BILL PAYMENT" lines) through the real
+    `parseStatementRows` → `renderPdfReview` → `runUploadedStatement`
+    pipeline: holder name now correctly falls through to the repeated-
+    description fallback, and the debit/credit land in Cash Withdrawal/
+    Cash Deposit respectively — not Income. Re-ran the 100-applicant
+    validation (58.4%, unchanged) and the existing smoke/tab-split/
+    fallback tests (no new errors).

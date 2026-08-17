@@ -1838,15 +1838,33 @@ function nearestRole(x, columns) {
 // CHATTERTON"). Used to catch a very common but easy-to-miss pattern: a
 // bill payment or transfer made out to the account holder's own name is
 // really a move to another of their own accounts, not third-party spend.
+// Guards against grabbing the wrong thing after an "Account name" label. A
+// real statement summary block often packs several labelled fields onto the
+// same Y-position row (Account name / Account number / BSB all in a line),
+// so ".+" after the label can just as easily capture the *next* field's
+// label and value — a real example: "Account name Account number
+// 06-0457-0778429-00" (the actual name wasn't on that row at all) parsed as
+// holder name "Account number 06-0457-0778429-00". A name has no digits, is
+// a handful of capitalized word-shaped tokens, and isn't itself another
+// field label.
+function looksLikeAccountHolderName(s) {
+  const t = s.trim();
+  if (!t || /\d/.test(t)) return false;
+  if (/\b(account|number|name|bsb|statement|balance|address|branch|period|sort code|iban|swift)\b/i.test(t)) return false;
+  const tokens = t.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 5) return false;
+  return tokens.every((tok) => /^[A-Za-z][A-Za-z.'-]*$/.test(tok));
+}
+
 function detectAccountHolderName(rows) {
   for (let i = 0; i < rows.length; i++) {
     const text = rows[i].text.trim();
     const m = text.match(/Account name\s*[:\-]?\s*(.+)/i);
-    if (m && m[1].trim()) return m[1].trim();
+    if (m && looksLikeAccountHolderName(m[1])) return m[1].trim();
     // PDF text extraction groups by Y-position — on some layouts a label
     // and its value land on separate rows (e.g. "Account name" alone, then
     // the name on the row right after) rather than side by side on one.
-    if (/^Account name\s*[:\-]?\s*$/i.test(text) && rows[i + 1] && rows[i + 1].text.trim()) {
+    if (/^Account name\s*[:\-]?\s*$/i.test(text) && rows[i + 1] && looksLikeAccountHolderName(rows[i + 1].text)) {
       return rows[i + 1].text.trim();
     }
   }
