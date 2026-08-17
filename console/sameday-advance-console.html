@@ -2063,6 +2063,19 @@ function recordToTransaction(rec, columns, holderName) {
 
   const description = extractRecordDescription(rec);
 
+  // "AT" (Automatic Teller Machine) covers cash going *either* direction on
+  // a real statement — an ATM/kiosk cash deposit carries the same type
+  // code as a withdrawal, so TXN_TYPE_HINTS' blanket "AT = debit" default
+  // is wrong for exactly the transactions CASH_DEPOSIT_RE exists to catch
+  // (a real example: "PBKAS3A1554 205 Queen St Br ..." reads as a $2,450
+  // debit here despite the statement's own balance column showing the
+  // overdrawn balance *decreasing* by $2,450 — a credit, not a debit).
+  // That description-level signal is more reliable than either the
+  // type-code default or a column-position guess, so it corrects the sign
+  // outright rather than only ever being allowed to fix it when column
+  // detection already failed.
+  if (CASH_DEPOSIT_RE.test(description) && amount < 0) amount = Math.abs(amount);
+
   // A transaction paid to/from the account holder's own name is a transfer
   // between their own accounts, not third-party spend or income — a debit
   // is bucketed as a cash withdrawal (cash moving out of reach), a credit

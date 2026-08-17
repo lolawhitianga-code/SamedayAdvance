@@ -912,3 +912,40 @@ declines need to be explainable.
     unchanged — no simulated transaction is multi-line) and the full
     existing smoke/tab-split/self-transfer/bill-payment test suite (no
     new errors).
+
+  **23. "AT" (ATM) transactions can be deposits too — the type code
+  doesn't say which way.** User: "all these pbka trasactions are cash
+  depositis not withdrawls. weve spoken about this previously. how did
+  this error creep back in?" — real PBKA transactions (already established
+  in step 12 as ATM/branch cash deposits) were showing up in **Cash
+  Withdrawal** with negative amounts. This wasn't a regression of step
+  12's fix — `CASH_DEPOSIT_RE` and the "PBKA" keyword were both still
+  intact and correct. The actual bug was one level upstream, in sign
+  determination rather than categorization: `TXN_TYPE_HINTS.AT` hardcodes
+  `{ sign: "debit", category: "cash_withdrawal" }`, on the assumption that
+  an "AT" (Automatic Teller Machine) type code always means money leaving
+  the account. Checked against the real statement's own balance column,
+  it doesn't — "27 Mar AT PBKAS3A1554 205 Queen St Br 5185707 2,450.00"
+  drops the overdrawn balance from 11,874.22 to 9,424.22, a $2,450
+  *reduction* in debt, i.e. a credit/deposit, despite carrying the exact
+  same "AT" type code as a genuine ATM withdrawal elsewhere in the same
+  statement. The type code alone doesn't distinguish direction on this
+  bank's format; only the column position does, and the sign-correction
+  path (`typeHint.sign === "credit"`) only ever existed for the opposite
+  case (a type code that says "credit" landing negative), never for "AT"
+  itself since its hardcoded sign is "debit".
+  - `recordToTransaction` now applies a description-level correction after
+    the amount is computed (from column position, or the debit-default
+    fallback): if `CASH_DEPOSIT_RE` matches (PBKA and the other confirmed
+    deposit markers from step 12) and the amount came out negative, flip
+    it positive — regardless of whether column detection succeeded, and
+    regardless of what the type code's default sign says. The description
+    signal is more reliable than either.
+  - Verified directly against the real sequence of four PBKA transactions
+    from the statement (with the preceding rows included so the balance
+    math is checkable): all four now parse as positive amounts
+    (2450, 400, 200, 150) and land in **Cash Deposit**, run through the
+    actual production pipeline. Re-ran the 100-applicant validation
+    (58.4%, unchanged — no simulated applicant's data contains "PBKA")
+    and the full existing smoke/tab-split/FX/real-statement test suite (no
+    new errors).
