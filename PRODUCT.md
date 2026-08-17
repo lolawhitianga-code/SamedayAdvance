@@ -481,3 +481,15 @@ declines need to be explainable.
     panel's numbers populate (including one applicant with real "Cash
     Deposit" rows in its ledger, confirmed excluded from the income figure
     and correctly reflected in the ATM deposits total instead).
+
+  **12. "PBKA" recognized as an ATM cash deposit.** On a real statement, an
+  ATM cash deposit doesn't necessarily contain the word "deposit" at all —
+  ANZ NZ's own transaction-type prefix for one is "PBKA", which the
+  `CASH_DEPOSIT_RE` keyword list from step 11 had no way to catch. The user
+  confirmed directly: "all the PBKA... deposits are atm cash deposits."
+  Added `\bPBKA` to the regex. Verified with a direct unit test
+  (`categorizeTransaction("PBKA123456 DEPOSIT", 200)` → `cash_deposit`,
+  and confirmed a real wage payer like "SPIDA MACHIN SM2012 LTD" still
+  correctly resolves to `income_credit`, unaffected) and the 100-applicant
+  validation (58.4%, unchanged — no simulated applicant's data contains
+  "PBKA", this is specific to the real statement).

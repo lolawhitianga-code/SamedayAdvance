@@ -1050,7 +1050,10 @@ const GIG_INCOME_RE = /UBER \*TRIP|DOORDASH|AIRTASKER|MENULOG DASHER|DIDI|AMAZON
 // visible so it can be weighed against cash_withdrawal (cash cycled in and
 // back out nets to roughly nothing, which matters more than either side
 // alone).
-const CASH_DEPOSIT_RE = /ATM DEPOSIT|CASH DEPOSIT|BRANCH DEPOSIT|COUNTER DEPOSIT|DEPOSIT AT ATM/i;
+// "PBKA" is ANZ NZ's own transaction-type prefix for an ATM cash deposit
+// (confirmed against a real statement) — doesn't contain the word "deposit"
+// at all, so needed its own keyword rather than being caught by the others.
+const CASH_DEPOSIT_RE = /ATM DEPOSIT|CASH DEPOSIT|BRANCH DEPOSIT|COUNTER DEPOSIT|DEPOSIT AT ATM|\bPBKA/i;
 
 const SPEND_CATEGORY_RULES = [
   // Mortgage repayments (to the applicant's own home-loan sub-accounts) are
