@@ -316,3 +316,38 @@ declines need to be explainable.
   overdraft dial now that it's structurally always "0"; and get a couple of
   real (anonymized/redacted) Australian bank statement PDFs to test the
   upload parser against actual local bank formats.
+
+  **8. The remaining unrecognized merchants, resolved one by one against
+  the real statement.** Ran every distinct merchant description through
+  the categorizer as it stood, found 26 still landing in "other" (the
+  user's own count of "39" was almost certainly line-item occurrences —
+  several of these repeat), and went through them individually rather than
+  guessing silently. Also caught and fixed one bug while building the
+  list: "The Warehous" (truncated, missing the final E — the same
+  fixed-length card-description truncation seen earlier with "Google
+  Claud") wasn't matching the "THE WAREHOUSE" keyword; now matches with or
+  without the trailing E.
+  - Most matched the user's own instinct ("most small purchases are
+    obviously eating out or alcohol") — added as keywords: eating out
+    (Little Honey, Buns N Rolls, Yumbunmee, Bench Noodle, The Chilli
+    House, Scotts Epicurean, Mexico Hamilton, An An, Greedy Cat, Coffix,
+    Saint Alice, Buster Crabb, Slice Slice Baby, Stallions Cambridge);
+    groceries (Wyllie Road [Superette], Vege Heaven, D & N Mart); retail
+    (Fade Away Barber Shop, Hudsons airport newsstand).
+  - Four corrected specific guesses, confirmed against local knowledge the
+    categorizer couldn't have had from the text alone: "The Whitianga
+    Hotel" is a pub → alcohol, added as a specific exception checked
+    *before* the generic `\bHOTEL\b` → travel/accommodation rule (the same
+    pattern already used for casino bars vs. the generic gambling
+    catch-all). "sapori BILL PAYMENT" is a wine order despite the unusual
+    payment method → alcohol. "INVERCARGILL AIRPORT" is airport food, not
+    a travel/accommodation charge → eating out. "GLASSHOUSE" is a discount
+    retailer (like a Reject Shop), not a cafe → retail/shopping, overriding
+    my eating-out-shaped guess.
+  - One left genuinely unresolved: "KS" — no signal in the description at
+    all, and the user didn't know either. Stays in "other".
+  - Verified all 26 (now 25 resolved + 1 intentionally left as "other")
+    against the categorizer directly, and re-ran the full 100-applicant
+    validation afterward (58.4%, unchanged — these are all real-world
+    merchant names that don't appear in the simulated data, so nothing
+    regressed).

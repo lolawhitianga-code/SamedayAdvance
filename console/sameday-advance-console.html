@@ -1050,9 +1050,14 @@ const SPEND_CATEGORY_RULES = [
   // are often truncated to a fixed length on statements — "Google Claud"
   // for "Google Cloud" is a real example, not a typo.
   { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE|\bGOOGLE\b/i },
-  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE/i },
-  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b/i },
-  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b/i },
+  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE|WYLLIE ROAD|VEGE HEAVEN|D ?& ?N MART/i },
+  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b|LITTLE HONEY|BUNS N ROLLS|YUMBUNMEE|BENCH NOODLE|CHILLI HOUSE|EPICUREAN|MEXICO HAMILTON|\bAN AN\b|GREEDY CAT|COFFIX|SAINT ALICE|INVERCARGILL AIRPORT|BUSTER CRABB|SLICE SLICE BABY|STALLIONS/i },
+  // "WHITIANGA HOTEL"/"SAPORI" checked here, ahead of the generic \bHOTEL\b
+  // catch-all in travel_accommodation below — this specific hotel is a pub,
+  // and "sapori" turned out to be a wine order despite being paid via a
+  // BILL PAYMENT rather than card, both confirmed by the user against the
+  // real statement rather than guessed from the name alone.
+  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b|WHITIANGA HOTEL|\bSAPORI\b/i },
   // Vape/tobacco is its own flagged category (like alcohol/gambling) rather
   // than generic retail — a discretionary, habit-forming spend worth
   // surfacing on its own.
@@ -1061,7 +1066,7 @@ const SPEND_CATEGORY_RULES = [
   // "Hotel"/"Motel" read as accommodation here per the applicant's own
   // context — worth revisiting per-statement since in AU/NZ "hotel" often
   // just means a pub, not a place someone stayed.
-  { category: "travel_accommodation", label: "Travel / Accommodation", re: /AIRBNB|AGODA|SUPER\.COM|\bHOTEL\b|\bMOTEL\b|CORDIS/i },
+  { category: "travel_accommodation", label: "Travel / Accommodation", re: /AIRBNB|AGODA|SUPER\.COM|\bHOTEL\b|\bMOTEL\b|CORDIS|THE LOST SPRING/i },
   // Checked after the food/alcohol rules on purpose: a casino's bars and food
   // outlets (e.g. "SkyCity Flare Bar", "SkyCity Food Republic") should count
   // as what they actually sold, not get swept into gambling wholesale — only
@@ -1077,8 +1082,10 @@ const SPEND_CATEGORY_RULES = [
   { category: "bank_fees", label: "Bank Fees / Dishonour", re: /DISHONOUR|OVERDRAWN FEE|HONOUR FEE|ACCOUNT (KEEPING )?FEE|EXCESS FUNDS|\bDR INTEREST\b|LOAN INTEREST/i },
   // Op-shop/charity-store purchases (St John, social services, surf life
   // saving clubs, etc. often run these) land here as ordinary retail spend,
-  // not donations.
-  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)|THE WAREHOUSE|NOEL LEEMING|TRADE DEPOT|HAMMER HARDWARE|INTERIORS|BARGAINS|TOMMY HILFIGER|JOHNNY BIGG|PENTLAND|ST JOHN OPS|SOCIAL SER|SURF LIFE SAV/i },
+  // not donations. "THE WAREHOUS(E)" — optional trailing E because card-
+  // transaction merchant names truncate to a fixed length on statements
+  // (same issue as "Google Claud" for "Google Cloud").
+  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)|THE WAREHOUS(E)?\b|NOEL LEEMING|TRADE DEPOT|HAMMER HARDWARE|INTERIORS|BARGAINS|TOMMY HILFIGER|JOHNNY BIGG|PENTLAND|ST JOHN OPS|SOCIAL SER|SURF LIFE SAV|BARBER|GLASSHOUSE|HUDSONS/i },
 ];
 
 const CATEGORY_STYLE = {
