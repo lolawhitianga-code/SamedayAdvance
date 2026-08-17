@@ -85,6 +85,35 @@ declines need to be explainable.
 
 - Applicant flow UI and Assessment/Simulation console: built (imported this
   session, not authored fresh).
-- Bank-statement categorization: being built for one applicant (Samuel Reid,
-  `SIMULATED_PROFILES[0]`) as a proof of the pipeline, before generating fake
-  statements for all 100.
+- Bank-statement categorization: **built** for one applicant (Samuel Reid,
+  `SIMULATED_PROFILES[0]`) as a proof of the pipeline — a new "Bank Statement"
+  tab in the console. Includes:
+  - A hand-tuned but realistic fake 90-day transaction ledger (102 txns:
+    two wage payers on an irregular cycle, rent, bills, groceries, eating
+    out, alcohol, transport, cash withdrawals, one recurring Afterpay
+    repayment, no gambling, no dishonours).
+  - A merchant-keyword categorizer (`SPEND_CATEGORY_RULES`) and an
+    income-detection pass (`deriveIncomeProfile`) that groups credits by
+    normalized payer, tests recurrence/regularity/trend.
+  - Account-conduct (`deriveAccountConduct`), existing-credit-use
+    (`deriveExistingCreditUse`), and surplus (`deriveSurplus`) derivers that
+    turn the categorized ledger into the exact same bucketed fields the
+    scorer already consumes (`buffer`, `dishonours`, `overdraft`, `nearZero`,
+    `deposit`, `source`, `trend`, `payerConsistency`, `priorAdvances`,
+    `otherRepayments`, `gapSince`, `surplusSize`, `surplusConsistency`,
+    `incomeAmount`, `incomeFrequency`, `daysUntilNextPayday`).
+  - A side-by-side comparison against the originally hand-set profile
+    values — 12 of 16 fields matched exactly on first run; the 4 that
+    differed (deposit regularity, surplus size, income amount, days to next
+    payday) are genuinely informative gaps between a guessed profile and
+    what the transactions actually show. That comparison is the point: it's
+    evidence the derivation is doing real work, not just echoing the guess.
+  - A "Load derived inputs into Assessment tab" button that runs the
+    applicant through the real scorer end-to-end (verified in a headless
+    browser: 102 ledger rows render, comparison table populates, and the
+    Assessment tab produces a stamped decision from the derived inputs).
+  - Next: generate fake statements for the other 99 simulated applicants
+    using the same generation approach (irregular-but-plausible pay cycles,
+    category rotation, tuned balance trajectory), then batch-run the
+    categorizer across all of them to sanity-check the derived vs.
+    hand-set fields at population scale, not just for one applicant.

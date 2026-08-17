@@ -217,6 +217,21 @@
   table.capital-table td.num { text-align: right; }
   .events-list { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C9A9A0; }
   .events-list div { padding: 5px 0; border-bottom: 1px solid #1D2128; }
+  .category-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; padding: 3px 8px; border-radius: 3px; white-space: nowrap; display: inline-block; }
+  .txn-income { background: rgba(95,167,119,0.14); color: #8FCBA3; border: 1px solid #5FA777; }
+  .txn-risk { background: rgba(181,83,60,0.14); color: #E09B87; border: 1px solid #B5533C; }
+  .txn-caution { background: rgba(216,185,75,0.12); color: #D8B94B; border: 1px solid #D8B94B; }
+  .txn-neutral { background: rgba(138,143,152,0.12); color: #8A8F98; border: 1px solid #2E333C; }
+  table.txn-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  table.txn-table th, table.txn-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1D2128; white-space: nowrap; }
+  table.txn-table th { color: #8A8F98; font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; position: sticky; top: 0; background: #14171C; }
+  table.txn-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .txn-scroll { max-height: 480px; overflow-y: auto; border: 1px solid #262B33; border-radius: 4px; }
+  table.compare-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; }
+  table.compare-table th, table.compare-table td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #1D2128; }
+  table.compare-table th { color: #8A8F98; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .load-btn { background: #5FA777; color: #0B0D10; border: none; border-radius: 4px; padding: 11px 20px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+  .load-btn:active { transform: translateY(1px); }
   .run-btn {
     background: #C9A227;
     color: #0B0D10;
@@ -398,6 +413,7 @@
       <button class="tab-btn active" data-tab="assessment" onclick="switchTab('assessment')">Assessment Tester</button>
       <button class="tab-btn" data-tab="simulation" onclick="switchTab('simulation')">Multi-Year Simulation</button>
       <button class="tab-btn" data-tab="summary" onclick="switchTab('summary')">Session Summary</button>
+      <button class="tab-btn" data-tab="bank" onclick="switchTab('bank')">Bank Statement</button>
     </div>
   </div>
 
@@ -858,6 +874,42 @@
 
 </div>
   </div>
+
+  <!-- ============ BANK STATEMENT TAB ============ -->
+  <div id="tab-bank" class="tab-content">
+    <div class="grid">
+      <div class="panel full-span">
+        <p class="panel-title" id="bs-applicant-title">Bank Statement</p>
+        <p class="hint">A fake 90-day bank statement for one simulated applicant, run through a merchant-matching categorizer and an income-detection pass — the same pipeline a real Tailfin/Talefin feed would need. This replaces guessing the dropdown values in the Assessment tab with values actually derived from transactions. More applicants' statements are next; this one proves the pipeline first.</p>
+        <button class="load-btn" onclick="loadDerivedIntoAssessment()">Load derived inputs into Assessment tab →</button>
+      </div>
+
+      <div class="panel full-span">
+        <p class="panel-title">Spend by category (90 days)</p>
+        <div class="stat-grid" id="bs-category-summary"></div>
+      </div>
+
+      <div class="panel full-span">
+        <p class="panel-title">Auto-derived vs. originally hand-set assessment inputs</p>
+        <p class="hint">Left is what was manually guessed when this applicant was first sketched out. Right is what the categorizer actually computes from the statement below. Rows that differ are highlighted — that gap is the whole point of categorizing real transactions instead of hand-picking dropdown values.</p>
+        <table class="compare-table">
+          <thead><tr><th>Field</th><th>Hand-set (manual)</th><th>Derived from statement</th></tr></thead>
+          <tbody id="bs-compare-body"></tbody>
+        </table>
+      </div>
+
+      <div class="panel full-span">
+        <p class="panel-title">Transaction ledger</p>
+        <div class="txn-scroll">
+          <table class="txn-table">
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="num">Amount</th><th class="num">Balance</th></tr></thead>
+            <tbody id="bs-ledger-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 <script>
 // ===================== SHARED SCORING TABLES =====================
@@ -911,6 +963,308 @@ function weightedTotalFromScores(scores, weights) {
 const SIMULATED_PROFILES = 
 [{"id":1,"name":"Samuel Reid","archetype":"average","buffer":"0","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"irregular","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"negative","incomeAmount":1290,"incomeFrequency":"fortnightly","daysUntilNextPayday":7,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":2,"name":"Andrew Hall","archetype":"average","buffer":"3","dishonours":"3+","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"2","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"negative","incomeAmount":1190,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":3,"name":"Blake Harris","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"0","nearZero":">50%","deposit":"irregular","source":"casual","trend":"flat","priorAdvances":"3+","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1260,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":4,"name":"Josephine Harris","archetype":"strong","buffer":"1","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1390,"incomeFrequency":"weekly","daysUntilNextPayday":2,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":533},{"id":5,"name":"Olivia Adams","archetype":"average","buffer":"2","dishonours":"0","overdraft":"8+","nearZero":">50%","deposit":"mostly","source":"single","trend":"rising","priorAdvances":"2","otherRepayments":"two+","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":820,"incomeFrequency":"weekly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":6,"name":"Finn Bailey","archetype":"average","buffer":"1","dishonours":"0","overdraft":"1-3","nearZero":"25-50%","deposit":"consistent","source":"casual","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":600,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":7,"name":"Toby Hall","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1910,"incomeFrequency":"fortnightly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":376,"avgGigIncomeAmount":0},{"id":8,"name":"Sophie Wilson","archetype":"average","buffer":"2","dishonours":"0","overdraft":"1-3","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1840,"incomeFrequency":"fortnightly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":9,"name":"Owen Scott","archetype":"strong","buffer":"3","dishonours":"1","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":2610,"incomeFrequency":"fortnightly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":516},{"id":10,"name":"Thomas Clarke","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"1-3","nearZero":">50%","deposit":"irregular","source":"single","trend":"declining","priorAdvances":"2","otherRepayments":"none","gapSince":"30+","surplusSize":"below","surplusConsistency":"variable","incomeAmount":2010,"incomeFrequency":"monthly","daysUntilNextPayday":18,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":11,"name":"Matilda Cook","archetype":"average","buffer":"2","dishonours":"2","overdraft":"8+","nearZero":"<25%","deposit":"consistent","source":"single","trend":"declining","priorAdvances":"2","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":3340,"incomeFrequency":"monthly","daysUntilNextPayday":14,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":12,"name":"Mackenzie Cook","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"4-7","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":900,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":13,"name":"Mia Nguyen","archetype":"average","buffer":"3","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"irregular","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":1970,"incomeFrequency":"fortnightly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":165,"avgGigIncomeAmount":0},{"id":14,"name":"Benjamin Kelly","archetype":"average","buffer":"1","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"mostly","source":"multiple","trend":"declining","priorAdvances":"3+","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":910,"incomeFrequency":"weekly","daysUntilNextPayday":6,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":15,"name":"Stella Kelly","archetype":"average","buffer":"2","dishonours":"0","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":610,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":16,"name":"Toby Rose","archetype":"average","buffer":"2","dishonours":"1","overdraft":"8+","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1820,"incomeFrequency":"fortnightly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":17,"name":"Benjamin Bell","archetype":"average","buffer":"2","dishonours":"2","overdraft":"4-7","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"2","otherRepayments":"one","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1730,"incomeFrequency":"fortnightly","daysUntilNextPayday":11,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":18,"name":"Poppy Rose","archetype":"risky","buffer":"3","dishonours":"0","overdraft":"8+","nearZero":">50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1200,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":19,"name":"Ethan Green","archetype":"risky","buffer":"1","dishonours":"1","overdraft":"1-3","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"1","otherRepayments":"two+","gapSince":"<7","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1380,"incomeFrequency":"fortnightly","daysUntilNextPayday":6,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":20,"name":"Matilda Jones","archetype":"average","buffer":"3","dishonours":"2","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1330,"incomeFrequency":"fortnightly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":68},{"id":21,"name":"Alexander Morris","archetype":"average","buffer":"2","dishonours":"2","overdraft":"4-7","nearZero":"<25%","deposit":"mostly","source":"single","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1200,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":363},{"id":22,"name":"Stella Wright","archetype":"average","buffer":"0","dishonours":"0","overdraft":"8+","nearZero":"<25%","deposit":"irregular","source":"single","trend":"rising","priorAdvances":"1","otherRepayments":"one","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1730,"incomeFrequency":"fortnightly","daysUntilNextPayday":6,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":217},{"id":23,"name":"Isaac Reid","archetype":"average","buffer":"3","dishonours":"0","overdraft":"1-3","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"declining","priorAdvances":"2","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1460,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":24,"name":"Kai Robinson","archetype":"risky","buffer":"0","dishonours":"1","overdraft":"8+","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"2","otherRepayments":"one","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"negative","incomeAmount":2200,"incomeFrequency":"monthly","daysUntilNextPayday":17,"payerConsistency":"same","avgGovernmentPaymentAmount":513,"avgGigIncomeAmount":0},{"id":25,"name":"Ella Grant","archetype":"risky","buffer":"0","dishonours":"2","overdraft":"8+","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"declining","priorAdvances":"2","otherRepayments":"one","gapSince":"<7","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1230,"incomeFrequency":"fortnightly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":26,"name":"Iris Thompson","archetype":"average","buffer":"1","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"consistent","source":"casual","trend":"rising","priorAdvances":"0","otherRepayments":"two+","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":3670,"incomeFrequency":"monthly","daysUntilNextPayday":2,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":27,"name":"Rosie Wilson","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"4-7","nearZero":">50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"3+","otherRepayments":"two+","gapSince":"<7","surplusSize":"below","surplusConsistency":"negative","incomeAmount":2090,"incomeFrequency":"monthly","daysUntilNextPayday":25,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":28,"name":"Hannah Nguyen","archetype":"average","buffer":"1","dishonours":"1","overdraft":"1-3","nearZero":"25-50%","deposit":"irregular","source":"single","trend":"rising","priorAdvances":"1","otherRepayments":"one","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1500,"incomeFrequency":"fortnightly","daysUntilNextPayday":6,"payerConsistency":"same","avgGovernmentPaymentAmount":468,"avgGigIncomeAmount":0},{"id":29,"name":"Millie Grant","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"4-7","nearZero":">50%","deposit":"irregular","source":"single","trend":"declining","priorAdvances":"2","otherRepayments":"two+","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"negative","incomeAmount":1430,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"same","avgGovernmentPaymentAmount":622,"avgGigIncomeAmount":0},{"id":30,"name":"Maya Baker","archetype":"average","buffer":"2","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1180,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":243},{"id":31,"name":"Riley Morris","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1090,"incomeFrequency":"weekly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":32,"name":"Ryan Bailey","archetype":"average","buffer":"1","dishonours":"1","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1180,"incomeFrequency":"fortnightly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":33,"name":"Grace Grant","archetype":"average","buffer":"2","dishonours":"2","overdraft":"1-3","nearZero":"25-50%","deposit":"consistent","source":"single","trend":"declining","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":1490,"incomeFrequency":"fortnightly","daysUntilNextPayday":11,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":34,"name":"Harper Clarke","archetype":"average","buffer":"1","dishonours":"2","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"declining","priorAdvances":"0","otherRepayments":"one","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1970,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"same","avgGovernmentPaymentAmount":213,"avgGigIncomeAmount":0},{"id":35,"name":"Michael Ryan","archetype":"average","buffer":"1","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"casual","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"variable","incomeAmount":1590,"incomeFrequency":"fortnightly","daysUntilNextPayday":11,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":36,"name":"Theo Thompson","archetype":"average","buffer":"0","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"mostly","source":"casual","trend":"flat","priorAdvances":"2","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":1690,"incomeFrequency":"fortnightly","daysUntilNextPayday":6,"payerConsistency":"same","avgGovernmentPaymentAmount":276,"avgGigIncomeAmount":196},{"id":37,"name":"Coco Walker","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"1-3","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"2","otherRepayments":"two+","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":470,"incomeFrequency":"weekly","daysUntilNextPayday":4,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":38,"name":"Henry Scott","archetype":"average","buffer":"0","dishonours":"1","overdraft":"4-7","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"declining","priorAdvances":"0","otherRepayments":"two+","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":730,"incomeFrequency":"weekly","daysUntilNextPayday":2,"payerConsistency":"different","avgGovernmentPaymentAmount":535,"avgGigIncomeAmount":0},{"id":39,"name":"Felix Fisher","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"8+","nearZero":"<25%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"3+","otherRepayments":"one","gapSince":"30+","surplusSize":"below","surplusConsistency":"variable","incomeAmount":1300,"incomeFrequency":"fortnightly","daysUntilNextPayday":7,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":67},{"id":40,"name":"Samuel Green","archetype":"strong","buffer":"2","dishonours":"0","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"declining","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":6340,"incomeFrequency":"monthly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":306,"avgGigIncomeAmount":0},{"id":41,"name":"Sienna Cook","archetype":"average","buffer":"2","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":800,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":377},{"id":42,"name":"Georgia Clarke","archetype":"average","buffer":"2","dishonours":"0","overdraft":"4-7","nearZero":"<25%","deposit":"mostly","source":"casual","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1270,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":43,"name":"Ada Young","archetype":"average","buffer":"0","dishonours":"2","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"below","surplusConsistency":"variable","incomeAmount":1800,"incomeFrequency":"fortnightly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":292},{"id":44,"name":"Juliette Cook","archetype":"average","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"casual","trend":"flat","priorAdvances":"2","otherRepayments":"none","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1550,"incomeFrequency":"fortnightly","daysUntilNextPayday":11,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":45,"name":"Harrison Brown","archetype":"strong","buffer":"3","dishonours":"1","overdraft":"4-7","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":4980,"incomeFrequency":"monthly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":105,"avgGigIncomeAmount":0},{"id":46,"name":"Ivy Fisher","archetype":"average","buffer":"0","dishonours":"0","overdraft":"1-3","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"rising","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":640,"incomeFrequency":"weekly","daysUntilNextPayday":2,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":47,"name":"Olivia Turner","archetype":"average","buffer":"2","dishonours":"1","overdraft":"0","nearZero":"<25%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"two+","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1110,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":48,"name":"Alexander Scott","archetype":"average","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"two+","gapSince":"<7","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":3060,"incomeFrequency":"monthly","daysUntilNextPayday":9,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":49,"name":"Ivy Lee","archetype":"strong","buffer":"1","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"<7","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":1970,"incomeFrequency":"fortnightly","daysUntilNextPayday":7,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":50,"name":"Emma Clarke","archetype":"average","buffer":"2","dishonours":"2","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"single","trend":"declining","priorAdvances":"1","otherRepayments":"two+","gapSince":"<7","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1880,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"mostly","avgGovernmentPaymentAmount":188,"avgGigIncomeAmount":0},{"id":51,"name":"Joseph Johnson","archetype":"risky","buffer":"0","dishonours":"2","overdraft":"8+","nearZero":"25-50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"2","otherRepayments":"one","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":960,"incomeFrequency":"fortnightly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":52,"name":"Xavier Smith","archetype":"average","buffer":"1","dishonours":"1","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"casual","trend":"flat","priorAdvances":"2","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"variable","incomeAmount":4180,"incomeFrequency":"monthly","daysUntilNextPayday":21,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":53,"name":"Zac Cook","archetype":"strong","buffer":"3","dishonours":"2","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"0","otherRepayments":"two+","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":1730,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":103},{"id":54,"name":"William Cook","archetype":"average","buffer":"0","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":4590,"incomeFrequency":"monthly","daysUntilNextPayday":28,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":55,"name":"Isabella Clarke","archetype":"strong","buffer":"2","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":2600,"incomeFrequency":"fortnightly","daysUntilNextPayday":7,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":56,"name":"Jayden Green","archetype":"average","buffer":"2","dishonours":"2","overdraft":"1-3","nearZero":">50%","deposit":"irregular","source":"casual","trend":"rising","priorAdvances":"1","otherRepayments":"two+","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1230,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":57,"name":"Harper Wood","archetype":"average","buffer":"0","dishonours":"2","overdraft":"4-7","nearZero":"<25%","deposit":"irregular","source":"single","trend":"declining","priorAdvances":"0","otherRepayments":"none","gapSince":"<7","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":1170,"incomeFrequency":"fortnightly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":58,"name":"Liam Anderson","archetype":"average","buffer":"2","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"irregular","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"two+","gapSince":"<7","surplusSize":"below","surplusConsistency":"variable","incomeAmount":680,"incomeFrequency":"weekly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":59,"name":"Ellie Cook","archetype":"average","buffer":"0","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"irregular","source":"casual","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"below","surplusConsistency":"variable","incomeAmount":760,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":60,"name":"Molly Walker","archetype":"average","buffer":"0","dishonours":"0","overdraft":"4-7","nearZero":"<25%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"one","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":550,"incomeFrequency":"weekly","daysUntilNextPayday":5,"payerConsistency":"same","avgGovernmentPaymentAmount":590,"avgGigIncomeAmount":0},{"id":61,"name":"Kai Baker","archetype":"average","buffer":"2","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"declining","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":610,"incomeFrequency":"weekly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":511,"avgGigIncomeAmount":0},{"id":62,"name":"Bailey Walker","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"below","surplusConsistency":"stable","incomeAmount":1780,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":63,"name":"Mackenzie Lee","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":2560,"incomeFrequency":"fortnightly","daysUntilNextPayday":3,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":64,"name":"Flynn Ryan","archetype":"average","buffer":"1","dishonours":"1","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"declining","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":1540,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":65,"name":"Jack Young","archetype":"risky","buffer":"1","dishonours":"2","overdraft":"1-3","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"1","otherRepayments":"one","gapSince":"<7","surplusSize":"below","surplusConsistency":"negative","incomeAmount":950,"incomeFrequency":"fortnightly","daysUntilNextPayday":2,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":66,"name":"Elijah Wright","archetype":"strong","buffer":"2","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":6180,"incomeFrequency":"monthly","daysUntilNextPayday":16,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":67,"name":"Benjamin Bailey","archetype":"risky","buffer":"2","dishonours":"2","overdraft":"8+","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"flat","priorAdvances":"3+","otherRepayments":"one","gapSince":"<7","surplusSize":"below","surplusConsistency":"variable","incomeAmount":900,"incomeFrequency":"fortnightly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":70},{"id":68,"name":"Rosie King","archetype":"average","buffer":"1","dishonours":"1","overdraft":"1-3","nearZero":"25-50%","deposit":"mostly","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"two+","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":760,"incomeFrequency":"weekly","daysUntilNextPayday":6,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":69,"name":"Isaac Morris","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"8+","nearZero":">50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"3+","otherRepayments":"two+","gapSince":"<7","surplusSize":"below","surplusConsistency":"variable","incomeAmount":1000,"incomeFrequency":"fortnightly","daysUntilNextPayday":9,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":322},{"id":70,"name":"Molly Hall","archetype":"average","buffer":"3","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"irregular","source":"single","trend":"declining","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"below","surplusConsistency":"negative","incomeAmount":880,"incomeFrequency":"weekly","daysUntilNextPayday":3,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":71,"name":"Georgia Taylor","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":780,"incomeFrequency":"weekly","daysUntilNextPayday":7,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":72,"name":"Daniel Wright","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"4-7","nearZero":"25-50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"3+","otherRepayments":"none","gapSince":"<7","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":910,"incomeFrequency":"fortnightly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":73,"name":"Layla Fisher","archetype":"average","buffer":"2","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"2","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"negative","incomeAmount":3920,"incomeFrequency":"monthly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":74,"name":"Ethan Murphy","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"0","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"flat","priorAdvances":"3+","otherRepayments":"one","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":2810,"incomeFrequency":"monthly","daysUntilNextPayday":25,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":75,"name":"Grace Clarke","archetype":"average","buffer":"1","dishonours":"1","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"one","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"negative","incomeAmount":1790,"incomeFrequency":"fortnightly","daysUntilNextPayday":13,"payerConsistency":"same","avgGovernmentPaymentAmount":521,"avgGigIncomeAmount":0},{"id":76,"name":"Hazel Kelly","archetype":"risky","buffer":"1","dishonours":"3+","overdraft":"4-7","nearZero":">50%","deposit":"mostly","source":"casual","trend":"flat","priorAdvances":"2","otherRepayments":"one","gapSince":"<7","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1080,"incomeFrequency":"fortnightly","daysUntilNextPayday":10,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":77,"name":"Jack Taylor","archetype":"average","buffer":"3","dishonours":"0","overdraft":"4-7","nearZero":">50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":4540,"incomeFrequency":"monthly","daysUntilNextPayday":28,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":78,"name":"Josephine Brown","archetype":"average","buffer":"0","dishonours":"1","overdraft":"1-3","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"0","otherRepayments":"two+","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":700,"incomeFrequency":"weekly","daysUntilNextPayday":7,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":243},{"id":79,"name":"Coco Grant","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"0","nearZero":">50%","deposit":"irregular","source":"multiple","trend":"flat","priorAdvances":"3+","otherRepayments":"one","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"negative","incomeAmount":1090,"incomeFrequency":"fortnightly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":80,"name":"Luna Lee","archetype":"risky","buffer":"2","dishonours":"3+","overdraft":"8+","nearZero":"<25%","deposit":"irregular","source":"multiple","trend":"declining","priorAdvances":"1","otherRepayments":"one","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1250,"incomeFrequency":"fortnightly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":81,"name":"Sophia Anderson","archetype":"average","buffer":"3","dishonours":"1","overdraft":"4-7","nearZero":"<25%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":560,"incomeFrequency":"weekly","daysUntilNextPayday":7,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":82,"name":"Anna Fisher","archetype":"average","buffer":"2","dishonours":"1","overdraft":"0","nearZero":"25-50%","deposit":"mostly","source":"single","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":1430,"incomeFrequency":"fortnightly","daysUntilNextPayday":4,"payerConsistency":"mostly","avgGovernmentPaymentAmount":138,"avgGigIncomeAmount":0},{"id":83,"name":"Archie Scott","archetype":"average","buffer":"3","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"rising","priorAdvances":"2","otherRepayments":"none","gapSince":"30+","surplusSize":"below","surplusConsistency":"negative","incomeAmount":1540,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":84,"name":"Tyler Scott","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"4-7","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"declining","priorAdvances":"3+","otherRepayments":"two+","gapSince":"<7","surplusSize":"1-2x","surplusConsistency":"negative","incomeAmount":2790,"incomeFrequency":"monthly","daysUntilNextPayday":12,"payerConsistency":"different","avgGovernmentPaymentAmount":290,"avgGigIncomeAmount":0},{"id":85,"name":"Michael Scott","archetype":"risky","buffer":"0","dishonours":"2","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"2","otherRepayments":"none","gapSince":"<7","surplusSize":"below","surplusConsistency":"variable","incomeAmount":460,"incomeFrequency":"weekly","daysUntilNextPayday":2,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":86,"name":"Felix Anderson","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"rising","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":2460,"incomeFrequency":"fortnightly","daysUntilNextPayday":4,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":87,"name":"Luna Grant","archetype":"average","buffer":"2","dishonours":"3+","overdraft":"1-3","nearZero":"25-50%","deposit":"mostly","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":1880,"incomeFrequency":"fortnightly","daysUntilNextPayday":14,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":88,"name":"Luke Young","archetype":"risky","buffer":"2","dishonours":"3+","overdraft":"8+","nearZero":">50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"3+","otherRepayments":"two+","gapSince":"8-29","surplusSize":"below","surplusConsistency":"negative","incomeAmount":620,"incomeFrequency":"weekly","daysUntilNextPayday":7,"payerConsistency":"mostly","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":89,"name":"Joseph Adams","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"<25%","deposit":"mostly","source":"single","trend":"flat","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":1900,"incomeFrequency":"fortnightly","daysUntilNextPayday":7,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":90,"name":"Violet Grant","archetype":"average","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":1350,"incomeFrequency":"fortnightly","daysUntilNextPayday":8,"payerConsistency":"different","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":91,"name":"Josephine Adams","archetype":"risky","buffer":"0","dishonours":"2","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"casual","trend":"declining","priorAdvances":"2","otherRepayments":"two+","gapSince":"<7","surplusSize":"atThreshold","surplusConsistency":"variable","incomeAmount":3010,"incomeFrequency":"monthly","daysUntilNextPayday":26,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":460},{"id":92,"name":"Sophie Martin","archetype":"strong","buffer":"3","dishonours":"1","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"variable","incomeAmount":1820,"incomeFrequency":"fortnightly","daysUntilNextPayday":13,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":78},{"id":93,"name":"Maya Ryan","archetype":"strong","buffer":"3","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"stable","incomeAmount":7490,"incomeFrequency":"monthly","daysUntilNextPayday":13,"payerConsistency":"same","avgGovernmentPaymentAmount":457,"avgGigIncomeAmount":0},{"id":94,"name":"Harper Anderson","archetype":"average","buffer":"3","dishonours":"2","overdraft":"4-7","nearZero":">50%","deposit":"consistent","source":"single","trend":"flat","priorAdvances":"1","otherRepayments":"none","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1200,"incomeFrequency":"fortnightly","daysUntilNextPayday":12,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":95,"name":"Cooper King","archetype":"average","buffer":"2","dishonours":"0","overdraft":"4-7","nearZero":"25-50%","deposit":"mostly","source":"single","trend":"declining","priorAdvances":"3+","otherRepayments":"one","gapSince":"30+","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":630,"incomeFrequency":"weekly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":96,"name":"Chloe Ryan","archetype":"average","buffer":"1","dishonours":"0","overdraft":"0","nearZero":"25-50%","deposit":"irregular","source":"multiple","trend":"rising","priorAdvances":"2","otherRepayments":"two+","gapSince":"30+","surplusSize":"atThreshold","surplusConsistency":"stable","incomeAmount":840,"incomeFrequency":"weekly","daysUntilNextPayday":7,"payerConsistency":"same","avgGovernmentPaymentAmount":256,"avgGigIncomeAmount":0},{"id":97,"name":"Xavier Anderson","archetype":"risky","buffer":"0","dishonours":"0","overdraft":"8+","nearZero":">50%","deposit":"irregular","source":"casual","trend":"declining","priorAdvances":"2","otherRepayments":"one","gapSince":"8-29","surplusSize":"1-2x","surplusConsistency":"variable","incomeAmount":1400,"incomeFrequency":"fortnightly","daysUntilNextPayday":11,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":98,"name":"Ellie Johnson","archetype":"strong","buffer":"2","dishonours":"0","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"multiple","trend":"flat","priorAdvances":"0","otherRepayments":"one","gapSince":"30+","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":4590,"incomeFrequency":"monthly","daysUntilNextPayday":18,"payerConsistency":"same","avgGovernmentPaymentAmount":0,"avgGigIncomeAmount":0},{"id":99,"name":"Aria Kelly","archetype":"strong","buffer":"2","dishonours":"0","overdraft":"1-3","nearZero":"<25%","deposit":"consistent","source":"single","trend":"rising","priorAdvances":"0","otherRepayments":"none","gapSince":"8-29","surplusSize":"2x+","surplusConsistency":"stable","incomeAmount":1650,"incomeFrequency":"fortnightly","daysUntilNextPayday":1,"payerConsistency":"same","avgGovernmentPaymentAmount":301,"avgGigIncomeAmount":0},{"id":100,"name":"Connor Adams","archetype":"risky","buffer":"0","dishonours":"3+","overdraft":"4-7","nearZero":">50%","deposit":"mostly","source":"single","trend":"flat","priorAdvances":"2","otherRepayments":"one","gapSince":"<7","surplusSize":"below","surplusConsistency":"variable","incomeAmount":930,"incomeFrequency":"fortnightly","daysUntilNextPayday":9,"payerConsistency":"mostly","avgGovernmentPaymentAmount":451,"avgGigIncomeAmount":0}]
 ;
+
+// ===================== BANK STATEMENT CATEGORIZATION =====================
+// Turns a raw transaction feed (what Tailfin/Talefin would hand back) into
+// the same categorical inputs the scorer above already consumes — so this
+// slots in ahead of the Assessment tab rather than replacing it.
+const GOV_INCOME_RE = /CENTRELINK|SERVICES AUSTRALIA|CHILD SUPPORT/i;
+const GIG_INCOME_RE = /UBER \*TRIP|DOORDASH|AIRTASKER|MENULOG DASHER|DIDI|AMAZON FLEX/i;
+
+const SPEND_CATEGORY_RULES = [
+  { category: "rent_housing", label: "Rent / Housing", re: /REALTY|RENT|PROPERTY MGMT|LEASING/i },
+  { category: "bills_utilities", label: "Bills & Utilities", re: /AGL|ORIGIN ENERGY|ENERGYAUST|TELSTRA|OPTUS|VODAFONE|WATER CORP|SYDNEY WATER|COUNCIL RATES/i },
+  { category: "insurance", label: "Insurance", re: /AAMI|NRMA|BUPA|MEDIBANK|ING INSURANCE|ALLIANZ|YOUI/i },
+  { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE/i },
+  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b/i },
+  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT/i },
+  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART/i },
+  { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM/i },
+  { category: "cash_withdrawal", label: "Cash Withdrawal", re: /ATM WITHDRAWAL|CASH OUT|CASH ADVANCE/i },
+  { category: "transport", label: "Transport", re: /OPAL|MYKI|GO ?CARD|\bBP\b|\bSHELL\b|CALTEX|7-ELEVEN FUEL|UBER(?! ?EATS)/i },
+  { category: "bnpl_other_credit", label: "BNPL / Other Credit", re: /AFTERPAY|ZIP ?CO|ZIPPAY|\bHUMM\b|LATITUDE|PERSONAL LOAN|CASHIT|NIMBLE|MONEYME|SUNNY LOANS|FERRATUM/i },
+  { category: "sameday_advance_repayment", label: "SameDay Advance Repayment", re: /SAME ?DAY ADVANCE/i },
+  { category: "bank_fees", label: "Bank Fees / Dishonour", re: /DISHONOUR|OVERDRAWN FEE|HONOUR FEE|ACCOUNT (KEEPING )?FEE|EXCESS FUNDS/i },
+  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)/i },
+];
+
+const CATEGORY_STYLE = {
+  income_credit: "txn-income", income_government: "txn-income", income_gig: "txn-income",
+  gambling: "txn-risk", bank_fees: "txn-risk",
+  bnpl_other_credit: "txn-caution", sameday_advance_repayment: "txn-caution", cash_withdrawal: "txn-caution",
+};
+
+function categorizeTransaction(description, amount) {
+  if (amount > 0) {
+    if (GOV_INCOME_RE.test(description)) return { category: "income_government", label: "Government Payment" };
+    if (GIG_INCOME_RE.test(description)) return { category: "income_gig", label: "Gig Income" };
+    return { category: "income_credit", label: "Income / Wages" };
+  }
+  for (const rule of SPEND_CATEGORY_RULES) {
+    if (rule.re.test(description)) return { category: rule.category, label: rule.label };
+  }
+  return { category: "other", label: "Other" };
+}
+
+function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+function avgOf(txns) { return txns.length ? txns.reduce((s, t) => s + t.amount, 0) / txns.length : 0; }
+
+// ---- 1. Income detection: group credits by normalized payer, find recurring ones ----
+function deriveIncomeProfile(transactions) {
+  const credits = transactions.filter((t) => t.amount > 0)
+    .map((t) => ({ ...t, cat: categorizeTransaction(t.description, t.amount).category }));
+  const wageCredits = credits.filter((t) => t.cat === "income_credit");
+  const govCredits = credits.filter((t) => t.cat === "income_government");
+  const gigCredits = credits.filter((t) => t.cat === "income_gig");
+
+  const groups = {};
+  wageCredits.forEach((t) => {
+    const key = t.description.trim().toUpperCase();
+    (groups[key] = groups[key] || []).push(t);
+  });
+
+  const recurring = Object.entries(groups).map(([payer, txns]) => {
+    txns.sort((a, b) => a.date.localeCompare(b.date));
+    const gaps = [];
+    for (let i = 1; i < txns.length; i++) gaps.push(daysBetween(txns[i - 1].date, txns[i].date));
+    const total = txns.reduce((s, t) => s + t.amount, 0);
+    const meanGap = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
+    const gapStdev = gaps.length > 1 ? Math.sqrt(gaps.reduce((s, g) => s + (g - meanGap) ** 2, 0) / gaps.length) : 0;
+    return { payer, txns, count: txns.length, total, avg: total / txns.length, meanGap, gapStdev };
+  }).filter((g) => g.count >= 2).sort((a, b) => b.total - a.total);
+
+  const govAvg = avgOf(govCredits), gigAvg = avgOf(gigCredits);
+  if (recurring.length === 0) {
+    return {
+      source: "casual", payerConsistency: "different", deposit: "irregular", trend: "declining",
+      incomeAmount: Math.round(avgOf(wageCredits)), incomeFrequency: "fortnightly",
+      avgGovernmentPaymentAmount: Math.round(govAvg), avgGigIncomeAmount: Math.round(gigAvg),
+      primaryPayer: null, detail: { recurring, wageCredits, govCredits, gigCredits },
+    };
+  }
+
+  const primary = recurring[0];
+  const source = recurring.length === 1 ? "single" : "multiple";
+  const gapRatio = primary.meanGap ? primary.gapStdev / primary.meanGap : 0;
+  const deposit = gapRatio < 0.12 ? "consistent" : gapRatio < 0.3 ? "mostly" : "irregular";
+
+  const span = daysBetween(primary.txns[0].date, primary.txns[primary.txns.length - 1].date);
+  const expectedCycles = primary.meanGap ? span / primary.meanGap : primary.count;
+  const payerConsistency = primary.count >= expectedCycles * 0.85 ? "same" : primary.count >= expectedCycles * 0.6 ? "mostly" : "different";
+
+  const freq = !primary.meanGap ? "fortnightly" : primary.meanGap <= 9 ? "weekly" : primary.meanGap <= 20 ? "fortnightly" : "monthly";
+
+  const half = Math.floor(primary.txns.length / 2) || 1;
+  const firstHalfAvg = avgOf(primary.txns.slice(0, half));
+  const secondHalfAvg = avgOf(primary.txns.slice(primary.txns.length - half));
+  const trendDelta = firstHalfAvg ? (secondHalfAvg - firstHalfAvg) / firstHalfAvg : 0;
+  const trend = trendDelta > 0.05 ? "rising" : trendDelta < -0.05 ? "declining" : "flat";
+
+  return {
+    source, payerConsistency, deposit, trend,
+    incomeAmount: Math.round(primary.avg), incomeFrequency: freq,
+    avgGovernmentPaymentAmount: Math.round(govAvg), avgGigIncomeAmount: Math.round(gigAvg),
+    primaryPayer: primary.payer, detail: { recurring, wageCredits, govCredits, gigCredits },
+  };
+}
+
+// ---- 2. Account conduct: overdraft days, dishonours, near-zero frequency, payday buffer ----
+function buildDailyBalanceSeries(transactions) {
+  const byDate = {};
+  transactions.forEach((t) => { byDate[t.date] = t.balance; });
+  const dates = Object.keys(byDate).sort();
+  const series = [];
+  let last = null;
+  for (let d = new Date(dates[0]); d <= new Date(dates[dates.length - 1]); d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    if (byDate[key] !== undefined) last = byDate[key];
+    if (last !== null) series.push({ date: key, balance: last });
+  }
+  return series;
+}
+function bucketOverdraft(n) { return n <= 0 ? "0" : n <= 3 ? "1-3" : n <= 7 ? "4-7" : "8+"; }
+function bucketNearZero(pct) { return pct < 25 ? "<25%" : pct <= 50 ? "25-50%" : ">50%"; }
+function bucketDishonours(n) { return n <= 0 ? "0" : n === 1 ? "1" : n === 2 ? "2" : "3+"; }
+
+function deriveAccountConduct(transactions, incomeProfile) {
+  const series = buildDailyBalanceSeries(transactions);
+  const overdraftDays = series.filter((d) => d.balance < 0).length;
+  const nearZeroDays = series.filter((d) => d.balance >= 0 && d.balance < 50).length;
+  const nearZeroPct = series.length ? (nearZeroDays / series.length) * 100 : 0;
+  const dishonours = transactions.filter((t) =>
+    categorizeTransaction(t.description, t.amount).category === "bank_fees" && /DISHONOUR/i.test(t.description)
+  ).length;
+
+  let buffer = "0";
+  const primaryTxns = incomeProfile.primaryPayer
+    ? transactions.filter((t) => t.description.trim().toUpperCase() === incomeProfile.primaryPayer && t.amount > 0)
+    : [];
+  if (primaryTxns.length >= 2) {
+    const paydates = primaryTxns.map((t) => t.date).sort();
+    const recent = paydates.slice(-4);
+    let bufferCount = 0;
+    for (let i = 1; i < recent.length; i++) {
+      const dayBefore = new Date(recent[i]); dayBefore.setDate(dayBefore.getDate() - 1);
+      const key = dayBefore.toISOString().slice(0, 10);
+      const point = series.find((d) => d.date === key);
+      if (point && point.balance >= 50) bufferCount++;
+    }
+    buffer = String(Math.min(3, bufferCount));
+  }
+
+  return {
+    overdraft: bucketOverdraft(overdraftDays), nearZero: bucketNearZero(nearZeroPct),
+    dishonours: bucketDishonours(dishonours), buffer,
+    detail: { overdraftDays, nearZeroDays, nearZeroPct },
+  };
+}
+
+// ---- 3. Existing credit use: other BNPL/loan repayments, prior advances, recency ----
+function deriveExistingCreditUse(transactions) {
+  const todayDate = transactions[transactions.length - 1].date;
+  const debits = transactions.filter((t) => t.amount < 0);
+
+  const bnplGroups = {};
+  debits.forEach((t) => {
+    if (categorizeTransaction(t.description, t.amount).category === "bnpl_other_credit") {
+      const key = t.description.trim().toUpperCase();
+      (bnplGroups[key] = bnplGroups[key] || []).push(t);
+    }
+  });
+  const activeBnplPayees = Object.values(bnplGroups).filter((txns) => txns.length >= 2).length;
+  const otherRepayments = activeBnplPayees === 0 ? "none" : activeBnplPayees === 1 ? "one" : "two+";
+
+  const advanceRepayments = debits
+    .filter((t) => categorizeTransaction(t.description, t.amount).category === "sameday_advance_repayment")
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const priorAdvances = advanceRepayments.length === 0 ? "0" : advanceRepayments.length === 1 ? "1" : advanceRepayments.length === 2 ? "2" : "3+";
+
+  let gapSince = "30+";
+  if (advanceRepayments.length) {
+    const gap = daysBetween(advanceRepayments[advanceRepayments.length - 1].date, todayDate);
+    gapSince = gap >= 30 ? "30+" : gap >= 8 ? "8-29" : "<7";
+  }
+  return { otherRepayments, priorAdvances, gapSince, detail: { activeBnplPayees, advanceRepaymentsCount: advanceRepayments.length } };
+}
+
+// ---- 4. Surplus buffer: net cash flow per pay cycle, and whether it dips negative ----
+function deriveSurplus(transactions, incomeProfile) {
+  const primaryTxns = incomeProfile.primaryPayer
+    ? transactions.filter((t) => t.description.trim().toUpperCase() === incomeProfile.primaryPayer && t.amount > 0)
+    : [];
+  const paydates = primaryTxns.map((t) => t.date).sort();
+  if (paydates.length < 2) return { surplusSize: "below", surplusConsistency: "negative", detail: { cycles: [] } };
+
+  const cycles = [];
+  for (let i = 1; i < paydates.length; i++) {
+    const cycleTxns = transactions.filter((t) => t.date >= paydates[i - 1] && t.date < paydates[i]);
+    cycles.push(cycleTxns.reduce((s, t) => s + t.amount, 0));
+  }
+  const lastPay = paydates[paydates.length - 1];
+  const todayDate = transactions[transactions.length - 1].date;
+  const openTxns = transactions.filter((t) => t.date >= lastPay && t.date <= todayDate);
+  cycles.push(openTxns.reduce((s, t) => s + t.amount, 0));
+
+  const threshold = 100;
+  const avgNet = cycles.reduce((a, b) => a + b, 0) / cycles.length;
+  const anyNegative = cycles.some((c) => c < 0);
+  const spread = Math.max(...cycles) - Math.min(...cycles);
+  const surplusSize = avgNet >= threshold * 2 ? "2x+" : avgNet >= threshold ? "1-2x" : avgNet >= 0 ? "atThreshold" : "below";
+  const surplusConsistency = anyNegative ? "negative" : spread > threshold ? "variable" : "stable";
+  return { surplusSize, surplusConsistency, detail: { cycles, avgNet } };
+}
+
+// ---- Combine everything into the same shape state.applicant already uses ----
+function deriveApplicantFromStatement(transactions) {
+  const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+  const income = deriveIncomeProfile(sorted);
+  const conduct = deriveAccountConduct(sorted, income);
+  const credit = deriveExistingCreditUse(sorted);
+  const surplus = deriveSurplus(sorted, income);
+
+  const todayDate = sorted[sorted.length - 1].date;
+  let daysUntilNextPayday = 14;
+  const primary = income.detail.recurring.find((g) => g.payer === income.primaryPayer);
+  if (primary && primary.meanGap) {
+    const lastPay = new Date(primary.txns[primary.txns.length - 1].date);
+    const projected = new Date(lastPay);
+    projected.setDate(projected.getDate() + Math.round(primary.meanGap));
+    daysUntilNextPayday = Math.max(1, daysBetween(todayDate, projected.toISOString().slice(0, 10)));
+  }
+
+  return {
+    buffer: conduct.buffer, dishonours: conduct.dishonours, overdraft: conduct.overdraft, nearZero: conduct.nearZero,
+    deposit: income.deposit, source: income.source, trend: income.trend, payerConsistency: income.payerConsistency,
+    priorAdvances: credit.priorAdvances, otherRepayments: credit.otherRepayments, gapSince: credit.gapSince,
+    surplusSize: surplus.surplusSize, surplusConsistency: surplus.surplusConsistency,
+    incomeAmount: income.incomeAmount, incomeFrequency: income.incomeFrequency, daysUntilNextPayday,
+    avgGovernmentPaymentAmount: income.avgGovernmentPaymentAmount, avgGigIncomeAmount: income.avgGigIncomeAmount,
+  };
+}
+
+// ---- Fake bank statement data (proof of the pipeline — one applicant first) ----
+const SAMUEL_REID_TRANSACTIONS = [{"date":"2026-05-24","description":"COASTAL LABOUR HIRE PTY LTD","amount":1055,"balance":1120.0},{"date":"2026-05-26","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":600.0},{"date":"2026-05-27","description":"AGL ENERGY","amount":-112.4,"balance":487.6},{"date":"2026-05-28","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":442.6},{"date":"2026-05-28","description":"WOOLWORTHS","amount":-106.15,"balance":336.45},{"date":"2026-05-29","description":"BRIGHT WORKFORCE SOLUTIONS","amount":325,"balance":661.45},{"date":"2026-05-29","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":619.45},{"date":"2026-05-29","description":"COLES SUPERMARKET","amount":-90,"balance":529.45},{"date":"2026-05-30","description":"MCDONALD'S","amount":-26,"balance":503.45},{"date":"2026-05-30","description":"UBER EATS","amount":-32,"balance":471.45},{"date":"2026-05-31","description":"BWS","amount":-45,"balance":426.45},{"date":"2026-05-31","description":"DOMINOS PIZZA","amount":-34,"balance":392.45},{"date":"2026-06-01","description":"GUZMAN Y GOMEZ","amount":-30,"balance":362.45},{"date":"2026-06-01","description":"ATM WITHDRAWAL CBA","amount":-100,"balance":262.45},{"date":"2026-06-02","description":"WOOLWORTHS","amount":-95,"balance":167.45},{"date":"2026-06-02","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":125.45},{"date":"2026-06-03","description":"COLES SUPERMARKET","amount":-107.45,"balance":18.0},{"date":"2026-06-06","description":"MCDONALD'S","amount":-26,"balance":-8.0},{"date":"2026-06-06","description":"UBER EATS","amount":-10.0,"balance":-18.0},{"date":"2026-06-07","description":"COASTAL LABOUR HIRE PTY LTD","amount":1090,"balance":1072.0},{"date":"2026-06-09","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":552.0},{"date":"2026-06-10","description":"TELSTRA MOBILE","amount":-54.0,"balance":498.0},{"date":"2026-06-11","description":"BWS","amount":-45,"balance":453.0},{"date":"2026-06-11","description":"DOMINOS PIZZA","amount":-22.57,"balance":430.43},{"date":"2026-06-12","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":385.43},{"date":"2026-06-12","description":"GUZMAN Y GOMEZ","amount":-22.57,"balance":362.86},{"date":"2026-06-13","description":"ATM WITHDRAWAL CBA","amount":-67.57,"balance":295.29},{"date":"2026-06-14","description":"WOOLWORTHS","amount":-67.58,"balance":227.71},{"date":"2026-06-15","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":185.71},{"date":"2026-06-15","description":"COLES SUPERMARKET","amount":-25.57,"balance":160.14},{"date":"2026-06-16","description":"MCDONALD'S","amount":-26,"balance":134.14},{"date":"2026-06-16","description":"UBER EATS","amount":-41.57,"balance":92.57},{"date":"2026-06-17","description":"BWS","amount":-45,"balance":47.57},{"date":"2026-06-17","description":"DOMINOS PIZZA","amount":-22.57,"balance":25.0},{"date":"2026-06-23","description":"GUZMAN Y GOMEZ","amount":-30,"balance":-5.0},{"date":"2026-06-23","description":"ATM WITHDRAWAL CBA","amount":-18.0,"balance":-23.0},{"date":"2026-06-24","description":"COASTAL LABOUR HIRE PTY LTD","amount":1020,"balance":997.0},{"date":"2026-06-26","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":477.0},{"date":"2026-06-27","description":"NETFLIX.COM","amount":-16.99,"balance":460.01},{"date":"2026-06-28","description":"BRIGHT WORKFORCE SOLUTIONS","amount":350,"balance":810.01},{"date":"2026-06-28","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":765.01},{"date":"2026-06-28","description":"WOOLWORTHS","amount":-95,"balance":670.01},{"date":"2026-06-28","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":628.01},{"date":"2026-06-29","description":"COLES SUPERMARKET","amount":-90,"balance":538.01},{"date":"2026-06-29","description":"MCDONALD'S","amount":-26,"balance":512.01},{"date":"2026-06-30","description":"UBER EATS","amount":-32,"balance":480.01},{"date":"2026-06-30","description":"BWS","amount":-45,"balance":435.01},{"date":"2026-07-01","description":"DOMINOS PIZZA","amount":-34,"balance":401.01},{"date":"2026-07-01","description":"GUZMAN Y GOMEZ","amount":-30,"balance":371.01},{"date":"2026-07-02","description":"ATM WITHDRAWAL CBA","amount":-100,"balance":271.01},{"date":"2026-07-02","description":"WOOLWORTHS","amount":-95,"balance":176.01},{"date":"2026-07-03","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":134.01},{"date":"2026-07-03","description":"COLES SUPERMARKET","amount":-102.01,"balance":32.0},{"date":"2026-07-08","description":"COASTAL LABOUR HIRE PTY LTD","amount":1075,"balance":1107.0},{"date":"2026-07-10","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":587.0},{"date":"2026-07-11","description":"AGL ENERGY","amount":-112.4,"balance":474.6},{"date":"2026-07-12","description":"MCDONALD'S","amount":-26,"balance":448.6},{"date":"2026-07-12","description":"UBER EATS","amount":-39.23,"balance":409.37},{"date":"2026-07-13","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":364.37},{"date":"2026-07-13","description":"BWS","amount":-20.23,"balance":344.14},{"date":"2026-07-14","description":"DOMINOS PIZZA","amount":-34,"balance":310.14},{"date":"2026-07-14","description":"GUZMAN Y GOMEZ","amount":-31.23,"balance":278.91},{"date":"2026-07-15","description":"ATM WITHDRAWAL CBA","amount":-65.22,"balance":213.69},{"date":"2026-07-16","description":"WOOLWORTHS","amount":-65.23,"balance":148.46},{"date":"2026-07-17","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":106.46},{"date":"2026-07-17","description":"COLES SUPERMARKET","amount":-23.23,"balance":83.23},{"date":"2026-07-18","description":"MCDONALD'S","amount":-26,"balance":57.23},{"date":"2026-07-18","description":"UBER EATS","amount":-39.23,"balance":18.0},{"date":"2026-07-24","description":"BWS","amount":-36.0,"balance":-18.0},{"date":"2026-07-25","description":"COASTAL LABOUR HIRE PTY LTD","amount":1040,"balance":1022.0},{"date":"2026-07-27","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":502.0},{"date":"2026-07-28","description":"TELSTRA MOBILE","amount":-54.0,"balance":448.0},{"date":"2026-07-29","description":"BRIGHT WORKFORCE SOLUTIONS","amount":300,"balance":748.0},{"date":"2026-07-29","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":703.0},{"date":"2026-07-29","description":"DOMINOS PIZZA","amount":-34,"balance":669.0},{"date":"2026-07-29","description":"GUZMAN Y GOMEZ","amount":-30,"balance":639.0},{"date":"2026-07-30","description":"ATM WITHDRAWAL CBA","amount":-100,"balance":539.0},{"date":"2026-07-30","description":"WOOLWORTHS","amount":-95,"balance":444.0},{"date":"2026-07-31","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":402.0},{"date":"2026-07-31","description":"COLES SUPERMARKET","amount":-90,"balance":312.0},{"date":"2026-08-01","description":"MCDONALD'S","amount":-26,"balance":286.0},{"date":"2026-08-01","description":"UBER EATS","amount":-32,"balance":254.0},{"date":"2026-08-02","description":"BWS","amount":-45,"balance":209.0},{"date":"2026-08-02","description":"DOMINOS PIZZA","amount":-34,"balance":175.0},{"date":"2026-08-03","description":"GUZMAN Y GOMEZ","amount":-30,"balance":145.0},{"date":"2026-08-03","description":"ATM WITHDRAWAL CBA","amount":-120.0,"balance":25.0},{"date":"2026-08-07","description":"WOOLWORTHS","amount":-48.0,"balance":-23.0},{"date":"2026-08-08","description":"COASTAL LABOUR HIRE PTY LTD","amount":1085,"balance":1062.0},{"date":"2026-08-10","description":"REALTY GROUP MANAGEMENT RENT","amount":-520.0,"balance":542.0},{"date":"2026-08-11","description":"NETFLIX.COM","amount":-16.99,"balance":525.01},{"date":"2026-08-12","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":483.01},{"date":"2026-08-12","description":"COLES SUPERMARKET","amount":-40.17,"balance":442.84},{"date":"2026-08-13","description":"AFTERPAY INSTALMENT","amount":-45.0,"balance":397.84},{"date":"2026-08-13","description":"MCDONALD'S","amount":-26,"balance":371.84},{"date":"2026-08-13","description":"UBER EATS","amount":-11.17,"balance":360.67},{"date":"2026-08-14","description":"BWS","amount":-45,"balance":315.67},{"date":"2026-08-14","description":"DOMINOS PIZZA","amount":-37.17,"balance":278.5},{"date":"2026-08-15","description":"GUZMAN Y GOMEZ","amount":-30,"balance":248.5},{"date":"2026-08-15","description":"ATM WITHDRAWAL CBA","amount":-52.16,"balance":196.34},{"date":"2026-08-16","description":"WOOLWORTHS","amount":-82.17,"balance":114.17},{"date":"2026-08-17","description":"OPAL AUTOMATIC TOP UP","amount":-42,"balance":72.17},{"date":"2026-08-17","description":"COLES SUPERMARKET","amount":-40.17,"balance":32.0}];
+const BANK_STATEMENT_APPLICANTS = [{ id: 1, name: "Samuel Reid", transactions: SAMUEL_REID_TRANSACTIONS }];
+
+function renderBankStatement() {
+  const applicant = BANK_STATEMENT_APPLICANTS[0];
+  const txns = applicant.transactions;
+  const derived = deriveApplicantFromStatement(txns);
+  state.derivedFromStatement = derived;
+
+  document.getElementById("bs-applicant-title").textContent =
+    applicant.name + " — " + txns[0].date + " to " + txns[txns.length - 1].date + " (" + txns.length + " transactions)";
+
+  const tbody = document.getElementById("bs-ledger-body");
+  tbody.innerHTML = txns.map((t) => {
+    const c = categorizeTransaction(t.description, t.amount);
+    const cls = CATEGORY_STYLE[c.category] || "txn-neutral";
+    return "<tr><td>" + t.date + "</td><td>" + t.description + "</td>" +
+      "<td><span class=\"category-badge " + cls + "\">" + c.label + "</span></td>" +
+      "<td class=\"num\" style=\"color:" + (t.amount >= 0 ? "#5FA777" : "#E8E4DA") + "\">" + (t.amount >= 0 ? "+" : "-") + fmtMoney(Math.abs(t.amount)) + "</td>" +
+      "<td class=\"num\">" + fmtMoney(t.balance) + "</td></tr>";
+  }).join("");
+
+  const totals = {};
+  txns.forEach((t) => {
+    if (t.amount >= 0) return;
+    const c = categorizeTransaction(t.description, t.amount);
+    totals[c.label] = (totals[c.label] || 0) + Math.abs(t.amount);
+  });
+  document.getElementById("bs-category-summary").innerHTML = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, total]) => "<div class=\"stat-card\"><div class=\"stat-label\">" + label + "</div><div class=\"stat-value\">" + fmtMoney(total) + "</div></div>")
+    .join("");
+
+  const manual = SIMULATED_PROFILES.find((p) => p.id === applicant.id);
+  const fields = [
+    ["incomeAmount", "Income amount"], ["incomeFrequency", "Income frequency"],
+    ["daysUntilNextPayday", "Days to next payday"], ["source", "Income source count"],
+    ["payerConsistency", "Same payer each cycle"], ["deposit", "Deposit regularity"],
+    ["trend", "Income trend (6mo)"], ["buffer", "Payday buffer (3 cycles)"],
+    ["dishonours", "Dishonours (90d)"], ["overdraft", "Overdraft days (90d)"],
+    ["nearZero", "Near-zero balance freq"], ["otherRepayments", "Other active repayments"],
+    ["priorAdvances", "Prior advances (90d)"], ["gapSince", "Gap since last advance"],
+    ["surplusSize", "Surplus size"], ["surplusConsistency", "Surplus consistency"],
+  ];
+  document.getElementById("bs-compare-body").innerHTML = fields.map(([key, label]) => {
+    const derivedVal = derived[key];
+    const manualVal = manual ? manual[key] : "—";
+    const diff = String(derivedVal) !== String(manualVal);
+    return "<tr" + (diff ? " style=\"color:#D8B94B;\"" : "") + "><td>" + label + "</td><td>" + manualVal + "</td><td>" + derivedVal + (diff ? " ⚠" : "") + "</td></tr>";
+  }).join("");
+}
+
+function loadDerivedIntoAssessment() {
+  if (!state.derivedFromStatement) renderBankStatement();
+  Object.assign(state.applicant, state.derivedFromStatement);
+  state.selectedProfileId = "";
+  document.getElementById("a-profileSelect").value = "";
+  document.getElementById("a-archetype-tag").style.display = "none";
+  syncApplicantInputsFromState();
+  switchTab("assessment");
+  renderAssessment();
+}
 
 // ===================== SHARED STATE =====================
 const state = {
@@ -1847,7 +2201,9 @@ function switchTab(tab) {
   document.getElementById("tab-assessment").classList.toggle("active", tab === "assessment");
   document.getElementById("tab-simulation").classList.toggle("active", tab === "simulation");
   document.getElementById("tab-summary").classList.toggle("active", tab === "summary");
+  document.getElementById("tab-bank").classList.toggle("active", tab === "bank");
   if (tab === "simulation") runAndRenderSimulation();
+  if (tab === "bank") renderBankStatement();
 }
 
 // ===================== INIT =====================
@@ -1857,6 +2213,7 @@ function init() {
   attachAssessmentListeners();
   renderAssessment();
   runAndRenderSimulation();
+  renderBankStatement();
 
   ["s-initialInvestment","s-startPerDay","s-peakPerDay","s-daysToPeak","s-minAdvance","s-maxAdvance","s-years","s-taxRatePct","s-taxPeriod"].forEach((id) => {
     document.getElementById(id).addEventListener("change", () => {});
