@@ -1,0 +1,90 @@
+# Same Day Advance — product & engineering notes
+
+Australian payday/wage-advance product, mobile-browser-first. This file exists so
+design decisions survive between chat sessions (sessions don't share memory —
+this doc is the persistent record).
+
+## Product shape
+
+- Applicant picks an advance amount and a payday date on a calendar, then goes
+  through an ID check (phone/email) and a bank-connection step (Talefin/Tailfin)
+  for account verification.
+- New applicants are capped at $100. Repeat customers unlock a 50% cap increase
+  per 3 on-time repayments, up to $500 (console currently models advances up to
+  $800 — reconcile with the $500 cap when tuning `s-maxAdvance`).
+- Positioned as a wage advance, not a loan. `console/sameday-advance-console.html`
+  hard-gates every assessment against National Credit Code s6(1) exemption caps
+  (term ≤ 62 days, fee ≤ 5%, interest ≤ 24% p.a.) — push past either and the
+  compliance banner turns red. This is a product-design constraint, not legal
+  advice; get the "not a loan" classification confirmed by a lawyer before launch.
+
+## Files
+
+- `console/applicant-flow.html` — applicant-facing mobile UI mockup (amount
+  slider, fee/interest receipt, payday calendar, employment questions, Talefin
+  handoff stub, decline screen).
+- `console/sameday-advance-console.html` — internal Assessment & Simulation
+  Console (single HTML file, no build step):
+  - **Assessment tab**: weighted risk-scoring engine across four categories
+    (income stability, account conduct, existing credit use, surplus buffer),
+    a payroll-eligibility gate (same employer + consistent deposits, to filter
+    out sole-trader/invoice income), and the s6(1) compliance gate.
+  - **Simulation tab**: multi-year applicant ramp-up, capital/funds-outstanding
+    modelling, company tax, Tailfin/advertising/overhead costs, VIP repeat
+    customers, and blocking of doomed reapplications.
+  - **Session Summary tab**: running log of what's been built and why.
+  - **Bank Statement tab** (added — see below): raw transaction ledger +
+    categorization engine for one applicant, feeding the Assessment tab.
+  - 100 simulated applicant profiles (`SIMULATED_PROFILES`), each with
+    hand-set categorical fields (buffer, dishonours, overdraft, deposit
+    regularity, etc.) used to drive the scorer directly.
+
+## Transaction categorization framework
+
+The console's scorer currently consumes *pre-bucketed* categorical fields
+(e.g. `dishonours: "0"`, `deposit: "irregular"`) — someone (or something) has
+to derive those buckets from an actual bank statement. That derivation is
+the categorization layer, and the design is:
+
+### 1. Income detection (before anything else)
+- Group credits by normalized payer name (strip reference numbers/dates).
+- A payer qualifies as recurring income if it appears ≥2 times with amounts
+  within ~15% of each other and a consistent gap (weekly/fortnightly/monthly).
+- Exclude self-transfers and one-off refunds.
+- Flag Centrelink/government credits and gig-platform payouts (Uber, DoorDash,
+  Airtasker, etc.) as separate income types, not "salary."
+- Derives: `source` (single/multiple/casual), `payerConsistency`
+  (same/mostly/different), `deposit` (consistent/mostly/irregular — from gap
+  variability), `trend` (rising/flat/declining — first half vs second half of
+  window), `incomeAmount`/`incomeFrequency`.
+
+### 2. Outgoing categorization
+Keyword/merchant-pattern matching into a small, decision-relevant taxonomy:
+rent/housing, bills & utilities, insurance, groceries, eating out, alcohol,
+transport, subscriptions, retail/shopping, cash withdrawals, gambling,
+BNPL/other-loan repayments, bank fees (dishonours/overdraft), and — critically
+— repayments to us or other payday-style lenders (existing-credit-use signal).
+
+### 3. Turn categories into decision variables
+- Account conduct: overdraft days, dishonour count, near-zero-balance
+  frequency, post-payday buffer (money left 3 days after each payday).
+- Existing credit use: other active BNPL/loan repayments, count and recency
+  of prior advances (ours specifically, for the escalating-cap rule).
+- Surplus buffer: net cash flow per pay cycle, and whether it's consistently
+  positive or dips negative.
+
+### 4. Rules first, ML later
+Auto-decline on: no verifiable recurring income, active gambling pattern,
+2+ other payday-style products in the last 90 days, recent dishonours above
+threshold. Auto-approve on: clean income match + healthy scores + (for repeat
+customers) on-time history supporting the requested tier. Everything else →
+manual review. Keep it rules-based and auditable before reaching for a model —
+declines need to be explainable.
+
+## Status
+
+- Applicant flow UI and Assessment/Simulation console: built (imported this
+  session, not authored fresh).
+- Bank-statement categorization: being built for one applicant (Samuel Reid,
+  `SIMULATED_PROFILES[0]`) as a proof of the pipeline, before generating fake
+  statements for all 100.
