@@ -1118,6 +1118,18 @@ function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 864
 function avgOf(txns) { return txns.length ? txns.reduce((s, t) => s + t.amount, 0) / txns.length : 0; }
 
 // ---- 1. Income detection: group credits by normalized payer, find recurring ones ----
+// Pulls out a company/payroll reference code (e.g. "SM2012") from a payer
+// description — the same employer sometimes posts under different text for
+// different payment types (salary vs. an expense reimbursement) while
+// reusing the same reference. Heuristic, not certain: a coincidental match
+// between two genuinely different payers would wrongly merge them, but the
+// alternative (never merging) is the worse, more common failure — it's what
+// caused a real real single-employer applicant to read as "multiple
+// sources" until this was checked against an actual statement.
+function extractRefTokens(desc) {
+  return desc.toUpperCase().match(/\b[A-Z]{1,6}\d{2,6}\b/g) || [];
+}
+
 function deriveIncomeProfile(transactions) {
   const credits = transactions.filter((t) => t.amount > 0)
     .map((t) => ({ ...t, cat: categorizeTransaction(t.description, t.amount, t.categoryHint).category }));
@@ -1125,19 +1137,48 @@ function deriveIncomeProfile(transactions) {
   const govCredits = credits.filter((t) => t.cat === "income_government");
   const gigCredits = credits.filter((t) => t.cat === "income_gig");
 
-  const groups = {};
+  // Pass 1: group by exact normalized description.
+  const rawGroups = {};
   wageCredits.forEach((t) => {
     const key = t.description.trim().toUpperCase();
-    (groups[key] = groups[key] || []).push(t);
+    (rawGroups[key] = rawGroups[key] || []).push(t);
   });
 
-  const recurring = Object.entries(groups).map(([payer, txns]) => {
-    txns.sort((a, b) => a.date.localeCompare(b.date));
+  // Pass 2: merge raw groups that share a reference token, via union-find.
+  const keys = Object.keys(rawGroups);
+  const tokensByKey = {};
+  keys.forEach((k) => { tokensByKey[k] = extractRefTokens(k); });
+  const parent = {};
+  keys.forEach((k) => { parent[k] = k; });
+  function find(k) { while (parent[k] !== k) k = parent[k] = parent[parent[k]]; return k; }
+  function union(a, b) { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      if (tokensByKey[keys[i]].some((tok) => tokensByKey[keys[j]].includes(tok))) union(keys[i], keys[j]);
+    }
+  }
+  const merged = {};
+  keys.forEach((k) => { const root = find(k); (merged[root] = merged[root] || []).push(...rawGroups[k]); });
+
+  const recurring = Object.values(merged).map((allTxns) => {
+    allTxns.sort((a, b) => a.date.localeCompare(b.date));
+    // Within a merged payer, split into a "primary" (regular, recurring-
+    // amount) cluster and any "incidental" credits from the same employer
+    // that aren't part of the pay cycle (an expense reimbursement, a one-off
+    // bonus) — using only the primary cluster for the amount/frequency read
+    // stops an irregular top-up from distorting the income figure. Falls
+    // back to using everything if no clear cluster emerges.
+    const amounts = allTxns.map((t) => t.amount).sort((a, b) => a - b);
+    const median = amounts[Math.floor(amounts.length / 2)];
+    let txns = allTxns.filter((t) => t.amount >= median * 0.4 && t.amount <= median * 2.5);
+    if (txns.length < 2) txns = allTxns;
+
     const gaps = [];
     for (let i = 1; i < txns.length; i++) gaps.push(daysBetween(txns[i - 1].date, txns[i].date));
     const total = txns.reduce((s, t) => s + t.amount, 0);
     const meanGap = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
     const gapStdev = gaps.length > 1 ? Math.sqrt(gaps.reduce((s, g) => s + (g - meanGap) ** 2, 0) / gaps.length) : 0;
+    const payer = txns[0].description.trim().toUpperCase();
     return { payer, txns, count: txns.length, total, avg: total / txns.length, meanGap, gapStdev };
   }).filter((g) => g.count >= 2).sort((a, b) => b.total - a.total);
 

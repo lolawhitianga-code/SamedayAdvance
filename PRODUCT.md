@@ -250,24 +250,51 @@ declines need to be explainable.
     the only real statement tested so far was a New Zealand account — the
     product's actual applicants are Australian, so this is incidental
     breadth, not a deliberate NZ expansion.
-  - Two things intentionally left unresolved rather than guessed: "Spida
-    Machin SM2012 Ltd" looks like it might be the same employer as "SM2012
-    Limited Salary" under a different payment reference (same "SM2012"
-    number) — if so the income-detection logic is currently double-counting
-    it as two payers instead of one; and "BP M D CHATTERTON BILL PAYMENT"
-    (a bill payment where the payee is literally the account holder's own
-    name) is left uncategorized since it's unclear whether it's a transfer
-    to another of their own accounts or something else. Also unresolved: a
-    long tail of small, ambiguously-named local merchants (cafes, takeaway
-    spots) that don't match any keyword and fall through to "other" — true
-    of any keyword-based categorizer against small independent businesses,
-    not something to chase merchant-by-merchant.
+  - One thing intentionally left unresolved rather than guessed: "BP M D
+    CHATTERTON BILL PAYMENT" (a bill payment where the payee is literally
+    the account holder's own name) is left uncategorized since it's unclear
+    whether it's a transfer to another of their own accounts or something
+    else. Also unresolved: a long tail of small, ambiguously-named local
+    merchants (cafes, takeaway spots) that don't match any keyword and fall
+    through to "other" — true of any keyword-based categorizer against
+    small independent businesses, not something to chase merchant-by-
+    merchant.
+
+  **6. Income detection now merges an employer that posts under more than
+  one description.** The user confirmed "Spida Machin SM2012 Ltd" and
+  "SM2012 Limited Salary" are the same employer — the smaller, irregular
+  "Spida Machin" credits are expense reimbursements, not a second wage. Two
+  fixes, both general (not hardcoded to this one payer name):
+  - **Same-payer merging**: wage credits are still grouped by exact
+    description first, then groups sharing a reference token (a
+    company/payroll code like "SM2012", extracted via
+    `/\b[A-Z]{1,6}\d{2,6}\b/`) get merged via union-find. Before this fix,
+    the applicant would have read as `source: multiple` (two employers)
+    instead of `single` (one employer, one of its payment types just uses
+    different description text). Coincidental token matches between two
+    genuinely different payers are a real (if rare) false-merge risk — the
+    alternative of never merging was the worse, more common failure, since
+    it's exactly what broke this real applicant's read.
+  - **Reimbursement exclusion**: within a merged payer's credits, a
+    "primary" cluster (amounts within 0.4x–2.5x of the group's median) is
+    used for the actual income amount/frequency/trend figures; smaller or
+    larger one-off credits from the same payer are recognized as belonging
+    to that employer (for `source`/`payerConsistency`) but excluded from
+    the salary calculation itself, so they no longer dilute or distort it.
+  - Verified: a synthetic version of this applicant's pattern (salary
+    credits + interleaved reimbursement credits, same reference token) now
+    reads `source: single`, `payerConsistency: same`, and an income figure
+    matching the salary cluster only. Re-ran the full 100-applicant
+    validation afterward — 58.4% overall match, unchanged from before this
+    fix, confirming it's additive (none of the generated statements happen
+    to have this multi-description-per-employer pattern, so nothing
+    regressed).
 - Next: use the population-scale comparison to decide whether any hand-set
   profile buckets should be corrected to match what real transactions would
   actually show (the same fix already applied once, for the payroll-
   eligibility rate — see Session Summary §5); decide the fate of the
   overdraft dial now that it's structurally always "0"; get a couple of
   real (anonymized/redacted) Australian bank statement PDFs to test the
-  upload parser against actual local bank formats; and resolve the "Spida
-  Machin" / "BP ... BILL PAYMENT" open items above with the user if a
-  similar statement comes up again.
+  upload parser against actual local bank formats; and resolve the "BP ...
+  BILL PAYMENT" open item above with the user if a similar statement comes
+  up again.
