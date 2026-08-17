@@ -1038,13 +1038,30 @@ const GOV_INCOME_RE = /CENTRELINK|SERVICES AUSTRALIA|CHILD SUPPORT/i;
 const GIG_INCOME_RE = /UBER \*TRIP|DOORDASH|AIRTASKER|MENULOG DASHER|DIDI|AMAZON FLEX/i;
 
 const SPEND_CATEGORY_RULES = [
-  { category: "rent_housing", label: "Rent / Housing", re: /REALTY|RENT|PROPERTY MGMT|LEASING/i },
-  { category: "bills_utilities", label: "Bills & Utilities", re: /AGL|ORIGIN ENERGY|ENERGYAUST|TELSTRA|OPTUS|VODAFONE|WATER CORP|SYDNEY WATER|COUNCIL RATES/i },
-  { category: "insurance", label: "Insurance", re: /AAMI|NRMA|BUPA|MEDIBANK|ING INSURANCE|ALLIANZ|YOUI/i },
-  { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE/i },
-  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b/i },
-  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|KITCHEN|\bSUSHI\b/i },
-  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b/i },
+  // Mortgage repayments (to the applicant's own home-loan sub-accounts) are
+  // treated as a housing cost alongside rent, not as "existing credit use" —
+  // it's the roof over their head, not debt-stacking.
+  { category: "rent_housing", label: "Rent / Housing", re: /REALTY|\bRENT\b|PROPERTY MGMT|LEASING|LOAN PAYMENT/i },
+  // Council/regional rates are a recurring household bill, same bucket as
+  // energy/water/phone.
+  { category: "bills_utilities", label: "Bills & Utilities", re: /AGL|ORIGIN ENERGY|ENERGYAUST|TELSTRA|OPTUS|VODAFONE|WATER CORP|SYDNEY WATER|COUNCIL RATES|REGIONAL.*RATE|\bTCDC\b|DISTRICT COUNCIL|MERCURY (NZ|ENERGY)/i },
+  { category: "insurance", label: "Insurance", re: /AAMI|NRMA|BUPA|MEDIBANK|ING INSURANCE|ALLIANZ|YOUI|AA INSURANCE/i },
+  // \bGOOGLE\b (not "GOOGLE CLOUD") because card-transaction merchant names
+  // are often truncated to a fixed length on statements — "Google Claud"
+  // for "Google Cloud" is a real example, not a typo.
+  { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE|\bGOOGLE\b/i },
+  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE/i },
+  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b/i },
+  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b/i },
+  // Vape/tobacco is its own flagged category (like alcohol/gambling) rather
+  // than generic retail — a discretionary, habit-forming spend worth
+  // surfacing on its own.
+  { category: "vape_tobacco", label: "Vape / Tobacco", re: /\bVAPE\b|TOBACCONIST|CIGARETTE/i },
+  { category: "pharmacy_health", label: "Pharmacy / Health", re: /CHEMIST WAREHOUSE|UNICHEM|PHARMACY|\bVET(S)?\b/i },
+  // "Hotel"/"Motel" read as accommodation here per the applicant's own
+  // context — worth revisiting per-statement since in AU/NZ "hotel" often
+  // just means a pub, not a place someone stayed.
+  { category: "travel_accommodation", label: "Travel / Accommodation", re: /AIRBNB|AGODA|SUPER\.COM|\bHOTEL\b|\bMOTEL\b|CORDIS/i },
   // Checked after the food/alcohol rules on purpose: a casino's bars and food
   // outlets (e.g. "SkyCity Flare Bar", "SkyCity Food Republic") should count
   // as what they actually sold, not get swept into gambling wholesale — only
@@ -1052,22 +1069,28 @@ const SPEND_CATEGORY_RULES = [
   // here, once the more specific keyword above hasn't already claimed them.
   { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM|SKY\s?CITY|CASHIER MAIN|\bCAGE\b|CROWN CASINO|JUPITERS|TREASURY CASINO|WREST POINT/i },
   { category: "cash_withdrawal", label: "Cash Withdrawal", re: /ATM WITHDRAWAL|CASH OUT|CASH ADVANCE/i },
-  { category: "transport", label: "Transport", re: /OPAL|MYKI|GO ?CARD|\bBP\b|\bSHELL\b|CALTEX|7-ELEVEN FUEL|UBER(?! ?EATS)/i },
+  { category: "transport", label: "Transport", re: /OPAL|MYKI|GO ?CARD|\bBP\b|\bSHELL\b|CALTEX|7-ELEVEN FUEL|UBER(?! ?EATS)|PARKMATE/i },
   { category: "bnpl_other_credit", label: "BNPL / Other Credit", re: /AFTERPAY|ZIP ?CO|ZIPPAY|\bHUMM\b|LATITUDE|PERSONAL LOAN|CASHIT|NIMBLE|MONEYME|SUNNY LOANS|FERRATUM/i },
   { category: "sameday_advance_repayment", label: "SameDay Advance Repayment", re: /SAME ?DAY ADVANCE/i },
-  { category: "bank_fees", label: "Bank Fees / Dishonour", re: /DISHONOUR|OVERDRAWN FEE|HONOUR FEE|ACCOUNT (KEEPING )?FEE|EXCESS FUNDS/i },
-  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)/i },
+  // Loan interest groups with account fees — both are the cost of holding/
+  // using the account rather than spending.
+  { category: "bank_fees", label: "Bank Fees / Dishonour", re: /DISHONOUR|OVERDRAWN FEE|HONOUR FEE|ACCOUNT (KEEPING )?FEE|EXCESS FUNDS|\bDR INTEREST\b|LOAN INTEREST/i },
+  // Op-shop/charity-store purchases (St John, social services, surf life
+  // saving clubs, etc. often run these) land here as ordinary retail spend,
+  // not donations.
+  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)|THE WAREHOUSE|NOEL LEEMING|TRADE DEPOT|HAMMER HARDWARE|INTERIORS|BARGAINS|TOMMY HILFIGER|JOHNNY BIGG|PENTLAND|ST JOHN OPS|SOCIAL SER|SURF LIFE SAV/i },
 ];
 
 const CATEGORY_STYLE = {
   income_credit: "txn-income", income_government: "txn-income", income_gig: "txn-income",
-  gambling: "txn-risk", bank_fees: "txn-risk",
+  gambling: "txn-risk", bank_fees: "txn-risk", vape_tobacco: "txn-risk",
   bnpl_other_credit: "txn-caution", sameday_advance_repayment: "txn-caution", cash_withdrawal: "txn-caution",
 };
 
 const CATEGORY_LABELS = {
   rent_housing: "Rent / Housing", bills_utilities: "Bills & Utilities", insurance: "Insurance",
   subscriptions: "Subscriptions", groceries: "Groceries", eating_out: "Eating Out", alcohol: "Alcohol",
+  vape_tobacco: "Vape / Tobacco", pharmacy_health: "Pharmacy / Health", travel_accommodation: "Travel / Accommodation",
   gambling: "Gambling", cash_withdrawal: "Cash Withdrawal", transport: "Transport",
   bnpl_other_credit: "BNPL / Other Credit", sameday_advance_repayment: "SameDay Advance Repayment",
   bank_fees: "Bank Fees / Dishonour", retail_shopping: "Retail / Shopping",
@@ -1309,8 +1332,9 @@ function populateBankProfileSelect() {
 const CATEGORY_ORDER = [
   "income_credit", "income_government", "income_gig",
   "rent_housing", "bills_utilities", "insurance", "subscriptions",
-  "groceries", "eating_out", "alcohol", "transport", "cash_withdrawal",
-  "bnpl_other_credit", "sameday_advance_repayment", "gambling",
+  "groceries", "eating_out", "alcohol", "pharmacy_health", "travel_accommodation",
+  "transport", "cash_withdrawal",
+  "bnpl_other_credit", "sameday_advance_repayment", "vape_tobacco", "gambling",
   "bank_fees", "retail_shopping", "other",
 ];
 

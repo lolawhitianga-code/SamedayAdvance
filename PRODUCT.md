@@ -227,16 +227,47 @@ declines need to be explainable.
     an actual browser with internet access** to confirm the pdf.js
     extraction itself behaves as assumed — the row/column logic was
     validated, the live PDF→text step wasn't.
-  - Known gap: merchant keyword coverage is Australia-first (Woolworths/
-    Coles/Aldi for groceries, etc.) — the test statement was a New Zealand
-    account, so NZ-specific chains (New World, Pak'nSave) currently fall
-    through to "other". Not fixed, since the product's actual applicants
-    are Australian; worth widening only if NZ statements become a real
-    input.
+  **5. Merchant-level categorization walked through line by line against
+  the real ANZ statement**, resolved with the user rather than guessed:
+  - **Three new categories** added: Vape/Tobacco (flagged like alcohol/
+    gambling — a discretionary, habit-forming spend worth its own line, not
+    buried in generic retail), Pharmacy/Health, Travel/Accommodation.
+  - **Mortgage repayments** ("LOAN PAYMENT" to the applicant's own home-loan
+    sub-accounts) count as a housing cost, grouped with Rent — not as
+    existing-debt use, since it's the cost of keeping the roof over their
+    head, not debt-stacking.
+  - **Council/regional rates** group with Bills & Utilities. **Loan
+    interest** groups with bank/account fees (both are the cost of holding
+    the account, not spending).
+  - **"Hotel"/"Motel" reads as accommodation** here — flagged in the code
+    that in AU/NZ this word often just means a pub, so re-check per
+    statement rather than assume.
+  - Op-shop-style purchases at community/charity orgs (St John, social
+    services, surf life saving clubs) count as ordinary retail spending,
+    not donations — confirmed with the user rather than assumed either way.
+  - Merchant keyword coverage went NZ-aware in the process (New World, Four
+    Square, Pak'nSave for groceries; AA Insurance; Mercury Energy) since
+    the only real statement tested so far was a New Zealand account — the
+    product's actual applicants are Australian, so this is incidental
+    breadth, not a deliberate NZ expansion.
+  - Two things intentionally left unresolved rather than guessed: "Spida
+    Machin SM2012 Ltd" looks like it might be the same employer as "SM2012
+    Limited Salary" under a different payment reference (same "SM2012"
+    number) — if so the income-detection logic is currently double-counting
+    it as two payers instead of one; and "BP M D CHATTERTON BILL PAYMENT"
+    (a bill payment where the payee is literally the account holder's own
+    name) is left uncategorized since it's unclear whether it's a transfer
+    to another of their own accounts or something else. Also unresolved: a
+    long tail of small, ambiguously-named local merchants (cafes, takeaway
+    spots) that don't match any keyword and fall through to "other" — true
+    of any keyword-based categorizer against small independent businesses,
+    not something to chase merchant-by-merchant.
 - Next: use the population-scale comparison to decide whether any hand-set
   profile buckets should be corrected to match what real transactions would
   actually show (the same fix already applied once, for the payroll-
   eligibility rate — see Session Summary §5); decide the fate of the
-  overdraft dial now that it's structurally always "0"; and get a couple of
-  real (anonymized/redacted) bank statement PDFs to test the upload parser
-  against actual bank formats rather than synthetic sample lines.
+  overdraft dial now that it's structurally always "0"; get a couple of
+  real (anonymized/redacted) Australian bank statement PDFs to test the
+  upload parser against actual local bank formats; and resolve the "Spida
+  Machin" / "BP ... BILL PAYMENT" open items above with the user if a
+  similar statement comes up again.
