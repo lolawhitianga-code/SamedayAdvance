@@ -384,3 +384,40 @@ declines need to be explainable.
     and re-ran the full 100-applicant validation (58.4%, unchanged, as
     expected since the small-amount fallback doesn't touch any scored
     field).
+
+  **10. Simplified the everyday-spend taxonomy; redefined "Other".** The
+  user's read after two rounds of merchant-by-merchant precision tuning:
+  splitting groceries/eating out/alcohol/retail-shopping into four separate
+  buckets was more precision than the product needs — none of it is
+  scoring-relevant, and it was pulling attention away from the transactions
+  that actually matter for an approve/decline call. Instruction: "we dont
+  need to be exact about eating out alcohol grocery etc. its all just
+  retail purchaes. all we want in other are big questionable outgoings.
+  whether theyre regualr or one off."
+  - Merged all four `SPEND_CATEGORY_RULES` entries (groceries, eating out,
+    alcohol, retail/shopping) into one `retail_purchases` category —
+    "Retail Purchases". Their individual keyword regexes are untouched
+    (still separate rule entries for maintainability), only the output
+    `category`/`label` changed, so every merchant already resolved in step
+    8 (New World, Woolworths, McDonald's, BWS, Kmart, The Warehouse, the
+    Whitianga Hotel, etc.) still matches — just lands in one bucket instead
+    of four.
+  - Updated `CATEGORY_LABELS` and `CATEGORY_ORDER` to drop the four old
+    IDs and use `retail_purchases` once.
+  - Redefined the unrecognized-small-debit fallback (step 9) to match: it
+    now targets `retail_purchases` instead of `eating_out`, and the amount
+    ceiling was raised from $80 to $150 — because "Other" is no longer a
+    generic catch-all for anything unmatched, it's specifically meant to
+    flag the big/questionable outgoings worth a human's attention (one-off
+    *or* recurring), so routine spend needs a wider net before it's swept
+    into ordinary retail rather than left sitting in "Other" unexamined.
+  - Confirmed via grep that none of the scoring derivers
+    (`deriveIncomeProfile`, `deriveAccountConduct`, `deriveExistingCreditUse`,
+    `deriveSurplus`) reference any of the four old category IDs or
+    `retail_purchases` — this is purely a categorized-ledger display
+    simplification, zero effect on Assessment-tab inputs.
+  - Verified: `node --check` on the extracted script, full 100-applicant
+    validation (58.4%, unchanged as expected), and the Playwright
+    categorized-ledger smoke test (group count dropped from the prior run
+    as the four categories collapsed into one, balances still never go
+    negative, no bad ATM amounts, PDF upload UI still present).

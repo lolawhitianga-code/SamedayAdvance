@@ -1050,14 +1050,20 @@ const SPEND_CATEGORY_RULES = [
   // are often truncated to a fixed length on statements — "Google Claud"
   // for "Google Cloud" is a real example, not a typo.
   { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE|\bGOOGLE\b/i },
-  { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE|WYLLIE ROAD|VEGE HEAVEN|D ?& ?N MART/i },
-  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b|LITTLE HONEY|BUNS N ROLLS|YUMBUNMEE|BENCH NOODLE|CHILLI HOUSE|EPICUREAN|MEXICO HAMILTON|\bAN AN\b|GREEDY CAT|COFFIX|SAINT ALICE|INVERCARGILL AIRPORT|BUSTER CRABB|SLICE SLICE BABY|STALLIONS/i },
-  // "WHITIANGA HOTEL"/"SAPORI" checked here, ahead of the generic \bHOTEL\b
-  // catch-all in travel_accommodation below — this specific hotel is a pub,
-  // and "sapori" turned out to be a wine order despite being paid via a
-  // BILL PAYMENT rather than card, both confirmed by the user against the
-  // real statement rather than guessed from the name alone.
-  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b|WHITIANGA HOTEL|\bSAPORI\b/i },
+  // Groceries/eating-out/alcohol/general-retail are deliberately ONE
+  // category, not four — for approve/decline purposes the split between
+  // "obviously eating out" and "obviously alcohol" isn't decision-relevant,
+  // it's all routine consumption spend. Keeping the individual keyword
+  // lists (rather than collapsing them into one giant regex) just for
+  // readability/maintainability — they all resolve to the same bucket.
+  // "WHITIANGA HOTEL"/"SAPORI" are still checked ahead of the generic
+  // \bHOTEL\b catch-all in travel_accommodation below — this specific hotel
+  // is a pub, and "sapori" turned out to be a wine order despite being paid
+  // via a BILL PAYMENT rather than card, both confirmed by the user against
+  // the real statement rather than guessed from the name alone.
+  { category: "retail_purchases", label: "Retail Purchases", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE|WYLLIE ROAD|VEGE HEAVEN|D ?& ?N MART/i },
+  { category: "retail_purchases", label: "Retail Purchases", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b|LITTLE HONEY|BUNS N ROLLS|YUMBUNMEE|BENCH NOODLE|CHILLI HOUSE|EPICUREAN|MEXICO HAMILTON|\bAN AN\b|GREEDY CAT|COFFIX|SAINT ALICE|INVERCARGILL AIRPORT|BUSTER CRABB|SLICE SLICE BABY|STALLIONS/i },
+  { category: "retail_purchases", label: "Retail Purchases", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b|WHITIANGA HOTEL|\bSAPORI\b/i },
   // Vape/tobacco is its own flagged category (like alcohol/gambling) rather
   // than generic retail — a discretionary, habit-forming spend worth
   // surfacing on its own.
@@ -1085,7 +1091,7 @@ const SPEND_CATEGORY_RULES = [
   // not donations. "THE WAREHOUS(E)" — optional trailing E because card-
   // transaction merchant names truncate to a fixed length on statements
   // (same issue as "Google Claud" for "Google Cloud").
-  { category: "retail_shopping", label: "Retail / Shopping", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)|THE WAREHOUS(E)?\b|NOEL LEEMING|TRADE DEPOT|HAMMER HARDWARE|INTERIORS|BARGAINS|TOMMY HILFIGER|JOHNNY BIGG|PENTLAND|ST JOHN OPS|SOCIAL SER|SURF LIFE SAV|BARBER|GLASSHOUSE|HUDSONS/i },
+  { category: "retail_purchases", label: "Retail Purchases", re: /KMART|TARGET|BIG W|JB HI-FI|AMAZON(?! FLEX)|THE WAREHOUS(E)?\b|NOEL LEEMING|TRADE DEPOT|HAMMER HARDWARE|INTERIORS|BARGAINS|TOMMY HILFIGER|JOHNNY BIGG|PENTLAND|ST JOHN OPS|SOCIAL SER|SURF LIFE SAV|BARBER|GLASSHOUSE|HUDSONS/i },
 ];
 
 const CATEGORY_STYLE = {
@@ -1096,11 +1102,11 @@ const CATEGORY_STYLE = {
 
 const CATEGORY_LABELS = {
   rent_housing: "Rent / Housing", bills_utilities: "Bills & Utilities", insurance: "Insurance",
-  subscriptions: "Subscriptions", groceries: "Groceries", eating_out: "Eating Out", alcohol: "Alcohol",
+  subscriptions: "Subscriptions", retail_purchases: "Retail Purchases",
   vape_tobacco: "Vape / Tobacco", pharmacy_health: "Pharmacy / Health", travel_accommodation: "Travel / Accommodation",
   gambling: "Gambling", cash_withdrawal: "Cash Withdrawal", transport: "Transport",
   bnpl_other_credit: "BNPL / Other Credit", sameday_advance_repayment: "SameDay Advance Repayment",
-  bank_fees: "Bank Fees / Dishonour", retail_shopping: "Retail / Shopping",
+  bank_fees: "Bank Fees / Dishonour",
 };
 
 // categoryHint: an optional fallback category (from a bank statement's own
@@ -1118,14 +1124,12 @@ function categorizeTransaction(description, amount, categoryHint) {
   if (categoryHint && CATEGORY_LABELS[categoryHint]) {
     return { category: categoryHint, label: CATEGORY_LABELS[categoryHint] };
   }
-  // Last-resort fallback, not a merchant match: an unrecognized debit under
-  // $80 is overwhelmingly likely to be everyday food/incidental spend once
-  // bills, rent, loans and other big-ticket categories are already covered
-  // by the keyword rules above — confirmed against what was actually left
-  // in "other" on a real statement, not assumed up front. Won't be right
-  // every time (small transport/parking/vending charges exist too), but is
-  // right far more often than leaving small unrecognized spend uncategorized.
-  if (amount < 0 && amount > -80) return { category: "eating_out", label: "Eating Out" };
+  // Last-resort fallback, not a merchant match. We don't need precision on
+  // everyday spend — groceries, eating out, alcohol, general retail are all
+  // just "Retail Purchases" here. "Other" is reserved for the outgoings
+  // actually worth a human looking at: big amounts, whether they're one-off
+  // or recurring, that didn't match rent/bills/loans/gambling/etc above.
+  if (amount < 0 && amount > -150) return { category: "retail_purchases", label: "Retail Purchases" };
   return { category: "other", label: "Other" };
 }
 
@@ -1388,10 +1392,10 @@ function populateBankProfileSelect() {
 const CATEGORY_ORDER = [
   "income_credit", "income_government", "income_gig",
   "rent_housing", "bills_utilities", "insurance", "subscriptions",
-  "groceries", "eating_out", "alcohol", "pharmacy_health", "travel_accommodation",
+  "retail_purchases", "pharmacy_health", "travel_accommodation",
   "transport", "cash_withdrawal",
   "bnpl_other_credit", "sameday_advance_repayment", "vape_tobacco", "gambling",
-  "bank_fees", "retail_shopping", "other",
+  "bank_fees", "other",
 ];
 
 function categorizedLedgerHTML(txns) {
