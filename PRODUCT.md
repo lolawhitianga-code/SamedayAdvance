@@ -112,47 +112,87 @@ declines need to be explainable.
     applicant through the real scorer end-to-end (verified in a headless
     browser: 102 ledger rows render, comparison table populates, and the
     Assessment tab produces a stamped decision from the derived inputs).
-- Bank-statement categorization: **extended to all 100 applicants.** An
-  applicant picker was added to the Bank Statement tab (same pattern as the
-  Assessment tab's profile picker), and a parameterized generator produces a
-  90-day statement for each of the other 99 from their existing hand-set
-  profile fields — income pattern (source count, payer consistency, deposit
-  regularity, trend), archetype-driven spend intensity, gambling presence for
-  risky profiles, dishonour/BNPL/prior-advance transactions, and a
-  day-by-day balance walk tuned toward the target overdraft/near-zero/buffer
-  buckets. Unlike Samuel's statement (hand-tuned, iterated by eye), these are
-  produced algorithmically with no per-applicant tuning — so the
-  derived-vs-hand-set comparison is a genuine test, not a rigged one.
-  - Building the generator surfaced and fixed several real modelling bugs:
-    charging full rent against every casual gig payment instead of a normal
-    billing cycle; a mismatched starting balance between the generator's
-    internal decisions and how the categorizer reconstructs balance from the
-    transaction list alone; a spend cap that couldn't absorb same-day
-    windfalls (a second payer or a government payment landing mid-cycle),
-    causing balances to snowball upward; and advance-repayment debits landing
-    on arbitrary days instead of shortly after a real payday. Each was found
-    by tracing a specific applicant's ledger against its target buckets, not
-    guessed at — the same "verify, don't assume" approach used on Samuel.
-  - Verified via the same categorizer against all 100 hand-set profiles:
-    **64% of fields match overall.** Dishonours, prior advances, and other
-    active repayments (the count-based fields) match **100%** of the time.
-    Income-pattern fields (deposit regularity, source count, income trend,
-    payer consistency, gap since last advance) match **60-71%**. The
-    balance-timing fields (payday buffer, overdraft days, surplus size/
-    consistency) match **28-38%** — these depend on exactly which calendar
-    day a dip happens to land relative to a threshold, which is genuinely
-    hard to hit with an algorithmic generator (it took hand-tuning to get
-    Samuel's statement close on these) and is arguably hard to *hand-guess*
-    correctly too. That gap is informative, not a flaw to hide: it's the
-    same kind of finding as Samuel's "deposit: irregular" vs. derived
-    "consistent" — evidence the categorizer is doing real work against real
-    data, not echoing back whatever was assumed when the profile was first
-    sketched out.
+- Bank-statement categorization: **extended to all 100 applicants**, then
+  corrected to match real transaction-account behaviour, plus two new
+  scrutiny views. In order:
+
+  **1. All 100 applicants.** An applicant picker was added to the Bank
+  Statement tab (same pattern as the Assessment tab's profile picker), and a
+  parameterized generator produces a 90-day statement for every applicant
+  (including Samuel — now regenerated through the same engine rather than
+  hand-tuned separately, for consistency) from their existing hand-set
+  profile fields — income pattern, archetype-driven spend intensity,
+  gambling presence for risky profiles, dishonour/BNPL/prior-advance
+  transactions. Produced algorithmically with no per-applicant tuning, so
+  the derived-vs-hand-set comparison is a genuine test, not a rigged one.
+  Building it surfaced and fixed several real modelling bugs along the way
+  (rent charged against every casual gig payment instead of a normal billing
+  cycle; a starting-balance mismatch between generation and categorization;
+  a spend cap too tight to absorb same-day income windfalls; advance
+  repayments landing on arbitrary days instead of after a real payday) —
+  each found by tracing a specific applicant's ledger, not guessed at.
+
+  **2. Real account behaviour: balances can't go negative.** A standard
+  Australian transaction account has no overdraft facility — a card/EFTPOS
+  purchase just declines at the point of sale if funds are short, and a
+  scheduled direct debit (rent, a bill, a BNPL instalment, an advance
+  repayment) gets *dishonoured* instead, with a dishonour fee, rather than
+  going through into negative territory. The generator now enforces this as
+  a hard constraint for every applicant: every debit is capped at the
+  available balance, and any bill-type debit that can't be covered is
+  skipped and replaced with a dishonour fee (if there's enough left to cover
+  the fee — otherwise nothing happens at all that day). Cash withdrawals
+  (ATM and EFTPOS alike) are now always $20 multiples, capped by whatever
+  balance is available. Verified: **zero negative-balance instances and
+  zero non-$20 cash withdrawals across all 100 applicants.**
+  - Structural consequence, called out explicitly in the UI rather than
+    hidden: **"Overdraft days" now always derives to "0"**, since it's
+    describing something that's literally impossible on a no-overdraft
+    account. That field only still matches applicants whose hand-set target
+    was already "0" — worth deciding whether the Assessment tab's overdraft
+    dial should be retired or repointed at something that can actually
+    happen (declined-transaction frequency, or dishonour count, are the
+    closer real-world signals now).
+  - Dishonours, prior advances, and payday buffer are no longer hand-dialed
+    to a target count either — they're genuine emergent consequences of the
+    cash-flow simulation now (a bill either bounces or it doesn't), so they
+    won't reliably land on whatever bucket was originally guessed.
+  - Re-verified against all 100 hand-set profiles after these corrections:
+    **58% of fields match overall** (down from 64% before the fix, which is
+    expected and correct — some of that 64% came from mechanics, like
+    driving balances negative on purpose, that couldn't happen on a real
+    account). "Other active repayments" still matches 100%. Income-pattern
+    fields match 59-71%. Near-zero balance frequency matches 78% (up from
+    63% — removing negative excursions made the near-zero band easier to
+    land in cleanly). Dishonours/prior-advances/buffer/surplus match 27-43%,
+    now for the more defensible reason that they're honest simulation
+    outcomes, not dial-in targets.
+
+  **3. Categorized ledger.** Every applicant's transactions are now also
+  shown grouped by category (all income together, all rent together, all
+  eating-out together, etc.), each group with a running subtotal and count,
+  alongside the existing chronological ledger.
+
+  **4. Upload a real bank statement (PDF).** Client-side only — nothing is
+  uploaded anywhere. Uses pdf.js (loaded from a CDN) to extract positioned
+  text from the PDF and reconstruct it into lines, then a heuristic parser
+  looks for a leading date and a trailing dollar amount on each line to
+  identify candidate transactions. This is explicitly a best-effort, generic
+  parser, not a bank-specific integration — statement layouts vary too much
+  (separate debit/credit columns, DR/CR suffixes, thousands separators) to
+  get right for every bank from text alone, and the sign of an amount is
+  often ambiguous once column position is lost, so it defaults new amounts
+  to debits and asks the user to flip any that are really credits. Every
+  extracted row is shown in an editable review table (checkbox to
+  exclude, editable date/description/amount) before anything is run through
+  the categorizer, plus a raw-text view of lines that didn't parse. Once
+  confirmed, the same `deriveApplicantFromStatement` pipeline, categorized
+  ledger, and "load into Assessment" flow used for the simulated applicants
+  runs on the reviewed rows.
 - Next: use the population-scale comparison to decide whether any hand-set
   profile buckets should be corrected to match what real transactions would
   actually show (the same fix already applied once, for the payroll-
-  eligibility rate — see Session Summary §5), and consider whether the
-  Assessment tab's scoring should read balance-timing signals continuously
-  (e.g. actual overdraft-day count) rather than through hand-picked buckets,
-  since those are the fields hardest to bucket correctly either by hand or
-  algorithmically.
+  eligibility rate — see Session Summary §5); decide the fate of the
+  overdraft dial now that it's structurally always "0"; and get a couple of
+  real (anonymized/redacted) bank statement PDFs to test the upload parser
+  against actual bank formats rather than synthetic sample lines.
