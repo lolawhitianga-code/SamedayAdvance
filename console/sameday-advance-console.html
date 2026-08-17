@@ -1670,7 +1670,36 @@ function nearestRole(x, columns) {
   return columns.roles[best];
 }
 
-function recordToTransaction(rec, columns) {
+// Finds the account holder's name from a statement's own "Account name"
+// field (a fairly standard label across AU/NZ statements), falling back to
+// an addressee-style line near the top of the document (e.g. "MR M D
+// CHATTERTON"). Used to catch a very common but easy-to-miss pattern: a
+// bill payment or transfer made out to the account holder's own name is
+// really a move to another of their own accounts, not third-party spend.
+function detectAccountHolderName(rows) {
+  for (const row of rows) {
+    const m = row.text.match(/Account name\s+(.+)/i);
+    if (m) return m[1].trim();
+  }
+  for (const row of rows) {
+    const t = row.text.trim();
+    if (/^(MR|MRS|MS|DR|MISS)\s+[A-Z](\s?[A-Z]){0,3}\s+[A-Z]{2,}$/.test(t)) return t;
+  }
+  return null;
+}
+
+function isSelfTransferDescription(desc, holderName) {
+  if (!holderName) return false;
+  const nameTokens = holderName.toUpperCase().replace(/^(MR|MRS|MS|DR|MISS)\s+/, "").split(/\s+/).filter(Boolean);
+  if (nameTokens.length < 2) return false;
+  const surname = nameTokens[nameTokens.length - 1];
+  if (surname.length < 3) return false;
+  const upperDesc = desc.toUpperCase();
+  const matchedTokens = nameTokens.filter((t) => upperDesc.includes(t));
+  return upperDesc.includes(surname) && matchedTokens.length >= Math.min(2, nameTokens.length);
+}
+
+function recordToTransaction(rec, columns, holderName) {
   const combinedText = rec.textParts.join(" ");
   if (rec.moneyItems.length === 0) return null;
 
@@ -1704,41 +1733,51 @@ function recordToTransaction(rec, columns) {
     .trim();
   if (!description) description = rec.typeCode ? rec.typeCode + " transaction" : "(unlabelled)";
 
+  // A debit paid out to the account holder's own name is a transfer to
+  // another of their own accounts, not third-party spend — closer to
+  // moving cash out of reach than a purchase, so it's bucketed the same as
+  // a cash withdrawal (the user's call, on an actual example of this).
+  let categoryHint = typeHint && typeHint.category;
+  if (amount < 0 && isSelfTransferDescription(description, holderName)) categoryHint = "cash_withdrawal";
+
   return {
     date: rec.date,
     description: description.slice(0, 90),
     amount: Math.round(amount * 100) / 100,
     balance: balance !== null ? Math.round(balance * 100) / 100 : null,
-    categoryHint: typeHint && typeHint.category,
+    categoryHint,
   };
 }
 
 function parseStatementRows(rows) {
   const records = groupIntoRecords(rows);
   const columns = detectColumns(records);
+  const holderName = detectAccountHolderName(rows);
   const parsed = [];
   const unparsed = [];
   records.forEach((rec) => {
-    const txn = recordToTransaction(rec, columns);
+    const txn = recordToTransaction(rec, columns, holderName);
     if (txn) parsed.push(txn);
     else unparsed.push(rec.date + " " + rec.textParts.join(" "));
   });
-  return { parsed, unparsed, columns };
+  return { parsed, unparsed, columns, holderName };
 }
 
-function renderPdfReview(parsed, unparsed, columns) {
+function renderPdfReview(parsed, unparsed, columns, holderName) {
   document.getElementById("pdf-review-section").style.display = "block";
   const hasBalance = parsed.some((t) => t.balance !== null);
   const columnNote = document.getElementById("pdf-column-note");
+  let note;
   if (columns) {
-    columnNote.style.display = "block";
-    columnNote.textContent = columns.roles.length === 3
+    note = columns.roles.length === 3
       ? "Detected separate Withdrawals / Deposits / Balance columns — amounts and balances below are read from column position, not guessed."
       : "Detected an Amount + Balance column pair.";
   } else {
-    columnNote.style.display = "block";
-    columnNote.textContent = "Couldn't confidently detect separate amount columns — amounts default to debits unless a credit was explicitly marked (CR, or a recognized income-type code). Check the sign on every row below, especially income.";
+    note = "Couldn't confidently detect separate amount columns — amounts default to debits unless a credit was explicitly marked (CR, or a recognized income-type code). Check the sign on every row below, especially income.";
   }
+  if (holderName) note += " Account holder detected as \"" + holderName + "\" — a debit paid out to that name is treated as a transfer to another of their own accounts (cash withdrawal), not third-party spend.";
+  columnNote.style.display = "block";
+  columnNote.textContent = note;
   document.getElementById("pdf-review-body").innerHTML = parsed.map((t, i) =>
     "<tr data-hint=\"" + (t.categoryHint || "") + "\">" +
     "<td class=\"review-cell\"><input type=\"checkbox\" checked class=\"pdf-row-include\" data-i=\"" + i + "\" /></td>" +
@@ -1772,14 +1811,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("pdf-result-section").style.display = "none";
     try {
       const rows = await extractPdfRows(file);
-      const { parsed, unparsed, columns } = parseStatementRows(rows);
+      const { parsed, unparsed, columns, holderName } = parseStatementRows(rows);
       statusEl.textContent = "Extracted " + parsed.length + " candidate transaction" + (parsed.length === 1 ? "" : "s") +
         " from " + rows.length + " lines of text (" + unparsed.length + " didn't match a transaction pattern — review below).";
       if (parsed.length === 0) {
         statusEl.className = "pdf-status err";
         statusEl.textContent += " No transactions were recognized — this statement's layout may not match the patterns this parser looks for.";
       }
-      renderPdfReview(parsed, unparsed, columns);
+      renderPdfReview(parsed, unparsed, columns, holderName);
     } catch (err) {
       statusEl.className = "pdf-status err";
       statusEl.textContent = "Couldn't read this PDF: " + err.message;

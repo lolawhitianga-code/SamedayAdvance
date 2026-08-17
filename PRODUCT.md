@@ -289,12 +289,30 @@ declines need to be explainable.
     fix, confirming it's additive (none of the generated statements happen
     to have this multi-description-per-employer pattern, so nothing
     regressed).
+
+  **7. Self-transfers to the account holder's own name.** "BP M D
+  CHATTERTON BILL PAYMENT" — a bill payment where the payee is literally
+  the account holder's own name — turned out to be a transfer to their
+  savings account, confirmed by the user, who called it a cash withdrawal
+  (money leaving the spending account, not third-party spend). Built as a
+  general detector, not hardcoded to this name: `detectAccountHolderName`
+  reads the statement's own "Account name" field (a fairly standard label),
+  falling back to an addressee-style line near the top of the document;
+  `isSelfTransferDescription` then checks whether a debit's payee text
+  substantially overlaps that name (surname plus at least one other token,
+  to avoid a coincidental partial match). Only applies to debits, and only
+  as a categorization fallback under the keyword rules — never overrides a
+  specific merchant match. Surfaced transparently in the PDF review screen
+  ("Account holder detected as ... — a debit paid out to that name is
+  treated as ...") rather than applied silently. Verified against a
+  synthetic reproduction (correctly flags the self-payment, correctly
+  leaves an unrelated same-type "BP sapori BILL PAYMENT" alone) and
+  re-ran the full 100-applicant validation (58.4%, unchanged — no
+  simulated applicant has this pattern, so nothing regressed).
 - Next: use the population-scale comparison to decide whether any hand-set
   profile buckets should be corrected to match what real transactions would
   actually show (the same fix already applied once, for the payroll-
   eligibility rate — see Session Summary §5); decide the fate of the
-  overdraft dial now that it's structurally always "0"; get a couple of
+  overdraft dial now that it's structurally always "0"; and get a couple of
   real (anonymized/redacted) Australian bank statement PDFs to test the
-  upload parser against actual local bank formats; and resolve the "BP ...
-  BILL PAYMENT" open item above with the user if a similar statement comes
-  up again.
+  upload parser against actual local bank formats.
