@@ -351,3 +351,36 @@ declines need to be explainable.
     validation afterward (58.4%, unchanged — these are all real-world
     merchant names that don't appear in the simulated data, so nothing
     regressed).
+
+  **9. Two more fixes from a second look at the "other" bucket** — one a
+  real bug, one a deliberate false-positive the user caught by name:
+  - **Self-transfer detector was too loose.** "lmkb chatterton whitianga 4
+    poplar st" — a real payment to a tradesperson (builder/electrician,
+    "lmkb") — was misread as a self-transfer, because the payer's own name
+    and address were used as the *payment reference* (a common bill-payment
+    convention) and the detector was doing a substring search anywhere in
+    the description, including single-letter initial tokens like "M" that
+    match almost any text by coincidence. Fixed by requiring the account
+    holder's name to *lead* the description (checked against a window sized
+    to the name, using whole-token equality, not substring search) — true
+    self-payments like "M D CHATTERTON BILL PAYMENT" still match, reference
+    notes tacked onto a real third-party payment no longer do. The user
+    confirmed "lmkb" is a genuine renovation-related payment and asked for
+    it to stay "other" rather than be recategorized further — done.
+  - **Small unrecognized debits now default to Eating Out.** Once bills,
+    rent, loans, and the other keyword-covered categories are accounted
+    for, what's actually left over in "other" on a real statement is
+    overwhelmingly everyday food spend — confirmed against what was
+    genuinely still sitting there, not assumed in advance. Any debit under
+    $80 that doesn't match a merchant keyword or type-code hint now falls
+    back to Eating Out instead of "other". Won't always be right (small
+    transport/parking/vending charges exist too), but is right far more
+    often than leaving it uncategorized. Purely a categorized-ledger/
+    display change — none of the scoring-relevant derived fields
+    (buffer/overdraft/dishonours/otherRepayments/etc.) key off "other" or
+    "eating_out" specifically, so this has zero effect on the Assessment
+    tab's inputs.
+  - Verified both against the exact "lmkb" vs. genuine self-payment pair,
+    and re-ran the full 100-applicant validation (58.4%, unchanged, as
+    expected since the small-amount fallback doesn't touch any scored
+    field).

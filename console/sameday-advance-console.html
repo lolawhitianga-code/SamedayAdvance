@@ -1118,6 +1118,14 @@ function categorizeTransaction(description, amount, categoryHint) {
   if (categoryHint && CATEGORY_LABELS[categoryHint]) {
     return { category: categoryHint, label: CATEGORY_LABELS[categoryHint] };
   }
+  // Last-resort fallback, not a merchant match: an unrecognized debit under
+  // $80 is overwhelmingly likely to be everyday food/incidental spend once
+  // bills, rent, loans and other big-ticket categories are already covered
+  // by the keyword rules above — confirmed against what was actually left
+  // in "other" on a real statement, not assumed up front. Won't be right
+  // every time (small transport/parking/vending charges exist too), but is
+  // right far more often than leaving small unrecognized spend uncategorized.
+  if (amount < 0 && amount > -80) return { category: "eating_out", label: "Eating Out" };
   return { category: "other", label: "Other" };
 }
 
@@ -1701,9 +1709,20 @@ function isSelfTransferDescription(desc, holderName) {
   if (nameTokens.length < 2) return false;
   const surname = nameTokens[nameTokens.length - 1];
   if (surname.length < 3) return false;
-  const upperDesc = desc.toUpperCase();
-  const matchedTokens = nameTokens.filter((t) => upperDesc.includes(t));
-  return upperDesc.includes(surname) && matchedTokens.length >= Math.min(2, nameTokens.length);
+  // Only counts as a self-transfer if the account holder's name LEADS the
+  // description (e.g. "M D CHATTERTON BILL PAYMENT") — not just mentioned
+  // anywhere in it, and matched as whole tokens, not substrings (a loose
+  // substring search on a 1-letter token like "M" matches almost anything).
+  // A genuine third-party bill payment can still embed the payer's own
+  // name/address further along as a reference note — e.g. "lmkb chatterton
+  // whitianga 4 poplar st" is a real payment to a tradesperson ("lmkb"),
+  // with the payer's own name and address used only as the payment
+  // reference, not as the payee. A plain substring/contains check reads
+  // that as a self-payment; a real example, not a hypothetical.
+  const descTokens = desc.toUpperCase().trim().split(/\s+/).filter(Boolean);
+  const leadWindow = descTokens.slice(0, nameTokens.length + 1);
+  const matchedCount = nameTokens.filter((t) => leadWindow.includes(t)).length;
+  return leadWindow.includes(surname) && matchedCount >= Math.min(2, nameTokens.length);
 }
 
 function recordToTransaction(rec, columns, holderName) {
