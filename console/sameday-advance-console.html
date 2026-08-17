@@ -917,7 +917,7 @@
 
       <div class="panel full-span">
         <p class="panel-title">Cash flow</p>
-        <p class="hint">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>
+        <p class="hint">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals plus gambling withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>
         <div id="bs-cashflow-summary"></div>
         <div id="bs-cashflow-chart" style="margin-top:12px;"></div>
       </div>
@@ -1455,7 +1455,7 @@ function titleCase(s) {
 // ---- Cash flow summary: regular income, ATM/cash in vs. out, totals, over time ----
 function computeCashFlow(txns) {
   const income = deriveIncomeProfile(txns);
-  let cashDepositTotal = 0, cashWithdrawalTotal = 0, totalIn = 0, totalOut = 0;
+  let cashDepositTotal = 0, cashWithdrawalTotal = 0, gamblingWithdrawalTotal = 0, totalIn = 0, totalOut = 0;
   const byWeek = {};
   const firstDate = txns[0].date;
   txns.forEach((t) => {
@@ -1463,12 +1463,19 @@ function computeCashFlow(txns) {
     if (t.amount > 0) totalIn += t.amount; else totalOut += Math.abs(t.amount);
     if (cat === "cash_deposit") cashDepositTotal += t.amount;
     if (cat === "cash_withdrawal") cashWithdrawalTotal += Math.abs(t.amount);
+    // Gambling spend (casino cashier/cage, TAB, pokies venues, betting apps)
+    // is cash leaving the account the same way an ATM withdrawal is — group
+    // it into the same cash-out figure rather than letting it hide inside
+    // "spend by category", since it's exactly the kind of outflow this
+    // panel exists to surface.
+    if (cat === "gambling") gamblingWithdrawalTotal += Math.abs(t.amount);
     const week = Math.floor(daysBetween(firstDate, t.date) / 7);
     if (!byWeek[week]) byWeek[week] = { day: week * 7, moneyIn: 0, moneyOut: 0 };
     if (t.amount > 0) byWeek[week].moneyIn += t.amount; else byWeek[week].moneyOut += Math.abs(t.amount);
   });
   const weeklySeries = Object.keys(byWeek).map((k) => byWeek[k]).sort((a, b) => a.day - b.day);
-  return { income, cashDepositTotal, cashWithdrawalTotal, totalIn, totalOut, weeklySeries };
+  const cashOutTotal = cashWithdrawalTotal + gamblingWithdrawalTotal;
+  return { income, cashDepositTotal, cashWithdrawalTotal, gamblingWithdrawalTotal, cashOutTotal, totalIn, totalOut, weeklySeries };
 }
 
 function cashFlowSummaryHTML(cf) {
@@ -1489,13 +1496,15 @@ function cashFlowSummaryHTML(cf) {
     }
   }
 
-  const atmNet = cf.cashDepositTotal - cf.cashWithdrawalTotal;
+  const atmNet = cf.cashDepositTotal - cf.cashOutTotal;
   const atmHTML = "<div class=\"stat-grid\">" +
     "<div class=\"stat-card\"><div class=\"stat-label\">ATM / cash deposits</div><div class=\"stat-value green\">" + fmtMoney(cf.cashDepositTotal) + "</div></div>" +
     "<div class=\"stat-card\"><div class=\"stat-label\">ATM / cash withdrawals</div><div class=\"stat-value rust\">" + fmtMoney(cf.cashWithdrawalTotal) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Gambling withdrawals</div><div class=\"stat-value rust\">" + fmtMoney(cf.gamblingWithdrawalTotal) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Total cash out (ATM + gambling)</div><div class=\"stat-value rust\">" + fmtMoney(cf.cashOutTotal) + "</div></div>" +
     "<div class=\"stat-card\"><div class=\"stat-label\">Net cash movement</div><div class=\"stat-value" + (atmNet >= 0 ? " green" : " rust") + "\">" + (atmNet >= 0 ? "+" : "-") + fmtMoney(Math.abs(atmNet)) + "</div></div>" +
     "</div>" +
-    "<p class=\"hint\" style=\"margin-top:6px;\">Cash deposited and cash withdrawn can offset each other — someone cycling cash in and back out isn't necessarily gaining or spending it, so the net matters more than either figure alone. Cash deposits are also excluded from the income figures above since, unlike a named payer, they can't be verified as a real income source.</p>";
+    "<p class=\"hint\" style=\"margin-top:6px;\">Gambling withdrawals (casino cashier/cage, TAB, pokies venues, betting apps) are cash leaving the account the same way an ATM withdrawal is, so they're totaled together here and both count against net cash movement. Cash deposited can still offset that — someone cycling cash in and back out isn't necessarily gaining or spending it, so the net matters more than any single figure alone. Cash deposits are also excluded from the income figures above since, unlike a named payer, they can't be verified as a real income source.</p>";
 
   const netTotal = cf.totalIn - cf.totalOut;
   const totalsHTML = "<div class=\"stat-grid\">" +
@@ -2002,7 +2011,7 @@ function runUploadedStatement() {
     "</tbody></table>" +
     "<button class=\"load-btn\" style=\"margin-top:14px;\" onclick=\"loadDerivedIntoAssessment()\">Load derived inputs into Assessment tab →</button>" +
     "<p class=\"panel-title\" style=\"margin-top:20px;\">Cash flow</p>" +
-    "<p class=\"hint\">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>" +
+    "<p class=\"hint\">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals plus gambling withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>" +
     "<div id=\"pdf-cashflow-summary\"></div>" +
     "<div id=\"pdf-cashflow-chart\" style=\"margin-top:12px;\"></div>" +
     "<p class=\"panel-title\" style=\"margin-top:20px;\">Categorized ledger</p>" +

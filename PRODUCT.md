@@ -493,3 +493,27 @@ declines need to be explainable.
   correctly resolves to `income_credit`, unaffected) and the 100-applicant
   validation (58.4%, unchanged — no simulated applicant's data contains
   "PBKA", this is specific to the real statement).
+
+  **13. Gambling withdrawals folded into the cash-out total.** Ask: "show
+  gambling withdrawls alongside and totaled with atm withdrawls affecting
+  net cash movement." The reasoning: money spent at a casino cashier/cage,
+  TAB, pokies venue, or betting app is cash leaving the account the same
+  way an ATM withdrawal is — it shouldn't be able to hide inside "spend by
+  category" while the Cash Flow panel's "net cash movement" figure only
+  accounts for ATM withdrawals.
+  - `computeCashFlow` now also totals `gambling`-category debits
+    (`gamblingWithdrawalTotal`) and exposes a combined `cashOutTotal`
+    (ATM/cash withdrawals + gambling withdrawals).
+  - `cashFlowSummaryHTML`'s "ATM / cash deposits vs. withdrawals" section
+    now shows ATM withdrawals and gambling withdrawals as separate stat
+    cards *alongside* a combined "Total cash out (ATM + gambling)" card,
+    and "Net cash movement" is computed against that combined total
+    (deposits − (ATM withdrawals + gambling withdrawals)) instead of ATM
+    withdrawals alone.
+  - Verified against applicant 5 (Olivia Adams, two BET365 transactions
+    totaling $112 in the ledger): ATM withdrawals $560 + gambling $112 =
+    total cash out $672, matching exactly, with net cash movement showing
+    -$672 given $0 in cash deposits for that applicant. `node --check`
+    passed and the 100-applicant validation stayed at 58.4% (unchanged, as
+    expected — this only changes what's displayed in the Cash Flow panel,
+    not any scoring-relevant derived field).
