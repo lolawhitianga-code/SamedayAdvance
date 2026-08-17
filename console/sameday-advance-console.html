@@ -1704,6 +1704,27 @@ function extractMoneyTokens(text) {
   }).filter(Boolean);
 }
 
+// pdf.js can tokenize a "CR"/"DR" suffix as its own separate text item, apart
+// from the amount it qualifies (different font run, extra spacing, column
+// alignment padding) — extractMoneyTokens alone only ever sees one item's
+// string at a time, so a marker split out this way is invisible to it and
+// the amount silently defaults to a debit. This scans a row's items in
+// order and, for any money token still missing an explicit sign, checks
+// whether the very next item is a bare "CR"/"DR" and applies it if so.
+function extractMoneyTokensFromItems(items) {
+  const out = [];
+  items.forEach((it, i) => {
+    extractMoneyTokens(it.str).forEach((m) => out.push({ ...m, x: it.x }));
+  });
+  items.forEach((it, i) => {
+    const bare = it.str.trim().toUpperCase();
+    if (bare !== "CR" && bare !== "DR") return;
+    const prevMoney = out.filter((m) => m.x < it.x).sort((a, b) => b.x - a.x)[0];
+    if (prevMoney && !prevMoney.explicitSign) prevMoney.explicitSign = bare === "CR" ? "credit" : "debit";
+  });
+  return out;
+}
+
 // ---- PDF text extraction: preserves X position per item so amount columns
 // (Withdrawals / Deposits / Balance) can be told apart by where they sit,
 // not just by reading order. ----
@@ -1765,17 +1786,12 @@ function groupIntoRecords(rows) {
       }
       current = { date: isoDate, typeCode, textParts: [rest], moneyItems: [] };
       const restStartX = row.items[Math.min(dateTokLen + (typeMatch ? 1 : 0), row.items.length - 1)];
-      row.items.forEach((it) => {
-        if (!restStartX || it.x >= restStartX.x) {
-          extractMoneyTokens(it.str).forEach((m) => current.moneyItems.push({ ...m, x: it.x }));
-        }
-      });
+      const relevantItems = restStartX ? row.items.filter((it) => it.x >= restStartX.x) : row.items;
+      current.moneyItems.push(...extractMoneyTokensFromItems(relevantItems));
       linesSinceStart = 0;
     } else if (current && linesSinceStart < 3) {
       current.textParts.push(trimmed);
-      row.items.forEach((it) => {
-        extractMoneyTokens(it.str).forEach((m) => current.moneyItems.push({ ...m, x: it.x }));
-      });
+      current.moneyItems.push(...extractMoneyTokensFromItems(row.items));
       linesSinceStart++;
     }
   });
@@ -1823,9 +1839,16 @@ function nearestRole(x, columns) {
 // bill payment or transfer made out to the account holder's own name is
 // really a move to another of their own accounts, not third-party spend.
 function detectAccountHolderName(rows) {
-  for (const row of rows) {
-    const m = row.text.match(/Account name\s+(.+)/i);
-    if (m) return m[1].trim();
+  for (let i = 0; i < rows.length; i++) {
+    const text = rows[i].text.trim();
+    const m = text.match(/Account name\s*[:\-]?\s*(.+)/i);
+    if (m && m[1].trim()) return m[1].trim();
+    // PDF text extraction groups by Y-position — on some layouts a label
+    // and its value land on separate rows (e.g. "Account name" alone, then
+    // the name on the row right after) rather than side by side on one.
+    if (/^Account name\s*[:\-]?\s*$/i.test(text) && rows[i + 1] && rows[i + 1].text.trim()) {
+      return rows[i + 1].text.trim();
+    }
   }
   for (const row of rows) {
     const t = row.text.trim();
@@ -1856,8 +1879,47 @@ function isSelfTransferDescription(desc, holderName) {
   return leadWindow.includes(surname) && matchedCount >= Math.min(2, nameTokens.length);
 }
 
-function recordToTransaction(rec, columns, holderName) {
+// Pulled out of recordToTransaction so the same description text a
+// transaction will actually be categorized against can also be scanned,
+// pre-categorization, for a repeated "<name> BILL PAYMENT" pattern (see
+// detectRepeatedSelfTransferName) — without duplicating the money-position/
+// masked-card-number cleanup logic in two places.
+function extractRecordDescription(rec) {
   const combinedText = rec.textParts.join(" ");
+  const firstMoneyIdx = combinedText.search(/-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}/);
+  let description = (firstMoneyIdx > 0 ? combinedText.slice(0, firstMoneyIdx) : combinedText)
+    .replace(/\d{6,}\*{2,}\d*/g, "")   // masked card numbers
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!description) description = rec.typeCode ? rec.typeCode + " transaction" : "(unlabelled)";
+  return description;
+}
+
+// Fallback for when detectAccountHolderName can't find a parseable "Account
+// name" field (statement layout puts the label and value on separate rows,
+// uses different wording, etc.): the account holder moving money between
+// their own accounts via a bill payment tends to reuse their own name as
+// the description on both the money-out and money-in side, so the exact
+// same "<name> BILL PAYMENT" description recurring more than once — with no
+// header field needed at all — is itself a strong signal of who that name
+// belongs to. Requires at least 2 occurrences so a single genuine
+// third-party "<Some Person> Bill Payment" transaction doesn't get treated
+// as the account holder from just one appearance.
+function detectRepeatedSelfTransferName(records) {
+  const counts = {};
+  records.forEach((rec) => {
+    const desc = extractRecordDescription(rec);
+    const m = desc.match(/^([A-Z](?:\.?\s?[A-Z]){0,3}\s+[A-Z]{3,})\s+BILL PAYMENT\b/i);
+    if (m) {
+      const key = m[1].trim().toUpperCase().replace(/\s+/g, " ");
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  });
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return best && best[1] >= 2 ? best[0] : null;
+}
+
+function recordToTransaction(rec, columns, holderName) {
   if (rec.moneyItems.length === 0) return null;
 
   let amount = null, balance = null;
@@ -1883,12 +1945,7 @@ function recordToTransaction(rec, columns, holderName) {
   const typeHint = rec.typeCode ? TXN_TYPE_HINTS[rec.typeCode] : null;
   if (typeHint && typeHint.sign === "credit" && amount < 0 && !columns) amount = Math.abs(amount);
 
-  const firstMoneyIdx = combinedText.search(/-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}/);
-  let description = (firstMoneyIdx > 0 ? combinedText.slice(0, firstMoneyIdx) : combinedText)
-    .replace(/\d{6,}\*{2,}\d*/g, "")   // masked card numbers
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  if (!description) description = rec.typeCode ? rec.typeCode + " transaction" : "(unlabelled)";
+  const description = extractRecordDescription(rec);
 
   // A transaction paid to/from the account holder's own name is a transfer
   // between their own accounts, not third-party spend or income — a debit
@@ -1910,7 +1967,12 @@ function recordToTransaction(rec, columns, holderName) {
 function parseStatementRows(rows) {
   const records = groupIntoRecords(rows);
   const columns = detectColumns(records);
-  const holderName = detectAccountHolderName(rows);
+  let holderName = detectAccountHolderName(rows);
+  let holderNameSource = holderName ? "header" : null;
+  if (!holderName) {
+    holderName = detectRepeatedSelfTransferName(records);
+    if (holderName) holderNameSource = "repeated";
+  }
   const parsed = [];
   const unparsed = [];
   records.forEach((rec) => {
@@ -1918,10 +1980,10 @@ function parseStatementRows(rows) {
     if (txn) parsed.push(txn);
     else unparsed.push(rec.date + " " + rec.textParts.join(" "));
   });
-  return { parsed, unparsed, columns, holderName };
+  return { parsed, unparsed, columns, holderName, holderNameSource };
 }
 
-function renderPdfReview(parsed, unparsed, columns, holderName) {
+function renderPdfReview(parsed, unparsed, columns, holderName, holderNameSource) {
   document.getElementById("pdf-review-section").style.display = "block";
   const hasBalance = parsed.some((t) => t.balance !== null);
   const columnNote = document.getElementById("pdf-column-note");
@@ -1933,7 +1995,20 @@ function renderPdfReview(parsed, unparsed, columns, holderName) {
   } else {
     note = "Couldn't confidently detect separate amount columns — amounts default to debits unless a credit was explicitly marked (CR, or a recognized income-type code). Check the sign on every row below, especially income.";
   }
-  if (holderName) note += " Account holder detected as \"" + holderName + "\" — a debit paid out to that name is treated as a transfer to another of their own accounts (cash withdrawal), and a credit paid in under that name as their own cash coming back in (cash deposit), not third-party spend or income.";
+  // Always says something here, even on failure — a silent "nothing to
+  // report" when detection fails looks identical to "wasn't attempted",
+  // which made this exact failure mode hard to diagnose from a screenshot
+  // alone. Now it's visible whether the name came from the statement's own
+  // "Account name" field or was inferred from a repeated "<name> BILL
+  // PAYMENT" description, or wasn't found by either method.
+  if (holderName) {
+    const via = holderNameSource === "repeated"
+      ? " (inferred from a repeated \"" + holderName + " BILL PAYMENT\" description appearing more than once — no \"Account name\" field was found on this statement)"
+      : " (from the statement's own \"Account name\" field)";
+    note += " Account holder detected as \"" + holderName + "\"" + via + " — a debit paid out to that name is treated as a transfer to another of their own accounts (cash withdrawal), and a credit paid in under that name as their own cash coming back in (cash deposit), not third-party spend or income.";
+  } else {
+    note += " Account holder name not detected on this statement (no matching \"Account name\" field, and no \"<name> BILL PAYMENT\" description repeated more than once) — transfers paid to/from your own name can't be auto-flagged as cash withdrawal/deposit here. Check the reviewed rows for anything that should really be a self-transfer and edit it manually before running.";
+  }
   columnNote.style.display = "block";
   columnNote.textContent = note;
   document.getElementById("pdf-review-body").innerHTML = parsed.map((t, i) =>
@@ -1969,14 +2044,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("pdf-result-section").style.display = "none";
     try {
       const rows = await extractPdfRows(file);
-      const { parsed, unparsed, columns, holderName } = parseStatementRows(rows);
+      const { parsed, unparsed, columns, holderName, holderNameSource } = parseStatementRows(rows);
       statusEl.textContent = "Extracted " + parsed.length + " candidate transaction" + (parsed.length === 1 ? "" : "s") +
         " from " + rows.length + " lines of text (" + unparsed.length + " didn't match a transaction pattern — review below).";
       if (parsed.length === 0) {
         statusEl.className = "pdf-status err";
         statusEl.textContent += " No transactions were recognized — this statement's layout may not match the patterns this parser looks for.";
       }
-      renderPdfReview(parsed, unparsed, columns, holderName);
+      renderPdfReview(parsed, unparsed, columns, holderName, holderNameSource);
     } catch (err) {
       statusEl.className = "pdf-status err";
       statusEl.textContent = "Couldn't read this PDF: " + err.message;

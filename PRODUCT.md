@@ -651,3 +651,67 @@ declines need to be explainable.
     Re-ran the 100-applicant validation (58.4%, unchanged — pure DOM
     reorganization, no logic touched) and the existing smoke test (no new
     errors).
+
+  **18. Real root-cause fix: self-transfer detection now works without
+  needing a parseable "Account name" field at all, plus fixed a related
+  credit-marker parsing bug.** After cache-clearing and re-uploading under
+  a new filename, "M D CHATTERTON BILL PAYMENT" was still landing in
+  Income — proof the earlier fixes (steps 14/15/16) were logically correct
+  but something upstream of them was failing on this specific real
+  statement. Since the code path itself had already been verified
+  end-to-end with an assumed holder name, the only remaining explanation
+  was that `detectAccountHolderName` was never finding "M D Chatterton" on
+  *this* statement in the first place — its regex only matched an
+  "Account name" label with the value on the *same* line, so any layout
+  where the label and value land on separate PDF-extracted rows (a
+  Y-position-based extraction artifact, not a text problem) would silently
+  return `null`, and every downstream self-transfer check depending on it
+  would quietly no-op. Two fixes, plus a diagnostic:
+  - **New fallback: `detectRepeatedSelfTransferName`.** Doesn't need a
+    header field at all — scans every transaction's own description (using
+    a new `extractRecordDescription` helper factored out of
+    `recordToTransaction` so both use identical cleanup logic) for a
+    `"<name> BILL PAYMENT"` pattern, and if the exact same name shows up
+    2+ times across the statement (which it will for someone moving money
+    between their own accounts via bill payment — both the money-out and
+    money-in side reuse the account holder's own name), that's inferred as
+    the account holder. `parseStatementRows` now tries the header-based
+    method first and only falls back to this if it comes up empty.
+  - **Also hardened `detectAccountHolderName` itself**: now also matches
+    "Account name:" / "Account name -" (colon/dash separators), and checks
+    the *next* row when a row is just the bare label with nothing after
+    it, in case the value is on a following row rather than the same one.
+  - **Separately found and fixed a real credit-marker parsing bug** while
+    building a full end-to-end Playwright test for this: `extractMoneyTokens`
+    only ever looked at one PDF text item's string at a time, so a "CR"/
+    "DR" suffix that pdf.js tokenizes as its *own separate* text item
+    (different font run / spacing / column padding from the amount it
+    qualifies) was invisible to it — the amount would silently default to
+    a debit even though the statement explicitly marked it a credit. New
+    `extractMoneyTokensFromItems` scans a row's items in position order and
+    applies a bare "CR"/"DR" item to the nearest preceding still-unsigned
+    amount. This is a distinct, general parsing fix (affects any credit
+    whose CR marker splits from its digits this way), not specific to the
+    self-transfer scenario, though it's exactly what a full-pipeline test
+    of this case surfaced.
+  - **New diagnostic, always visible now**: the "Account holder detected"
+    note above the review table used to only appear when detection
+    succeeded — a silent absence looked identical to "wasn't attempted",
+    which is exactly why this took a live report to catch instead of being
+    self-evident from the UI. It now always says something: which name was
+    found and *how* (header field vs. inferred from a repeated bill
+    payment), or explicitly that no name could be found either way and
+    self-transfers on this statement can't be auto-flagged.
+  - Verified with a from-scratch Playwright test that exercises the real
+    upload pipeline (`parseStatementRows` → `renderPdfReview` →
+    `runUploadedStatement`) against synthetic PDF rows with **no** "Account
+    name" field anywhere and a "CR" marker split into its own text item —
+    the exact combination this statement was hitting. Confirms: holder
+    name inferred via the repeated-description fallback
+    (`holderNameSource: "repeated"`), the credit correctly parses as
+    positive once the split CR marker is picked up, and the resulting
+    categorized ledger puts the debit "M D CHATTERTON BILL PAYMENT" in
+    **Cash Withdrawal** and the credit one in **Cash Deposit** — not
+    Income. Also re-ran the full 100-applicant validation (58.4%,
+    unchanged — this only touches the real-PDF pipeline) and the existing
+    smoke/tab-split tests (no new errors).
