@@ -173,22 +173,66 @@ declines need to be explainable.
   eating-out together, etc.), each group with a running subtotal and count,
   alongside the existing chronological ledger.
 
-  **4. Upload a real bank statement (PDF).** Client-side only — nothing is
-  uploaded anywhere. Uses pdf.js (loaded from a CDN) to extract positioned
-  text from the PDF and reconstruct it into lines, then a heuristic parser
-  looks for a leading date and a trailing dollar amount on each line to
-  identify candidate transactions. This is explicitly a best-effort, generic
-  parser, not a bank-specific integration — statement layouts vary too much
-  (separate debit/credit columns, DR/CR suffixes, thousands separators) to
-  get right for every bank from text alone, and the sign of an amount is
-  often ambiguous once column position is lost, so it defaults new amounts
-  to debits and asks the user to flip any that are really credits. Every
-  extracted row is shown in an editable review table (checkbox to
-  exclude, editable date/description/amount) before anything is run through
-  the categorizer, plus a raw-text view of lines that didn't parse. Once
-  confirmed, the same `deriveApplicantFromStatement` pipeline, categorized
-  ledger, and "load into Assessment" flow used for the simulated applicants
-  runs on the reviewed rows.
+  **4. Upload a real bank statement (PDF) — rebuilt after testing against
+  an actual statement.** The first version (one line = one transaction,
+  single signed amount) missed income entirely on a real ANZ statement the
+  user supplied for testing. Root cause, found by reading the actual PDF
+  content rather than guessing: a single transaction commonly wraps across
+  up to three physical lines (date+description, a card/reference
+  continuation line, then the amount) — that alone was enough to drop most
+  transactions into "unparsed." On top of that, statements typically use
+  separate Withdrawals / Deposits / Balance columns rather than one signed
+  amount, and that distinction is column *position*, which plain linear
+  text extraction throws away.
+  - Text extraction now preserves each text item's X position. Rows
+    between one date-starting line and the next are grouped into a single
+    record regardless of how many lines it wraps across (capped at 3
+    continuation lines, and explicitly stopped by "Totals at end of page" /
+    "Balance brought forward" / legend text, so page-footer totals don't
+    get swallowed into the last transaction on the page).
+  - Amount columns are identified by clustering X positions across the
+    whole statement: three clusters → Withdrawals / Deposits / Balance
+    (left to right, matching the header order every AU/NZ statement in
+    testing has used); two → Amount / Balance; fewer than that → falls
+    back to the old sign-guessing heuristic (DR/CR suffix, default debit)
+    with a visible warning in the UI to check every row's sign.
+  - Added a small legend of standard-ish AU/NZ transaction-type codes
+    (DC/BP/AP/DD/AT/EP/VT/CQ/ED/FX/IP/IF/IA — e.g. DC = Direct Credit, AT =
+    Automatic Teller Machine) used as a sign/category fallback *only* when
+    no merchant keyword matches — never overriding a specific merchant.
+  - If every reviewed row carries a real extracted balance, that's used
+    directly instead of recomputing a running sum from $0 — correct for a
+    revolving-credit/overdraft-style account that starts already drawn
+    (the ANZ test statement was exactly this: a home-loan redraw facility
+    with an "OD" balance throughout, which the user confirmed should be
+    treated as representative rather than set aside as an edge case).
+  - Categorization refinements, decided with the user against real
+    transaction descriptions rather than assumed: a casino's own bars and
+    food outlets (e.g. "SkyCity Flare Bar", "SkyCity Food Republic")
+    categorize by what was actually bought (alcohol/eating-out, via new
+    generic `\bBAR\b` / `\bFOOD\b` / bakery/kitchen/sushi keywords), while
+    cashier/cage draws and casino-located ATM withdrawals ("SKYCITY CASHIER
+    MAIN", "ACU SCC1004 Sky City...") count as gambling directly — a
+    real-money distinction a generic "contains casino name" rule would
+    have missed either direction.
+  - Re-verified against a hand-built simulation of the real statement's
+    layout (can't execute pdf.js itself in this sandboxed session — no
+    network access to the CDN — so validated the extraction logic against
+    realistic row/column data instead of a live render): income is now
+    detected, casino cashier/ATM draws land in gambling, casino food/bar
+    outlets land in eating-out/alcohol, ordinary (non-casino) ATM
+    withdrawals fall back to cash_withdrawal via the type-code legend, and
+    "Opening balance" and page-footer totals are correctly excluded rather
+    than mis-parsed as transactions. **Still needs a real end-to-end run in
+    an actual browser with internet access** to confirm the pdf.js
+    extraction itself behaves as assumed — the row/column logic was
+    validated, the live PDF→text step wasn't.
+  - Known gap: merchant keyword coverage is Australia-first (Woolworths/
+    Coles/Aldi for groceries, etc.) — the test statement was a New Zealand
+    account, so NZ-specific chains (New World, Pak'nSave) currently fall
+    through to "other". Not fixed, since the product's actual applicants
+    are Australian; worth widening only if NZ statements become a real
+    input.
 - Next: use the population-scale comparison to decide whether any hand-set
   profile buckets should be corrected to match what real transactions would
   actually show (the same fix already applied once, for the payroll-

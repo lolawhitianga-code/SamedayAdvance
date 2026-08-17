@@ -952,10 +952,11 @@
 
         <div id="pdf-review-section" style="display:none;">
           <p class="panel-title" style="margin-top:16px;">Extracted transactions — review before running</p>
-          <p class="hint">Uncheck any row that isn't really a transaction, or edit the date/description/amount directly. Amounts are guessed as debits (negative) by default — change the sign for anything that's actually a credit (pay, refunds, transfers in).</p>
+          <p class="hint">Uncheck any row that isn't really a transaction, or edit the date/description/amount directly. Where the layout couldn't be read with confidence, amounts default to debits (negative) — flip the sign on anything that's actually a credit (pay, refunds, transfers in).</p>
+          <p class="pdf-status" id="pdf-column-note" style="display:none;"></p>
           <div class="txn-scroll">
             <table class="txn-table">
-              <thead><tr><th></th><th>Date</th><th>Description</th><th class="num">Amount</th></tr></thead>
+              <thead><tr><th></th><th>Date</th><th>Description</th><th class="num">Amount</th><th class="num" id="pdf-review-balance-header" style="display:none;">Balance</th></tr></thead>
               <tbody id="pdf-review-body"></tbody>
             </table>
           </div>
@@ -1042,9 +1043,14 @@ const SPEND_CATEGORY_RULES = [
   { category: "insurance", label: "Insurance", re: /AAMI|NRMA|BUPA|MEDIBANK|ING INSURANCE|ALLIANZ|YOUI/i },
   { category: "subscriptions", label: "Subscriptions", re: /NETFLIX|SPOTIFY|STAN\.COM|DISNEY|PRIME VIDEO|ANYTIME FITNESS|GOODLIFE/i },
   { category: "groceries", label: "Groceries", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b/i },
-  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT/i },
-  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART/i },
-  { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM/i },
+  { category: "eating_out", label: "Eating Out", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|KITCHEN|\bSUSHI\b/i },
+  { category: "alcohol", label: "Alcohol", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b/i },
+  // Checked after the food/alcohol rules on purpose: a casino's bars and food
+  // outlets (e.g. "SkyCity Flare Bar", "SkyCity Food Republic") should count
+  // as what they actually sold, not get swept into gambling wholesale — only
+  // the cashier/cage and casino-located ATM draws (real gambling money) land
+  // here, once the more specific keyword above hasn't already claimed them.
+  { category: "gambling", label: "Gambling", re: /SPORTSBET|BET365|TABCORP|LADBROKES|POKIES|CASINO|PLAYUP|\bNEDS\b|TAB\.COM|SKY\s?CITY|CASHIER MAIN|\bCAGE\b|CROWN CASINO|JUPITERS|TREASURY CASINO|WREST POINT/i },
   { category: "cash_withdrawal", label: "Cash Withdrawal", re: /ATM WITHDRAWAL|CASH OUT|CASH ADVANCE/i },
   { category: "transport", label: "Transport", re: /OPAL|MYKI|GO ?CARD|\bBP\b|\bSHELL\b|CALTEX|7-ELEVEN FUEL|UBER(?! ?EATS)/i },
   { category: "bnpl_other_credit", label: "BNPL / Other Credit", re: /AFTERPAY|ZIP ?CO|ZIPPAY|\bHUMM\b|LATITUDE|PERSONAL LOAN|CASHIT|NIMBLE|MONEYME|SUNNY LOANS|FERRATUM/i },
@@ -1059,7 +1065,18 @@ const CATEGORY_STYLE = {
   bnpl_other_credit: "txn-caution", sameday_advance_repayment: "txn-caution", cash_withdrawal: "txn-caution",
 };
 
-function categorizeTransaction(description, amount) {
+const CATEGORY_LABELS = {
+  rent_housing: "Rent / Housing", bills_utilities: "Bills & Utilities", insurance: "Insurance",
+  subscriptions: "Subscriptions", groceries: "Groceries", eating_out: "Eating Out", alcohol: "Alcohol",
+  gambling: "Gambling", cash_withdrawal: "Cash Withdrawal", transport: "Transport",
+  bnpl_other_credit: "BNPL / Other Credit", sameday_advance_repayment: "SameDay Advance Repayment",
+  bank_fees: "Bank Fees / Dishonour", retail_shopping: "Retail / Shopping",
+};
+
+// categoryHint: an optional fallback category (from a bank statement's own
+// transaction-type code, e.g. "AT" -> cash_withdrawal) used only when no
+// merchant keyword matched — a specific merchant name always wins.
+function categorizeTransaction(description, amount, categoryHint) {
   if (amount > 0) {
     if (GOV_INCOME_RE.test(description)) return { category: "income_government", label: "Government Payment" };
     if (GIG_INCOME_RE.test(description)) return { category: "income_gig", label: "Gig Income" };
@@ -1067,6 +1084,9 @@ function categorizeTransaction(description, amount) {
   }
   for (const rule of SPEND_CATEGORY_RULES) {
     if (rule.re.test(description)) return { category: rule.category, label: rule.label };
+  }
+  if (categoryHint && CATEGORY_LABELS[categoryHint]) {
+    return { category: categoryHint, label: CATEGORY_LABELS[categoryHint] };
   }
   return { category: "other", label: "Other" };
 }
@@ -1077,7 +1097,7 @@ function avgOf(txns) { return txns.length ? txns.reduce((s, t) => s + t.amount, 
 // ---- 1. Income detection: group credits by normalized payer, find recurring ones ----
 function deriveIncomeProfile(transactions) {
   const credits = transactions.filter((t) => t.amount > 0)
-    .map((t) => ({ ...t, cat: categorizeTransaction(t.description, t.amount).category }));
+    .map((t) => ({ ...t, cat: categorizeTransaction(t.description, t.amount, t.categoryHint).category }));
   const wageCredits = credits.filter((t) => t.cat === "income_credit");
   const govCredits = credits.filter((t) => t.cat === "income_government");
   const gigCredits = credits.filter((t) => t.cat === "income_gig");
@@ -1157,7 +1177,7 @@ function deriveAccountConduct(transactions, incomeProfile) {
   const nearZeroDays = series.filter((d) => d.balance >= 0 && d.balance < 50).length;
   const nearZeroPct = series.length ? (nearZeroDays / series.length) * 100 : 0;
   const dishonours = transactions.filter((t) =>
-    categorizeTransaction(t.description, t.amount).category === "bank_fees" && /DISHONOUR/i.test(t.description)
+    categorizeTransaction(t.description, t.amount, t.categoryHint).category === "bank_fees" && /DISHONOUR/i.test(t.description)
   ).length;
 
   let buffer = "0";
@@ -1191,7 +1211,7 @@ function deriveExistingCreditUse(transactions) {
 
   const bnplGroups = {};
   debits.forEach((t) => {
-    if (categorizeTransaction(t.description, t.amount).category === "bnpl_other_credit") {
+    if (categorizeTransaction(t.description, t.amount, t.categoryHint).category === "bnpl_other_credit") {
       const key = t.description.trim().toUpperCase();
       (bnplGroups[key] = bnplGroups[key] || []).push(t);
     }
@@ -1200,7 +1220,7 @@ function deriveExistingCreditUse(transactions) {
   const otherRepayments = activeBnplPayees === 0 ? "none" : activeBnplPayees === 1 ? "one" : "two+";
 
   const advanceRepayments = debits
-    .filter((t) => categorizeTransaction(t.description, t.amount).category === "sameday_advance_repayment")
+    .filter((t) => categorizeTransaction(t.description, t.amount, t.categoryHint).category === "sameday_advance_repayment")
     .sort((a, b) => a.date.localeCompare(b.date));
   const priorAdvances = advanceRepayments.length === 0 ? "0" : advanceRepayments.length === 1 ? "1" : advanceRepayments.length === 2 ? "2" : "3+";
 
@@ -1297,7 +1317,7 @@ const CATEGORY_ORDER = [
 function categorizedLedgerHTML(txns) {
   const groups = {};
   txns.forEach((t) => {
-    const c = categorizeTransaction(t.description, t.amount);
+    const c = categorizeTransaction(t.description, t.amount, t.categoryHint);
     if (!groups[c.category]) groups[c.category] = { label: c.label, items: [], total: 0 };
     groups[c.category].items.push(t);
     groups[c.category].total += t.amount;
@@ -1401,13 +1421,41 @@ function loadDerivedIntoAssessment() {
 }
 
 // ===================== PDF STATEMENT UPLOAD =====================
-// Heuristic client-side parser: extracts positioned text from the PDF via
-// pdf.js, reconstructs it into lines, then looks for a leading date and a
-// trailing dollar amount on each line. Bank statement layouts vary enough
-// (separate debit/credit columns, DR/CR suffixes, balance-only rows) that
-// this can't be fully reliable — it's deliberately a review-then-run flow,
-// not an auto-trust one.
+// Heuristic client-side parser. Real bank statements are harder than "one
+// line = one transaction": a single transaction often wraps across 2-3
+// physical lines (date+description, then a card/reference continuation
+// line, then the amount), and amounts sit in fixed columns (Withdrawals /
+// Deposits / Balance, or just a signed amount + balance) whose meaning
+// comes from X position, not from a sign character that survives text
+// extraction. This is still explicitly a review-then-run flow, not an
+// auto-trust one — layouts vary too much to get every bank right.
 const MONTH_MAP = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+// Standard-ish AU/NZ bank statement transaction-type codes. Not every bank
+// uses these exact two-letter codes, but ANZ, and several others, do — used
+// as a sign/category hint, and only ever as a fallback under the keyword
+// rules in SPEND_CATEGORY_RULES, never overriding a specific merchant match.
+const TXN_TYPE_HINTS = {
+  DC: { sign: "credit" },                              // Direct Credit
+  BP: { sign: "debit" },                                // Bill Payment
+  AP: { sign: "debit" },                                // Automatic Payment
+  DD: { sign: "debit", category: "bills_utilities" },   // Direct Debit
+  AT: { sign: "debit", category: "cash_withdrawal" },   // Automatic Teller Machine
+  EP: { sign: "debit" },                                // EFTPOS Transaction
+  VT: { sign: "debit" },                                // Visa Transaction
+  CQ: { sign: "debit" },                                // Cheque/Withdrawal
+  ED: { sign: "debit", category: "bank_fees" },         // Electronic Dishonour
+  FX: { sign: "debit" },                                // Foreign Exchange
+  IP: { sign: "debit" },                                // International EFTPOS
+  IF: { sign: "debit" },                                // International Payment
+  IA: { sign: "debit", category: "cash_withdrawal" },   // International Money Machine
+};
+
+// Lines that mean "not a transaction" even though they can appear right in
+// the middle of the transaction table — running totals, legends, headers,
+// the opening-balance line. Stops these from being swallowed as a
+// continuation line of whatever transaction preceded them.
+const NON_TXN_LINE_RE = /^(Totals? at end|Balance brought forward|Text$|AP Automatic Payment|Date\s+Transaction type|Opening balance$|Closing balance$)/i;
 
 function parseDateToken(tok) {
   let m = tok.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
@@ -1427,39 +1475,60 @@ function parseDateToken(tok) {
   return null;
 }
 
-function extractMoneyTokens(line) {
-  // \d+ (not \d{1,3}) so a plain 4+-digit amount with no thousands separator
-  // (e.g. "1055.00", common when a statement doesn't group thousands) still
-  // matches whole, instead of only matching its last 1-3 digits.
-  const re = /-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}\)?\s?(CR|DR)?/gi;
-  const matches = [...line.matchAll(re)];
+// \d+ (not \d{1,3}) so a plain 4+-digit amount with no thousands separator
+// (e.g. "1055.00") still matches whole, not just its last 1-3 digits.
+const MONEY_RE = /-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}\)?\s?(CR|DR)?/gi;
+
+function extractMoneyTokens(text) {
+  const matches = [...text.matchAll(MONEY_RE)];
   return matches.map((m) => {
     let raw = m[0].trim();
     const isCR = /CR$/i.test(raw);
     const isDR = /DR$/i.test(raw);
     const explicitlyNeg = /^-/.test(raw) || /^\(/.test(raw) || isDR;
     raw = raw.replace(/[^0-9.]/g, "");
-    let val = parseFloat(raw);
+    const val = parseFloat(raw);
     if (isNaN(val)) return null;
-    // Most lines in a statement are everyday debits, and many banks don't
-    // preserve a literal minus sign or DR/CR marker once text is extracted
-    // linearly from a PDF (the distinction was really a column position) —
-    // so default to a debit unless something explicitly says otherwise.
-    if (isCR && !explicitlyNeg) {
-      // stays positive
-    } else {
-      val = -Math.abs(val);
-    }
-    return { value: val, index: m.index };
+    return { magnitude: val, explicitSign: explicitlyNeg ? "debit" : isCR ? "credit" : null, index: m.index };
   }).filter(Boolean);
 }
 
-function parseStatementLines(lines) {
-  const parsed = [];
-  const unparsed = [];
-  lines.forEach((line) => {
-    const trimmed = line.trim();
+// ---- PDF text extraction: preserves X position per item so amount columns
+// (Withdrawals / Deposits / Balance) can be told apart by where they sit,
+// not just by reading order. ----
+async function extractPdfRows(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const rows = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const byY = {};
+    content.items.forEach((item) => {
+      const y = Math.round(item.transform[5]);
+      (byY[y] = byY[y] || []).push({ str: item.str, x: item.transform[4] });
+    });
+    Object.keys(byY).map(Number).sort((a, b) => b - a).forEach((y) => {
+      const items = byY[y].slice().sort((a, b) => a.x - b.x);
+      rows.push({ text: items.map((it) => it.str).join(" "), items });
+    });
+  }
+  return rows;
+}
+
+// ---- Group rows into transaction records: a record starts at a row whose
+// first token is a recognizable date, and absorbs following rows (card
+// detail / description continuation) until the next date, a non-transaction
+// marker line, or a sane line-count cap — whichever comes first. ----
+function groupIntoRecords(rows) {
+  const records = [];
+  let current = null;
+  let linesSinceStart = 0;
+  rows.forEach((row) => {
+    const trimmed = row.text.trim();
     if (!trimmed) return;
+    if (NON_TXN_LINE_RE.test(trimmed)) { current = null; return; }
+
     const tokens = trimmed.split(/\s+/);
     let isoDate = parseDateToken(tokens[0]);
     let dateTokLen = 1;
@@ -1469,54 +1538,152 @@ function parseStatementLines(lines) {
       if (parseDateToken(combo3)) { isoDate = parseDateToken(combo3); dateTokLen = 3; }
       else if (parseDateToken(combo2)) { isoDate = parseDateToken(combo2); dateTokLen = 2; }
     }
-    if (!isoDate) { unparsed.push(line); return; }
 
-    const moneyTokens = extractMoneyTokens(trimmed);
-    if (moneyTokens.length === 0) { unparsed.push(line); return; }
-
-    // 2+ amounts on a line usually means the last one is a running balance
-    // column and the true transaction amount is the one just before it;
-    // with only one amount found, that's the transaction amount itself.
-    const txnMoney = moneyTokens.length >= 2 ? moneyTokens[moneyTokens.length - 2] : moneyTokens[0];
-    const restAfterDate = tokens.slice(dateTokLen).join(" ");
-    const firstMoneyInRest = trimmed.slice(trimmed.length - restAfterDate.length).search(/-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}/);
-    const description = (firstMoneyInRest > 0 ? restAfterDate.slice(0, firstMoneyInRest) : restAfterDate).trim() || "(unlabelled)";
-
-    parsed.push({ date: isoDate, description: description.slice(0, 80), amount: txnMoney.value });
+    if (isoDate) {
+      if (current) records.push(current);
+      let rest = tokens.slice(dateTokLen).join(" ");
+      // "20 Apr Opening balance 10,445.96 OD" etc. — a real date-prefixed
+      // row, but not a transaction (no withdrawal or deposit, just a
+      // starting/ending position).
+      if (/^(Opening balance|Closing balance)\b/i.test(rest.trim())) { current = null; return; }
+      let typeCode = null;
+      const typeMatch = rest.match(/^([A-Z]{2})\s+/);
+      if (typeMatch && TXN_TYPE_HINTS[typeMatch[1]]) {
+        typeCode = typeMatch[1];
+        rest = rest.slice(typeMatch[0].length);
+      }
+      current = { date: isoDate, typeCode, textParts: [rest], moneyItems: [] };
+      const restStartX = row.items[Math.min(dateTokLen + (typeMatch ? 1 : 0), row.items.length - 1)];
+      row.items.forEach((it) => {
+        if (!restStartX || it.x >= restStartX.x) {
+          extractMoneyTokens(it.str).forEach((m) => current.moneyItems.push({ ...m, x: it.x }));
+        }
+      });
+      linesSinceStart = 0;
+    } else if (current && linesSinceStart < 3) {
+      current.textParts.push(trimmed);
+      row.items.forEach((it) => {
+        extractMoneyTokens(it.str).forEach((m) => current.moneyItems.push({ ...m, x: it.x }));
+      });
+      linesSinceStart++;
+    }
   });
-  return { parsed, unparsed };
+  if (current) records.push(current);
+  return records;
 }
 
-async function extractPdfLines(file) {
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  const lines = [];
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    const byY = {};
-    content.items.forEach((item) => {
-      const y = Math.round(item.transform[5]);
-      (byY[y] = byY[y] || []).push(item);
-    });
-    Object.keys(byY).map(Number).sort((a, b) => b - a).forEach((y) => {
-      const rowItems = byY[y].slice().sort((a, b) => a.transform[4] - b.transform[4]);
-      lines.push(rowItems.map((it) => it.str).join(" "));
+// ---- Figure out what the amount columns mean by clustering their X
+// positions across the whole statement: 3 clusters -> Withdrawals / Deposits
+// / Balance (left to right, matching how every AU/NZ statement I've seen
+// labels them); 2 -> Amount / Balance; 1 or inconsistent -> just an amount,
+// sign guessed from DR/CR or the transaction-type legend. ----
+function detectColumns(records) {
+  const xs = [];
+  records.forEach((r) => r.moneyItems.forEach((m) => xs.push(m.x)));
+  if (xs.length < 3) return null;
+  const sorted = [...xs].sort((a, b) => a - b);
+  const gapThreshold = 15;
+  const clusters = [];
+  let bucket = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sorted[i - 1] > gapThreshold) { clusters.push(bucket); bucket = []; }
+    bucket.push(sorted[i]);
+  }
+  clusters.push(bucket);
+  const centers = clusters.map((c) => c.reduce((a, b) => a + b, 0) / c.length).sort((a, b) => a - b);
+  if (centers.length === 3) return { roles: ["withdrawal", "deposit", "balance"], centers };
+  if (centers.length === 2) return { roles: ["amount", "balance"], centers };
+  return null;
+}
+
+function nearestRole(x, columns) {
+  let best = 0, bestDist = Infinity;
+  columns.centers.forEach((c, i) => {
+    const d = Math.abs(x - c);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return columns.roles[best];
+}
+
+function recordToTransaction(rec, columns) {
+  const combinedText = rec.textParts.join(" ");
+  if (rec.moneyItems.length === 0) return null;
+
+  let amount = null, balance = null;
+  if (columns) {
+    rec.moneyItems.forEach((m) => {
+      const role = nearestRole(m.x, columns);
+      if (role === "withdrawal") amount = -m.magnitude;
+      else if (role === "deposit") amount = m.magnitude;
+      else if (role === "balance") balance = m.magnitude;
+      else if (role === "amount") amount = m.explicitSign === "credit" ? m.magnitude : -m.magnitude;
     });
   }
-  return lines;
+  if (amount === null) {
+    // No confident column structure — fall back to the last-two-tokens
+    // heuristic (second-to-last = amount, last = balance if present), and
+    // default to a debit unless something explicit says otherwise, since
+    // most lines in any statement are everyday spend.
+    const m = rec.moneyItems;
+    const txnMoney = m.length >= 2 ? m[m.length - 2] : m[0];
+    if (m.length >= 2) balance = m[m.length - 1].magnitude;
+    amount = txnMoney.explicitSign === "credit" ? txnMoney.magnitude : -txnMoney.magnitude;
+  }
+  const typeHint = rec.typeCode ? TXN_TYPE_HINTS[rec.typeCode] : null;
+  if (typeHint && typeHint.sign === "credit" && amount < 0 && !columns) amount = Math.abs(amount);
+
+  const firstMoneyIdx = combinedText.search(/-?\(?\$?\s?\d+(?:,\d{3})*\.\d{2}/);
+  let description = (firstMoneyIdx > 0 ? combinedText.slice(0, firstMoneyIdx) : combinedText)
+    .replace(/\d{6,}\*{2,}\d*/g, "")   // masked card numbers
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!description) description = rec.typeCode ? rec.typeCode + " transaction" : "(unlabelled)";
+
+  return {
+    date: rec.date,
+    description: description.slice(0, 90),
+    amount: Math.round(amount * 100) / 100,
+    balance: balance !== null ? Math.round(balance * 100) / 100 : null,
+    categoryHint: typeHint && typeHint.category,
+  };
 }
 
-function renderPdfReview(parsed, unparsed) {
+function parseStatementRows(rows) {
+  const records = groupIntoRecords(rows);
+  const columns = detectColumns(records);
+  const parsed = [];
+  const unparsed = [];
+  records.forEach((rec) => {
+    const txn = recordToTransaction(rec, columns);
+    if (txn) parsed.push(txn);
+    else unparsed.push(rec.date + " " + rec.textParts.join(" "));
+  });
+  return { parsed, unparsed, columns };
+}
+
+function renderPdfReview(parsed, unparsed, columns) {
   document.getElementById("pdf-review-section").style.display = "block";
+  const hasBalance = parsed.some((t) => t.balance !== null);
+  const columnNote = document.getElementById("pdf-column-note");
+  if (columns) {
+    columnNote.style.display = "block";
+    columnNote.textContent = columns.roles.length === 3
+      ? "Detected separate Withdrawals / Deposits / Balance columns — amounts and balances below are read from column position, not guessed."
+      : "Detected an Amount + Balance column pair.";
+  } else {
+    columnNote.style.display = "block";
+    columnNote.textContent = "Couldn't confidently detect separate amount columns — amounts default to debits unless a credit was explicitly marked (CR, or a recognized income-type code). Check the sign on every row below, especially income.";
+  }
   document.getElementById("pdf-review-body").innerHTML = parsed.map((t, i) =>
-    "<tr>" +
+    "<tr data-hint=\"" + (t.categoryHint || "") + "\">" +
     "<td class=\"review-cell\"><input type=\"checkbox\" checked class=\"pdf-row-include\" data-i=\"" + i + "\" /></td>" +
     "<td class=\"review-cell\"><input type=\"text\" class=\"num-input review-input pdf-row-date\" data-i=\"" + i + "\" value=\"" + t.date + "\" /></td>" +
     "<td class=\"review-cell\"><input type=\"text\" class=\"num-input review-input pdf-row-desc\" data-i=\"" + i + "\" value=\"" + t.description.replace(/"/g, "&quot;") + "\" /></td>" +
     "<td class=\"review-cell\"><input type=\"number\" step=\"0.01\" class=\"num-input review-input pdf-row-amt\" data-i=\"" + i + "\" value=\"" + t.amount + "\" /></td>" +
+    (hasBalance ? "<td class=\"review-cell\"><input type=\"number\" step=\"0.01\" class=\"num-input review-input pdf-row-bal\" data-i=\"" + i + "\" value=\"" + (t.balance !== null ? t.balance : "") + "\" /></td>" : "") +
     "</tr>"
   ).join("");
+  document.getElementById("pdf-review-balance-header").style.display = hasBalance ? "" : "none";
 
   const unparsedSection = document.getElementById("pdf-unparsed-section");
   if (unparsed.length) {
@@ -1539,15 +1706,15 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "Reading " + file.name + "…";
     document.getElementById("pdf-result-section").style.display = "none";
     try {
-      const lines = await extractPdfLines(file);
-      const { parsed, unparsed } = parseStatementLines(lines);
+      const rows = await extractPdfRows(file);
+      const { parsed, unparsed, columns } = parseStatementRows(rows);
       statusEl.textContent = "Extracted " + parsed.length + " candidate transaction" + (parsed.length === 1 ? "" : "s") +
-        " from " + lines.length + " lines of text (" + unparsed.length + " didn't match a date + amount pattern — review below).";
+        " from " + rows.length + " lines of text (" + unparsed.length + " didn't match a transaction pattern — review below).";
       if (parsed.length === 0) {
         statusEl.className = "pdf-status err";
         statusEl.textContent += " No transactions were recognized — this statement's layout may not match the patterns this parser looks for.";
       }
-      renderPdfReview(parsed, unparsed);
+      renderPdfReview(parsed, unparsed, columns);
     } catch (err) {
       statusEl.className = "pdf-status err";
       statusEl.textContent = "Couldn't read this PDF: " + err.message;
@@ -1562,16 +1729,29 @@ function runUploadedStatement() {
     const date = tr.querySelector(".pdf-row-date").value.trim();
     const description = tr.querySelector(".pdf-row-desc").value.trim();
     const amount = Number(tr.querySelector(".pdf-row-amt").value);
+    const balEl = tr.querySelector(".pdf-row-bal");
+    const balance = balEl && balEl.value !== "" ? Number(balEl.value) : null;
+    const categoryHint = tr.dataset.hint || undefined;
     if (!date || !description || isNaN(amount)) return;
-    rows.push({ date, description, amount });
+    rows.push({ date, description, amount, balance, categoryHint });
   });
   if (rows.length < 2) {
     alert("Not enough valid, checked transactions to run the categorizer — review the extracted rows above (need at least 2, including some income).");
     return;
   }
   rows.sort((a, b) => a.date.localeCompare(b.date));
-  let bal = 0;
-  const txns = rows.map((t) => { bal = Math.round((bal + t.amount) * 100) / 100; return { ...t, balance: bal }; });
+
+  // If every reviewed row carries a real extracted balance, trust it —
+  // that's the account's true position (which may legitimately be negative
+  // on a credit facility) rather than a running sum guessed from zero.
+  const allHaveBalance = rows.every((r) => r.balance !== null && !isNaN(r.balance));
+  let txns;
+  if (allHaveBalance) {
+    txns = rows.map((t) => ({ date: t.date, description: t.description, amount: t.amount, balance: t.balance, categoryHint: t.categoryHint }));
+  } else {
+    let bal = 0;
+    txns = rows.map((t) => { bal = Math.round((bal + t.amount) * 100) / 100; return { date: t.date, description: t.description, amount: t.amount, balance: bal, categoryHint: t.categoryHint }; });
+  }
 
   const derived = deriveApplicantFromStatement(txns);
   state.derivedFromStatement = derived;
@@ -1590,7 +1770,9 @@ function runUploadedStatement() {
   resultEl.style.display = "block";
   resultEl.innerHTML =
     "<p class=\"panel-title\" style=\"margin-top:20px;\">Derived assessment inputs</p>" +
-    "<p class=\"hint\">Computed from the " + txns.length + " reviewed transactions above — no hand-set profile to compare against here, this is a real statement.</p>" +
+    "<p class=\"hint\">Computed from the " + txns.length + " reviewed transactions above" +
+    (allHaveBalance ? ", using the statement's own balance column" : ", with balance computed as a running sum from $0 since no balance column was detected — this will be wrong for an account that starts already drawn/overdrawn") +
+    ". No hand-set profile to compare against here — this is a real statement.</p>" +
     "<table class=\"compare-table\"><thead><tr><th>Field</th><th>Derived value</th></tr></thead><tbody>" +
     Object.entries(fieldLabels).map(([k, label]) => "<tr><td>" + label + "</td><td>" + derived[k] + "</td></tr>").join("") +
     "</tbody></table>" +
