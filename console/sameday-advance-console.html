@@ -1050,10 +1050,14 @@ const GIG_INCOME_RE = /UBER \*TRIP|DOORDASH|AIRTASKER|MENULOG DASHER|DIDI|AMAZON
 // visible so it can be weighed against cash_withdrawal (cash cycled in and
 // back out nets to roughly nothing, which matters more than either side
 // alone).
-// "PBKA" is ANZ NZ's own transaction-type prefix for an ATM cash deposit
-// (confirmed against a real statement) — doesn't contain the word "deposit"
-// at all, so needed its own keyword rather than being caught by the others.
-const CASH_DEPOSIT_RE = /ATM DEPOSIT|CASH DEPOSIT|BRANCH DEPOSIT|COUNTER DEPOSIT|DEPOSIT AT ATM|\bPBKA/i;
+// "PBKA" and "04 BILL PAYMENT" are both real transaction-type prefixes for
+// an ATM/branch cash deposit (confirmed against a real statement) — neither
+// contains the word "deposit" at all, so each needed its own keyword rather
+// than being caught by the others. "04 BILL PAYMENT" only matches on the
+// credit side (this regex is only ever checked for amount > 0 in
+// categorizeTransaction), so it can't clash with genuine BILL PAYMENT debits
+// (e.g. "BP ... BILL PAYMENT" self-transfers, handled separately).
+const CASH_DEPOSIT_RE = /ATM DEPOSIT|CASH DEPOSIT|BRANCH DEPOSIT|COUNTER DEPOSIT|DEPOSIT AT ATM|\bPBKA|\b04 BILL PAYMENT\b/i;
 
 const SPEND_CATEGORY_RULES = [
   // Mortgage repayments (to the applicant's own home-loan sub-accounts) are
@@ -1127,7 +1131,14 @@ const CATEGORY_LABELS = {
 
 // categoryHint: an optional fallback category (from a bank statement's own
 // transaction-type code, e.g. "AT" -> cash_withdrawal) used only when no
-// merchant keyword matched — a specific merchant name always wins.
+// merchant keyword matched — a specific merchant name always wins. The one
+// exception is "self_transfer": a structural match on the account holder's
+// own name leading the description (see isSelfTransferDescription) is a
+// definitive signal, not a soft guess, so it's checked ahead of the keyword
+// rules — otherwise a coincidental collision (e.g. the bank's own "BP" =
+// Bill Payment type-code prefix landing on "BP M D CHATTERTON BILL
+// PAYMENT", which also happens to match the transport rule's "BP" = BP
+// fuel stations keyword) would silently override it.
 function categorizeTransaction(description, amount, categoryHint) {
   if (amount > 0) {
     if (CASH_DEPOSIT_RE.test(description)) return { category: "cash_deposit", label: "Cash Deposit" };
@@ -1135,6 +1146,7 @@ function categorizeTransaction(description, amount, categoryHint) {
     if (GIG_INCOME_RE.test(description)) return { category: "income_gig", label: "Gig Income" };
     return { category: "income_credit", label: "Income / Wages" };
   }
+  if (categoryHint === "self_transfer") return { category: "cash_withdrawal", label: "Cash Withdrawal" };
   for (const rule of SPEND_CATEGORY_RULES) {
     if (rule.re.test(description)) return { category: rule.category, label: rule.label };
   }
@@ -1867,7 +1879,7 @@ function recordToTransaction(rec, columns, holderName) {
   // moving cash out of reach than a purchase, so it's bucketed the same as
   // a cash withdrawal (the user's call, on an actual example of this).
   let categoryHint = typeHint && typeHint.category;
-  if (amount < 0 && isSelfTransferDescription(description, holderName)) categoryHint = "cash_withdrawal";
+  if (amount < 0 && isSelfTransferDescription(description, holderName)) categoryHint = "self_transfer";
 
   return {
     date: rec.date,

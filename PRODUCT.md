@@ -517,3 +517,39 @@ declines need to be explainable.
     passed and the 100-applicant validation stayed at 58.4% (unchanged, as
     expected — this only changes what's displayed in the Cash Flow panel,
     not any scoring-relevant derived field).
+
+  **14. "04 BILL PAYMENT" recognized as a cash deposit; fixed a real
+  self-transfer misclassification bug found while testing it.** User:
+  "04 bill payment is a cash deposit, not income" — another real
+  transaction-type prefix (like "PBKA" in step 12) added to
+  `CASH_DEPOSIT_RE`, scoped to the credit side only so it can't collide
+  with genuine debit-side bill payments.
+  - While unit-testing this against the earlier-resolved "BP M D
+    CHATTERTON BILL PAYMENT" self-transfer example (step 9), found that it
+    was actually still being shown as **Transport**, not **Cash
+    Withdrawal** as confirmed back then — a real bug, not a hypothetical.
+    Cause: `categorizeTransaction` always checks `SPEND_CATEGORY_RULES`
+    (the merchant-keyword rules) before ever consulting `categoryHint`,
+    and the transport rule's `\bBP\b` keyword (for BP fuel stations) also
+    matches the bank's own "BP" = Bill Payment transaction-type prefix —
+    so the self-transfer detector's verdict was silently getting
+    overridden by a coincidental keyword collision every time.
+  - The underlying issue: `categoryHint` was one flat string used for two
+    very different kinds of signal — a soft, often-wrong bank type-code
+    guess (correctly checked *after* keywords, e.g. "DD" → bills_utilities)
+    and the self-transfer detector's verdict, which is a definitive,
+    structural match (the account holder's own name literally leading the
+    description) that deserves to win over a keyword collision. Fixed by
+    giving self-transfer its own sentinel (`categoryHint = "self_transfer"`
+    instead of directly "cash_withdrawal") and checking it in
+    `categorizeTransaction` *before* the keyword-rules loop, while leaving
+    every other (soft) categoryHint use checked after, unchanged.
+  - Verified directly: `categorizeTransaction("BP M D CHATTERTON BILL
+    PAYMENT", -300, "self_transfer")` now correctly returns
+    `cash_withdrawal`; a genuine `"BP FUEL"` debit with no hint still
+    correctly returns `transport` (the fix doesn't touch real fuel-station
+    transactions, only the specific collision); `"04 BILL PAYMENT"` credit
+    returns `cash_deposit`; a real wage payer is unaffected. `node --check`
+    passed, the 100-applicant validation stayed at 58.4% (unchanged — no
+    simulated applicant has this exact collision), and the Playwright
+    smoke test showed no new errors.
