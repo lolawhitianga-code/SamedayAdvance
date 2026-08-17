@@ -612,3 +612,42 @@ declines need to be explainable.
     withdrawal"), which was accurate before step 15 but stale afterward;
     now also says a credit under that name is "cash deposit... not
     third-party spend or income."
+
+  **17. Split the real-PDF upload out into its own tab.** User: "make the
+  bank statement upload a seperate tab than the sim. have the upload pdf
+  button at the top. its confusing having sim bank data and pdf uploaded
+  data on the same page." Both had been living in the single "Bank
+  Statement" tab — the 100-simulated-applicant view up top, the real-PDF
+  upload/review/scrutiny tool tacked on at the bottom of the same page —
+  which meant the two very different data sources (fake generated ledger
+  vs. an actual uploaded statement) were rendering into the same scroll,
+  easy to conflate.
+  - New tab button "Upload Statement (PDF)" added alongside "Bank
+    Statement" in the top tab bar (`data-tab="pdf"`).
+  - Moved the entire real-statement section (upload zone, extracted-rows
+    review table, unparsed-lines panel, and the results panel built by
+    `runUploadedStatement()`) out of `tab-bank` into its own `tab-pdf` div.
+    None of the element IDs changed (`pdf-upload-input`,
+    `pdf-review-section`, `pdf-result-section`, etc.), so none of the JS
+    that reads/writes them needed touching — only where they live in the
+    DOM moved.
+  - The upload `<input>` now sits directly under the panel title, ahead of
+    the explanatory hint text, so it's the first interactive element on
+    the tab rather than buried after a wall of copy at the bottom of the
+    Bank Statement tab.
+  - `switchTab()` updated to toggle `tab-pdf`'s `.active` class; no new
+    render call needed on switching to it (unlike `bank`/`simulation`,
+    nothing needs to be pre-populated — it starts empty until a PDF is
+    uploaded).
+  - Added a one-line cross-reference at the bottom of the Bank Statement
+    tab pointing to the new Upload Statement tab, and reworded the PDF
+    tab's hint to reference the Bank Statement tab by name instead of
+    "the simulated applicants above" (no longer true once they're on
+    separate tabs).
+  - Verified with a dedicated Playwright check: 5 tabs total, Bank
+    Statement tab no longer contains `#pdf-upload-input`, the PDF tab is
+    hidden until clicked and doesn't leak any bank-ledger elements, and
+    the upload zone renders as the first element after the panel title.
+    Re-ran the 100-applicant validation (58.4%, unchanged — pure DOM
+    reorganization, no logic touched) and the existing smoke test (no new
+    errors).

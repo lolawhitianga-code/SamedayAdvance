@@ -431,6 +431,7 @@
       <button class="tab-btn" data-tab="simulation" onclick="switchTab('simulation')">Multi-Year Simulation</button>
       <button class="tab-btn" data-tab="summary" onclick="switchTab('summary')">Session Summary</button>
       <button class="tab-btn" data-tab="bank" onclick="switchTab('bank')">Bank Statement</button>
+      <button class="tab-btn" data-tab="pdf" onclick="switchTab('pdf')">Upload Statement (PDF)</button>
     </div>
   </div>
 
@@ -950,11 +951,20 @@
       </div>
 
       <div class="panel full-span">
+        <p class="hint">Want to test against a real bank statement instead of a simulated applicant? See the <b>Upload Statement (PDF)</b> tab.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ UPLOAD STATEMENT (PDF) TAB ============ -->
+  <div id="tab-pdf" class="tab-content">
+    <div class="grid">
+      <div class="panel full-span">
         <p class="panel-title">Scrutinize a real bank statement (PDF)</p>
-        <p class="hint">Upload an actual bank statement PDF and run it through the same categorizer used on the simulated applicants above. Text extraction and line-parsing happens entirely in your browser — nothing is uploaded anywhere. This is a heuristic, best-effort parser (bank statement layouts vary a lot), not a bank-specific integration, so <b>always review the extracted rows before running the categorizer</b> — fix any misread dates, descriptions, or amounts (and flip the sign if a credit was read as a debit or vice versa) first.</p>
         <div class="upload-zone">
           <input type="file" id="pdf-upload-input" accept="application/pdf" />
         </div>
+        <p class="hint">Upload an actual bank statement PDF and run it through the same categorizer used on the 100 simulated applicants in the <b>Bank Statement</b> tab. Text extraction and line-parsing happens entirely in your browser — nothing is uploaded anywhere. This is a heuristic, best-effort parser (bank statement layouts vary a lot), not a bank-specific integration, so <b>always review the extracted rows before running the categorizer</b> — fix any misread dates, descriptions, or amounts (and flip the sign if a credit was read as a debit or vice versa) first.</p>
         <div id="pdf-upload-status" class="pdf-status" style="display:none;"></div>
 
         <div id="pdf-review-section" style="display:none;">
@@ -2979,6 +2989,7 @@ function switchTab(tab) {
   document.getElementById("tab-simulation").classList.toggle("active", tab === "simulation");
   document.getElementById("tab-summary").classList.toggle("active", tab === "summary");
   document.getElementById("tab-bank").classList.toggle("active", tab === "bank");
+  document.getElementById("tab-pdf").classList.toggle("active", tab === "pdf");
   if (tab === "simulation") runAndRenderSimulation();
   if (tab === "bank") renderBankStatement();
 }
