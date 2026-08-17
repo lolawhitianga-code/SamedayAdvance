@@ -756,3 +756,51 @@ declines need to be explainable.
     Cash Deposit respectively — not Income. Re-ran the 100-applicant
     validation (58.4%, unchanged) and the existing smoke/tab-split/
     fallback tests (no new errors).
+
+  **20. Generalized beyond self-transfer: any bill payment to a
+  non-business name is a cash withdrawal.** New real example: "Other
+  expence bnz mark bill payment is a cash withdrawl. why? because its a
+  nice round figure sent to another bank account with no explanation. it
+  could have been sent to myself or a friend - that doesnt matter. its
+  cold hard cash leaving my account without going towards a bill or buying
+  a good or service from a business." A broader principle than
+  self-transfer (step 15): it doesn't matter *who* received the money —
+  what matters is whether it went to an actual bill or a business, or just
+  moved to a person. "BNZ MARK BILL PAYMENT" (BNZ = the receiving bank,
+  Mark = a first name, no business identity at all) was landing in
+  "Other" because no merchant keyword matched a bare first name — correct
+  behavior for *unrecognized*, but the user's point is this specific
+  shape (bill payment + no business match) shouldn't need to be
+  recognized case-by-case, it should just resolve to cash_withdrawal by
+  construction.
+  - New `looksLikePersonName(s, minTokens)`, generalized out of the
+    account-holder-name validator from step 19 (which now just calls it
+    with `minTokens=2`) — same "no digits, no field-label or business-suffix
+    words (ltd/pty/council/trust/co/inc/etc.), 1-5 letter-only tokens"
+    shape check, but with `minTokens=1` so a bare first name like "Mark"
+    still qualifies (unlike the account-holder case, where a single
+    ambiguous word shouldn't be accepted as someone's whole name).
+  - New `isPersonToPersonBillPayment(description)`: matches text ending in
+    "BILL PAYMENT", strips a leading bank-code prefix if present (BNZ,
+    ASB, ANZ, Westpac, NAB, Kiwibank, CBA, and others), and checks whether
+    what's left looks like a person's name via the above.
+  - Wired into `categorizeTransaction`'s debit branch, checked *after* the
+    full `SPEND_CATEGORY_RULES` merchant-keyword loop (so a real business
+    that happens to route through a "BILL PAYMENT" transaction type — AAMI,
+    Mercury Energy, council rates — is still caught by its own keyword
+    first) but *before* the categoryHint/size-based fallbacks.
+  - Verified directly: "BNZ MARK BILL PAYMENT" → `cash_withdrawal`; a bare
+    "SARAH BILL PAYMENT" → `cash_withdrawal`; "AAMI BILL PAYMENT",
+    "MERCURY ENERGY BILL PAYMENT", and "TCDC BILL PAYMENT" (council rates)
+    all still resolve to their correct business category, unaffected;
+    "SPARKY ELECTRICAL LTD BILL PAYMENT" (an unrecognized business with a
+    company suffix) correctly falls through to "Other" rather than being
+    swept in as a person, since "ltd" is an excluded word — stays
+    genuinely ambiguous rather than being guessed wrong in either
+    direction. Ran a full Playwright test through the real production
+    upload pipeline confirming "BNZ MARK BILL PAYMENT" lands in **Cash
+    Withdrawal** while "AAMI BILL PAYMENT" and "COLES SUPERMARKET" land in
+    their normal categories. Re-ran the 100-applicant validation (58.4%,
+    unchanged — no simulated applicant transaction contains "BILL
+    PAYMENT" at all, confirmed by checking the underlying data directly)
+    and the existing smoke test (no new errors).

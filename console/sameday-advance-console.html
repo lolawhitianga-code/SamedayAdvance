@@ -1166,6 +1166,11 @@ function categorizeTransaction(description, amount, categoryHint) {
   for (const rule of SPEND_CATEGORY_RULES) {
     if (rule.re.test(description)) return { category: rule.category, label: rule.label };
   }
+  // A bill payment to a name that isn't a recognizable business (checked
+  // only once every keyword rule above has already had its chance) is cash
+  // leaving the account without going toward an actual bill or a purchase
+  // — treated the same as a cash withdrawal regardless of who received it.
+  if (isPersonToPersonBillPayment(description)) return { category: "cash_withdrawal", label: "Cash Withdrawal" };
   if (categoryHint && CATEGORY_LABELS[categoryHint]) {
     return { category: categoryHint, label: CATEGORY_LABELS[categoryHint] };
   }
@@ -1847,13 +1852,38 @@ function nearestRole(x, columns) {
 // holder name "Account number 06-0457-0778429-00". A name has no digits, is
 // a handful of capitalized word-shaped tokens, and isn't itself another
 // field label.
-function looksLikeAccountHolderName(s) {
+// Shared "does this look like a person's name, not a business or a field
+// label" check. minTokens is 2 for detectAccountHolderName (a lone
+// ambiguous word shouldn't be accepted as someone's full name) but 1 for
+// isPersonToPersonBillPayment below, where a single first name (e.g. just
+// "Mark") is a completely normal thing to send a bill payment to.
+function looksLikePersonName(s, minTokens) {
   const t = s.trim();
   if (!t || /\d/.test(t)) return false;
-  if (/\b(account|number|name|bsb|statement|balance|address|branch|period|sort code|iban|swift)\b/i.test(t)) return false;
+  if (/\b(account|number|name|bsb|statement|balance|address|branch|period|sort code|iban|swift|ltd|limited|pty|inc|incorporated|co|company|council|trust|society|club|centre|center|church|corp|corporation|group|services|holdings|enterprises|store|shop|supermarket|restaurant|cafe)\b/i.test(t)) return false;
   const tokens = t.split(/\s+/).filter(Boolean);
-  if (tokens.length < 2 || tokens.length > 5) return false;
+  if (tokens.length < minTokens || tokens.length > 5) return false;
   return tokens.every((tok) => /^[A-Za-z][A-Za-z.'-]*$/.test(tok));
+}
+
+function looksLikeAccountHolderName(s) { return looksLikePersonName(s, 2); }
+
+// The user's call, generalized from a real example ("BNZ MARK BILL
+// PAYMENT", a round-figure debit with no merchant/business match): a bill
+// payment to a name that isn't a recognizable business is cash leaving the
+// account without going toward an actual bill or a purchase from a
+// business — economically the same as a cash withdrawal, regardless of who
+// received it (could be the account holder's own other account, could be a
+// friend — "that doesn't matter"). Checked only after every specific
+// merchant/business keyword rule has already had a chance to match, so a
+// real company that happens to route through a "BILL PAYMENT" transaction
+// type is still caught by its own keyword first.
+const BANK_PREFIX_RE = /^(BNZ|ASB|ANZ|WESTPAC|WBC|NAB|KIWIBANK|CBA|BOQ|SUNCORP|HSBC|TSB|CITIBANK|RABOBANK|SBS|COOP|COOPERATIVE)\s+/i;
+function isPersonToPersonBillPayment(description) {
+  const m = description.match(/^(.*?)\s*BILL PAYMENT\b/i);
+  if (!m || !m[1].trim()) return false;
+  const payee = m[1].trim().replace(BANK_PREFIX_RE, "").trim();
+  return looksLikePersonName(payee, 1);
 }
 
 function detectAccountHolderName(rows) {
