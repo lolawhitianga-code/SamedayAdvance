@@ -112,8 +112,47 @@ declines need to be explainable.
     applicant through the real scorer end-to-end (verified in a headless
     browser: 102 ledger rows render, comparison table populates, and the
     Assessment tab produces a stamped decision from the derived inputs).
-  - Next: generate fake statements for the other 99 simulated applicants
-    using the same generation approach (irregular-but-plausible pay cycles,
-    category rotation, tuned balance trajectory), then batch-run the
-    categorizer across all of them to sanity-check the derived vs.
-    hand-set fields at population scale, not just for one applicant.
+- Bank-statement categorization: **extended to all 100 applicants.** An
+  applicant picker was added to the Bank Statement tab (same pattern as the
+  Assessment tab's profile picker), and a parameterized generator produces a
+  90-day statement for each of the other 99 from their existing hand-set
+  profile fields — income pattern (source count, payer consistency, deposit
+  regularity, trend), archetype-driven spend intensity, gambling presence for
+  risky profiles, dishonour/BNPL/prior-advance transactions, and a
+  day-by-day balance walk tuned toward the target overdraft/near-zero/buffer
+  buckets. Unlike Samuel's statement (hand-tuned, iterated by eye), these are
+  produced algorithmically with no per-applicant tuning — so the
+  derived-vs-hand-set comparison is a genuine test, not a rigged one.
+  - Building the generator surfaced and fixed several real modelling bugs:
+    charging full rent against every casual gig payment instead of a normal
+    billing cycle; a mismatched starting balance between the generator's
+    internal decisions and how the categorizer reconstructs balance from the
+    transaction list alone; a spend cap that couldn't absorb same-day
+    windfalls (a second payer or a government payment landing mid-cycle),
+    causing balances to snowball upward; and advance-repayment debits landing
+    on arbitrary days instead of shortly after a real payday. Each was found
+    by tracing a specific applicant's ledger against its target buckets, not
+    guessed at — the same "verify, don't assume" approach used on Samuel.
+  - Verified via the same categorizer against all 100 hand-set profiles:
+    **64% of fields match overall.** Dishonours, prior advances, and other
+    active repayments (the count-based fields) match **100%** of the time.
+    Income-pattern fields (deposit regularity, source count, income trend,
+    payer consistency, gap since last advance) match **60-71%**. The
+    balance-timing fields (payday buffer, overdraft days, surplus size/
+    consistency) match **28-38%** — these depend on exactly which calendar
+    day a dip happens to land relative to a threshold, which is genuinely
+    hard to hit with an algorithmic generator (it took hand-tuning to get
+    Samuel's statement close on these) and is arguably hard to *hand-guess*
+    correctly too. That gap is informative, not a flaw to hide: it's the
+    same kind of finding as Samuel's "deposit: irregular" vs. derived
+    "consistent" — evidence the categorizer is doing real work against real
+    data, not echoing back whatever was assumed when the profile was first
+    sketched out.
+- Next: use the population-scale comparison to decide whether any hand-set
+  profile buckets should be corrected to match what real transactions would
+  actually show (the same fix already applied once, for the payroll-
+  eligibility rate — see Session Summary §5), and consider whether the
+  Assessment tab's scoring should read balance-timing signals continuously
+  (e.g. actual overdraft-day count) rather than through hand-picked buckets,
+  since those are the fields hardest to bucket correctly either by hand or
+  algorithmically.
