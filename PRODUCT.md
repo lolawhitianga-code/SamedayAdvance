@@ -421,3 +421,63 @@ declines need to be explainable.
     categorized-ledger smoke test (group count dropped from the prior run
     as the four categories collapsed into one, balances still never go
     negative, no bad ATM amounts, PDF upload UI still present).
+
+  **11. Vape/tobacco folded into Retail Purchases; new Cash Flow panel
+  (regular income, ATM in vs. out, totals, a graph over time).** Two asks
+  in one message: "vape is retail purchase" (finish the taxonomy
+  simplification — vape/tobacco was the one flagged category left over
+  from before the "everything routine is retail purchases" call), and "now
+  categorise income. i need to see regular salary wage. the atm deposits
+  compared to atm withdrawls (the might cross each other out) and totals
+  of money in and money out and a graph over time showing both."
+  - `vape_tobacco` removed from `SPEND_CATEGORY_RULES`/`CATEGORY_STYLE`/
+    `CATEGORY_LABELS`/`CATEGORY_ORDER` the same way groceries/eating-out/
+    alcohol/retail-shopping were — same keywords, output category changed
+    to `retail_purchases`. It's no longer flagged red as a risk category on
+    the ledger.
+  - **New `cash_deposit` category**, checked on the credit side of
+    `categorizeTransaction` (income detection only ever looked at debits
+    for `SPEND_CATEGORY_RULES`, so this needed its own check in the
+    `amount > 0` branch, not a rules-array entry). Catches ATM/branch/
+    counter cash deposits and — importantly — excludes them from
+    `income_credit`, so they no longer get treated as verified wage income
+    by `deriveIncomeProfile`. This matches how a real lender would treat
+    it: a named payer is a verifiable income source, a cash deposit isn't.
+    Checking the actual simulated data turned up 36 "CASH DEPOSIT" credits
+    across several "casual"-archetype applicants (used by the generator as
+    a stand-in for cash-in-hand income) — previously these were counted
+    toward `income_credit` and could form a fake "recurring payer" purely
+    from repeated `$CASH DEPOSIT` descriptions; now they're correctly kept
+    out of the income calculation instead. Re-ran the 100-applicant
+    validation after this and the result was unchanged (58.4%, identical
+    per-field breakdown) — the affected applicants' derived fields didn't
+    flip, so this is a genuine accuracy fix with no measured downside.
+  - **New "Cash flow" panel** on both the simulated Bank Statement tab and
+    the real-PDF-upload result section (`computeCashFlow` +
+    `cashFlowSummaryHTML` + `renderCashFlowChart`, shared by both call
+    sites the same way `categorizedLedgerHTML` already was):
+    - *Regular income*: the primary recurring payer's name, amount per
+      pay, frequency, and payer/timing consistency — pulled straight from
+      `deriveIncomeProfile` instead of only showing up buried in the
+      hand-set-vs-derived compare table. Other recurring payers (if any)
+      listed underneath.
+    - *ATM/cash deposits vs. withdrawals*: totals side by side plus the
+      net, with an explicit note that cash cycled in and back out can
+      offset itself rather than reading as two separate events — directly
+      addressing "the might cross each other out."
+    - *Total money in vs. money out*: sum of every credit vs. every debit
+      over the statement, plus net.
+    - *Graph over time*: reused the existing `drawLineChart` SVG utility
+      (already powering the multi-year simulation charts) rather than
+      pulling in a charting library — transactions bucketed into weeks,
+      plotting "Money in" (green) against "Money out" (rust) per week
+      across the statement period.
+  - Verified with `node --check`, a direct unit test of `categorizeTransaction`
+    against `VAPE SHOP WHITIANGA` (→ retail_purchases), `ATM DEPOSIT BRANCH`
+    / `CASH DEPOSIT` (→ cash_deposit), and `ATM WITHDRAWAL CBA` (→ still
+    cash_withdrawal, unaffected), the 100-applicant validation (58.4%,
+    unchanged), and a Playwright check across three applicants confirming
+    the chart renders with the correct two-line legend and the summary
+    panel's numbers populate (including one applicant with real "Cash
+    Deposit" rows in its ledger, confirmed excluded from the income figure
+    and correctly reflected in the ATM deposits total instead).

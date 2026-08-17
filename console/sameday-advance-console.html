@@ -916,6 +916,13 @@
       </div>
 
       <div class="panel full-span">
+        <p class="panel-title">Cash flow</p>
+        <p class="hint">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>
+        <div id="bs-cashflow-summary"></div>
+        <div id="bs-cashflow-chart" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="panel full-span">
         <p class="panel-title">Auto-derived vs. originally hand-set assessment inputs</p>
         <p class="hint">Left is what was manually guessed when this applicant was first sketched out. Right is what the categorizer actually computes from the statement below. Rows that differ are highlighted — that gap is the whole point of categorizing real transactions instead of hand-picking dropdown values. Across all 100 applicants the fields agree about 58% of the time overall — 100% on "other active repayments", 59-71% on the other income-pattern fields, 78% on near-zero balance frequency, and lower on dishonours/prior-advances/payday-buffer/surplus (27-43%) — those aren't hand-dialed to a target count anymore, they're genuine consequences of the cash-flow simulation (a bill either bounces or it doesn't), so they won't always land on whatever bucket was originally guessed. <b>Overdraft days now always derives to "0"</b> since account balances are modelled as never going negative (no overdraft facility) — a card purchase just declines and a direct debit that can't be covered gets dishonoured instead, so "days in overdraft" is structurally impossible on a real transaction account and this field only still matches applicants whose hand-set target was already "0". Worth deciding whether that dial should be retired or repointed at something that can actually happen.</p>
         <p class="synced-banner" id="bs-match-count"></p>
@@ -1036,6 +1043,14 @@ const SIMULATED_PROFILES =
 // slots in ahead of the Assessment tab rather than replacing it.
 const GOV_INCOME_RE = /CENTRELINK|SERVICES AUSTRALIA|CHILD SUPPORT/i;
 const GIG_INCOME_RE = /UBER \*TRIP|DOORDASH|AIRTASKER|MENULOG DASHER|DIDI|AMAZON FLEX/i;
+// Cash paid INTO the account (ATM/branch/counter deposit) is a distinct
+// signal from wage income — it's the applicant's own cash re-entering the
+// account, not money someone else paid them — and needs to stay out of
+// income_credit or it inflates/distorts the income-detection pass. Kept
+// visible so it can be weighed against cash_withdrawal (cash cycled in and
+// back out nets to roughly nothing, which matters more than either side
+// alone).
+const CASH_DEPOSIT_RE = /ATM DEPOSIT|CASH DEPOSIT|BRANCH DEPOSIT|COUNTER DEPOSIT|DEPOSIT AT ATM/i;
 
 const SPEND_CATEGORY_RULES = [
   // Mortgage repayments (to the applicant's own home-loan sub-accounts) are
@@ -1064,10 +1079,7 @@ const SPEND_CATEGORY_RULES = [
   { category: "retail_purchases", label: "Retail Purchases", re: /WOOLWORTHS|COLES|ALDI|\bIGA\b|NEW WORLD|FOUR SQUARE|PAK.?N.?SAVE|WYLLIE ROAD|VEGE HEAVEN|D ?& ?N MART/i },
   { category: "retail_purchases", label: "Retail Purchases", re: /MCDONALD|UBER ?EATS|MENULOG|DOMINOS|\bKFC\b|GUZMAN|HUNGRY JACK|CAFE|RESTAURANT|\bFOOD\b|BAKERY|BAKE\b|KITCHEN|\bSUSHI\b|SUBWAY|\bPIZZA\b|LITTLE HONEY|BUNS N ROLLS|YUMBUNMEE|BENCH NOODLE|CHILLI HOUSE|EPICUREAN|MEXICO HAMILTON|\bAN AN\b|GREEDY CAT|COFFIX|SAINT ALICE|INVERCARGILL AIRPORT|BUSTER CRABB|SLICE SLICE BABY|STALLIONS/i },
   { category: "retail_purchases", label: "Retail Purchases", re: /\bBWS\b|DAN MURPHY|LIQUORLAND|BOTTLEMART|\bBAR\b|\bLIQUOR\b|WHITIANGA HOTEL|\bSAPORI\b/i },
-  // Vape/tobacco is its own flagged category (like alcohol/gambling) rather
-  // than generic retail — a discretionary, habit-forming spend worth
-  // surfacing on its own.
-  { category: "vape_tobacco", label: "Vape / Tobacco", re: /\bVAPE\b|TOBACCONIST|CIGARETTE/i },
+  { category: "retail_purchases", label: "Retail Purchases", re: /\bVAPE\b|TOBACCONIST|CIGARETTE/i },
   { category: "pharmacy_health", label: "Pharmacy / Health", re: /CHEMIST WAREHOUSE|UNICHEM|PHARMACY|\bVET(S)?\b/i },
   // "Hotel"/"Motel" read as accommodation here per the applicant's own
   // context — worth revisiting per-statement since in AU/NZ "hotel" often
@@ -1096,15 +1108,16 @@ const SPEND_CATEGORY_RULES = [
 
 const CATEGORY_STYLE = {
   income_credit: "txn-income", income_government: "txn-income", income_gig: "txn-income",
-  gambling: "txn-risk", bank_fees: "txn-risk", vape_tobacco: "txn-risk",
-  bnpl_other_credit: "txn-caution", sameday_advance_repayment: "txn-caution", cash_withdrawal: "txn-caution",
+  gambling: "txn-risk", bank_fees: "txn-risk",
+  bnpl_other_credit: "txn-caution", sameday_advance_repayment: "txn-caution",
+  cash_withdrawal: "txn-caution", cash_deposit: "txn-caution",
 };
 
 const CATEGORY_LABELS = {
   rent_housing: "Rent / Housing", bills_utilities: "Bills & Utilities", insurance: "Insurance",
   subscriptions: "Subscriptions", retail_purchases: "Retail Purchases",
-  vape_tobacco: "Vape / Tobacco", pharmacy_health: "Pharmacy / Health", travel_accommodation: "Travel / Accommodation",
-  gambling: "Gambling", cash_withdrawal: "Cash Withdrawal", transport: "Transport",
+  pharmacy_health: "Pharmacy / Health", travel_accommodation: "Travel / Accommodation",
+  gambling: "Gambling", cash_withdrawal: "Cash Withdrawal", cash_deposit: "Cash Deposit", transport: "Transport",
   bnpl_other_credit: "BNPL / Other Credit", sameday_advance_repayment: "SameDay Advance Repayment",
   bank_fees: "Bank Fees / Dishonour",
 };
@@ -1114,6 +1127,7 @@ const CATEGORY_LABELS = {
 // merchant keyword matched — a specific merchant name always wins.
 function categorizeTransaction(description, amount, categoryHint) {
   if (amount > 0) {
+    if (CASH_DEPOSIT_RE.test(description)) return { category: "cash_deposit", label: "Cash Deposit" };
     if (GOV_INCOME_RE.test(description)) return { category: "income_government", label: "Government Payment" };
     if (GIG_INCOME_RE.test(description)) return { category: "income_gig", label: "Gig Income" };
     return { category: "income_credit", label: "Income / Wages" };
@@ -1390,11 +1404,11 @@ function populateBankProfileSelect() {
 }
 
 const CATEGORY_ORDER = [
-  "income_credit", "income_government", "income_gig",
+  "income_credit", "income_government", "income_gig", "cash_deposit",
   "rent_housing", "bills_utilities", "insurance", "subscriptions",
   "retail_purchases", "pharmacy_health", "travel_accommodation",
   "transport", "cash_withdrawal",
-  "bnpl_other_credit", "sameday_advance_repayment", "vape_tobacco", "gambling",
+  "bnpl_other_credit", "sameday_advance_repayment", "gambling",
   "bank_fees", "other",
 ];
 
@@ -1429,6 +1443,75 @@ function categorizedLedgerHTML(txns) {
       "</div>"
     );
   }).join("");
+}
+
+function titleCase(s) {
+  return String(s).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ---- Cash flow summary: regular income, ATM/cash in vs. out, totals, over time ----
+function computeCashFlow(txns) {
+  const income = deriveIncomeProfile(txns);
+  let cashDepositTotal = 0, cashWithdrawalTotal = 0, totalIn = 0, totalOut = 0;
+  const byWeek = {};
+  const firstDate = txns[0].date;
+  txns.forEach((t) => {
+    const cat = categorizeTransaction(t.description, t.amount, t.categoryHint).category;
+    if (t.amount > 0) totalIn += t.amount; else totalOut += Math.abs(t.amount);
+    if (cat === "cash_deposit") cashDepositTotal += t.amount;
+    if (cat === "cash_withdrawal") cashWithdrawalTotal += Math.abs(t.amount);
+    const week = Math.floor(daysBetween(firstDate, t.date) / 7);
+    if (!byWeek[week]) byWeek[week] = { day: week * 7, moneyIn: 0, moneyOut: 0 };
+    if (t.amount > 0) byWeek[week].moneyIn += t.amount; else byWeek[week].moneyOut += Math.abs(t.amount);
+  });
+  const weeklySeries = Object.keys(byWeek).map((k) => byWeek[k]).sort((a, b) => a.day - b.day);
+  return { income, cashDepositTotal, cashWithdrawalTotal, totalIn, totalOut, weeklySeries };
+}
+
+function cashFlowSummaryHTML(cf) {
+  const income = cf.income;
+  let incomeHTML;
+  if (!income.primaryPayer) {
+    incomeHTML = "<p class=\"hint\">No consistent recurring payer detected — income looks casual/irregular rather than a regular salary or wage.</p>";
+  } else {
+    incomeHTML = "<div class=\"stat-grid\">" +
+      "<div class=\"stat-card\"><div class=\"stat-label\">Regular salary / wage</div><div class=\"stat-value\">" + titleCase(income.primaryPayer) + "</div></div>" +
+      "<div class=\"stat-card\"><div class=\"stat-label\">Amount per pay</div><div class=\"stat-value green\">" + fmtMoney(income.incomeAmount) + "</div></div>" +
+      "<div class=\"stat-card\"><div class=\"stat-label\">Frequency</div><div class=\"stat-value\">" + titleCase(income.incomeFrequency) + "</div></div>" +
+      "<div class=\"stat-card\"><div class=\"stat-label\">Consistency</div><div class=\"stat-value\">" + titleCase(income.payerConsistency) + " payer, " + titleCase(income.deposit) + " timing</div></div>" +
+      "</div>";
+    if (income.source === "multiple" && income.detail.recurring.length > 1) {
+      incomeHTML += "<p class=\"hint\" style=\"margin-top:8px;\">Other recurring payers: " +
+        income.detail.recurring.slice(1).map((g) => titleCase(g.payer) + " (" + fmtMoney(g.avg) + " × " + g.count + ")").join(", ") + "</p>";
+    }
+  }
+
+  const atmNet = cf.cashDepositTotal - cf.cashWithdrawalTotal;
+  const atmHTML = "<div class=\"stat-grid\">" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">ATM / cash deposits</div><div class=\"stat-value green\">" + fmtMoney(cf.cashDepositTotal) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">ATM / cash withdrawals</div><div class=\"stat-value rust\">" + fmtMoney(cf.cashWithdrawalTotal) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Net cash movement</div><div class=\"stat-value" + (atmNet >= 0 ? " green" : " rust") + "\">" + (atmNet >= 0 ? "+" : "-") + fmtMoney(Math.abs(atmNet)) + "</div></div>" +
+    "</div>" +
+    "<p class=\"hint\" style=\"margin-top:6px;\">Cash deposited and cash withdrawn can offset each other — someone cycling cash in and back out isn't necessarily gaining or spending it, so the net matters more than either figure alone. Cash deposits are also excluded from the income figures above since, unlike a named payer, they can't be verified as a real income source.</p>";
+
+  const netTotal = cf.totalIn - cf.totalOut;
+  const totalsHTML = "<div class=\"stat-grid\">" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Total money in</div><div class=\"stat-value green\">" + fmtMoney(cf.totalIn) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Total money out</div><div class=\"stat-value rust\">" + fmtMoney(cf.totalOut) + "</div></div>" +
+    "<div class=\"stat-card\"><div class=\"stat-label\">Net</div><div class=\"stat-value" + (netTotal >= 0 ? " green" : " rust") + "\">" + (netTotal >= 0 ? "+" : "-") + fmtMoney(Math.abs(netTotal)) + "</div></div>" +
+    "</div>";
+
+  return "<p class=\"panel-title\" style=\"margin-top:0;\">Regular income</p>" + incomeHTML +
+    "<p class=\"panel-title\" style=\"margin-top:16px;\">ATM / cash deposits vs. withdrawals</p>" + atmHTML +
+    "<p class=\"panel-title\" style=\"margin-top:16px;\">Total money in vs. money out</p>" + totalsHTML;
+}
+
+function renderCashFlowChart(containerEl, weeklySeries) {
+  if (weeklySeries.length < 2) { containerEl.innerHTML = "<p class=\"hint\">Not enough spread of dates to chart.</p>"; return; }
+  drawLineChart(containerEl, weeklySeries, [
+    { key: "moneyIn", name: "Money in", color: "#5FA777" },
+    { key: "moneyOut", name: "Money out", color: "#B5533C" },
+  ], { moneyAxis: true, yMinZero: true });
 }
 
 function renderBankStatement() {
@@ -1491,6 +1574,10 @@ function renderBankStatement() {
     matchCount + " of " + fields.length + " fields match the hand-set profile for this applicant.";
 
   document.getElementById("bs-categorized-ledger").innerHTML = categorizedLedgerHTML(txns);
+
+  const cf = computeCashFlow(txns);
+  document.getElementById("bs-cashflow-summary").innerHTML = cashFlowSummaryHTML(cf);
+  renderCashFlowChart(document.getElementById("bs-cashflow-chart"), cf.weeklySeries);
 }
 
 function loadDerivedIntoAssessment() {
@@ -1911,9 +1998,17 @@ function runUploadedStatement() {
     Object.entries(fieldLabels).map(([k, label]) => "<tr><td>" + label + "</td><td>" + derived[k] + "</td></tr>").join("") +
     "</tbody></table>" +
     "<button class=\"load-btn\" style=\"margin-top:14px;\" onclick=\"loadDerivedIntoAssessment()\">Load derived inputs into Assessment tab →</button>" +
+    "<p class=\"panel-title\" style=\"margin-top:20px;\">Cash flow</p>" +
+    "<p class=\"hint\">Regular salary/wage income, ATM/cash deposits weighed against ATM/cash withdrawals (cash cycled in and back out can cancel itself out), and total money in vs. out over the statement period.</p>" +
+    "<div id=\"pdf-cashflow-summary\"></div>" +
+    "<div id=\"pdf-cashflow-chart\" style=\"margin-top:12px;\"></div>" +
     "<p class=\"panel-title\" style=\"margin-top:20px;\">Categorized ledger</p>" +
     "<div id=\"pdf-categorized-ledger\"></div>";
   document.getElementById("pdf-categorized-ledger").innerHTML = categorizedLedgerHTML(txns);
+
+  const cf = computeCashFlow(txns);
+  document.getElementById("pdf-cashflow-summary").innerHTML = cashFlowSummaryHTML(cf);
+  renderCashFlowChart(document.getElementById("pdf-cashflow-chart"), cf.weeklySeries);
 }
 
 // ===================== SHARED STATE =====================
