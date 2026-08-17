@@ -580,3 +580,35 @@ declines need to be explainable.
     stayed at 58.4% (unchanged — self-transfer detection only runs in the
     real-PDF-upload pipeline, not on the simulated applicants), and the
     Playwright smoke test showed no new errors.
+
+  **16. Re-verified step 15 end-to-end after the user reported it still
+  showing under Income.** Screenshot showed "M D CHATTERTON BILL PAYMENT"
+  still sitting in "Income / Wages" on the categorized ledger, immediately
+  after step 15 was shipped. Re-ran the exact production code path three
+  ways to isolate whether the logic itself was actually wrong:
+  - `detectAccountHolderName([{ text: "Account name   M D Chatterton" }])`
+    → `isSelfTransferDescription("M D CHATTERTON BILL PAYMENT", ...)` →
+    `categorizeTransaction(..., 3122, "self_transfer")` chained together
+    (the real functions, extracted from the shipped file, not
+    reimplemented) → correctly resolves to `cash_deposit`.
+  - A full Playwright run of the actual production `runUploadedStatement()`
+    against a hand-built review table carrying `data-hint="self_transfer"`
+    (what `recordToTransaction` produces for this exact transaction once
+    the holder name is detected) → the transaction lands in the "Cash
+    Deposit" group in `pdf-categorized-ledger`, and the Cash Flow panel
+    shows it correctly in "ATM / cash deposits" ($3,122) rather than
+    "Regular salary/wage" income.
+  - Both confirm the code is correct as shipped. The categorized ledger is
+    computed once, at "Run categorizer on reviewed transactions" time, from
+    each row's `data-hint` — which is set once, at upload/parse time. It
+    doesn't retroactively recompute against a code update, so a screenshot
+    of an already-rendered result reflects whichever version of the file
+    was running *when that PDF was uploaded and run*, not necessarily the
+    latest one. The fix from step 15 needs the PDF re-uploaded and the
+    categorizer re-run against the current file to take effect on-screen.
+  - Also updated the on-screen "Account holder detected" note (shown above
+    the review table) to describe both directions — it previously only
+    mentioned the debit side ("a debit paid out to that name... cash
+    withdrawal"), which was accurate before step 15 but stale afterward;
+    now also says a credit under that name is "cash deposit... not
+    third-party spend or income."
