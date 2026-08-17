@@ -1138,9 +1138,15 @@ const CATEGORY_LABELS = {
 // rules — otherwise a coincidental collision (e.g. the bank's own "BP" =
 // Bill Payment type-code prefix landing on "BP M D CHATTERTON BILL
 // PAYMENT", which also happens to match the transport rule's "BP" = BP
-// fuel stations keyword) would silently override it.
+// fuel stations keyword) would silently override it. Works both directions:
+// a self-transfer debit is cash leaving to another of the holder's own
+// accounts (cash_withdrawal); a self-transfer credit — e.g. "M D CHATTERTON
+// BILL PAYMENT" paying money back in — is the holder's own cash re-entering
+// the account (cash_deposit), not a third party paying them, so it can't
+// count as verified income either.
 function categorizeTransaction(description, amount, categoryHint) {
   if (amount > 0) {
+    if (categoryHint === "self_transfer") return { category: "cash_deposit", label: "Cash Deposit" };
     if (CASH_DEPOSIT_RE.test(description)) return { category: "cash_deposit", label: "Cash Deposit" };
     if (GOV_INCOME_RE.test(description)) return { category: "income_government", label: "Government Payment" };
     if (GIG_INCOME_RE.test(description)) return { category: "income_gig", label: "Gig Income" };
@@ -1874,12 +1880,13 @@ function recordToTransaction(rec, columns, holderName) {
     .trim();
   if (!description) description = rec.typeCode ? rec.typeCode + " transaction" : "(unlabelled)";
 
-  // A debit paid out to the account holder's own name is a transfer to
-  // another of their own accounts, not third-party spend — closer to
-  // moving cash out of reach than a purchase, so it's bucketed the same as
-  // a cash withdrawal (the user's call, on an actual example of this).
+  // A transaction paid to/from the account holder's own name is a transfer
+  // between their own accounts, not third-party spend or income — a debit
+  // is bucketed as a cash withdrawal (cash moving out of reach), a credit
+  // as a cash deposit (their own cash moving back in, not a real payer),
+  // both confirmed by the user on actual examples of each direction.
   let categoryHint = typeHint && typeHint.category;
-  if (amount < 0 && isSelfTransferDescription(description, holderName)) categoryHint = "self_transfer";
+  if (isSelfTransferDescription(description, holderName)) categoryHint = "self_transfer";
 
   return {
     date: rec.date,

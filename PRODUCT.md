@@ -553,3 +553,30 @@ declines need to be explainable.
     passed, the 100-applicant validation stayed at 58.4% (unchanged — no
     simulated applicant has this exact collision), and the Playwright
     smoke test showed no new errors.
+
+  **15. Self-transfer detection extended to credits.** User: "m d
+  chatterton bill payment $3122 is a cash deposit (not income) make this
+  change happen." Step 9 only ever checked self-transfer on the debit side
+  (money leaving to the holder's own name → cash withdrawal); the same
+  structural signal on the credit side — "M D CHATTERTON BILL PAYMENT" as
+  a *credit* — means the holder's own money is coming back in, not a real
+  payer paying them, so it can't count as verified income either.
+  - `isSelfTransferDescription` is purely text-based (checks whether the
+    description leads with the account holder's own name) and never
+    actually depended on transaction direction — the `amount < 0` guard in
+    `recordToTransaction` was the only thing limiting it to debits. Removed
+    that guard so the `"self_transfer"` categoryHint gets set for both
+    directions.
+  - `categorizeTransaction`'s credit branch now checks
+    `categoryHint === "self_transfer"` first (mirroring the debit-side
+    check added in step 14) and returns `cash_deposit` — checked ahead of
+    `CASH_DEPOSIT_RE` and the income regexes, same priority reasoning as
+    before: a structural name-match is definitive, not a soft guess.
+  - Verified directly: `categorizeTransaction("M D CHATTERTON BILL
+    PAYMENT", 3122, "self_transfer")` → `cash_deposit`; the debit-side
+    self-transfer and plain "BP FUEL" cases from step 14 still resolve
+    correctly (untouched); a real wage payer still resolves to
+    `income_credit`. `node --check` passed, the 100-applicant validation
+    stayed at 58.4% (unchanged — self-transfer detection only runs in the
+    real-PDF-upload pipeline, not on the simulated applicants), and the
+    Playwright smoke test showed no new errors.
