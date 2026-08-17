@@ -866,3 +866,49 @@ declines need to be explainable.
     data already embeds explicit years and contains no "BILL PAYMENT"
     text) and the full existing smoke/tab-split/fallback test suite (no
     new errors).
+
+  **22. Foreign-currency transactions parsing wildly wrong NZD amounts —
+  a real, second real statement PDF caught it directly.** User flagged two
+  specific real transactions ("REAL-DEBRID", "REXLONDON") reading as
+  -$11,658 and -$8,835 in the categorized ledger when they should have
+  been $32.17 and roughly $39.85 — off by literally hundreds of times.
+  With the actual statement text in hand, the exact real record shape was:
+  ```
+  09 Mar VT REAL-DEBRID (EUR 16.00 @ 0.50 )
+  (incl Currency Conversion Charge $0.41)
+  483561******6975 Orig date 07/03/2026
+  32.17 11,658.12 OD
+  ```
+  Four physical lines for one transaction. Root cause: `groupIntoRecords`
+  *accumulated* money-shaped tokens across every line of a multi-line
+  record by pushing onto `current.moneyItems`, never clearing it — so the
+  foreign-currency amount ("16.00"), the exchange rate ("0.50"), and the
+  currency-conversion fee ("$0.41") embedded in the description all got
+  collected as candidate amount/balance values *alongside* the real
+  "32.17 11,658.12" on the final line. Once several stray items were
+  competing for the withdrawal/deposit/balance column roles in
+  `recordToTransaction`, the real NZD withdrawal (32.17) ended up
+  overwritten and the *balance* (11,658.12) got read as the withdrawal
+  amount instead.
+  - Fixed by making each line's money-item extraction *replace*
+    `current.moneyItems` instead of appending to it, whenever that line
+    actually yields any — both for the starting date line and for every
+    continuation line. This is correct for every record shape actually
+    seen on a real statement: single-line records (only one line ever has
+    money), and multi-line records (the real amount and balance are always
+    together on whichever line actually carries them — every example
+    checked, FX or not, has this shape). An earlier description-only
+    continuation line coincidentally containing a money-shaped number no
+    longer pollutes the record at all once a later line supersedes it.
+  - Verified directly against `groupIntoRecords` with the exact real lines
+    for both flagged transactions: money items now resolve to exactly
+    `[32.17, 11658.12]` and `[39.85, 8835.35]`, matching the statement.
+    Ran the full production pipeline via Playwright
+    (`parseStatementRows` → `renderPdfReview` → `runUploadedStatement`):
+    REAL-DEBRID parses to exactly -$32.17 (matching the user's figure) and
+    REXLONDON to -$39.85 (the statement's own figure — the user recalled
+    $35.86 from memory, but $39.85 is what the PDF itself states, taken as
+    authoritative). Re-ran the 100-applicant validation (58.4%,
+    unchanged — no simulated transaction is multi-line) and the full
+    existing smoke/tab-split/self-transfer/bill-payment test suite (no
+    new errors).

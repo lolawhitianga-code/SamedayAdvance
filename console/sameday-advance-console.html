@@ -1833,11 +1833,26 @@ function groupIntoRecords(rows) {
       current = { date: isoDate, typeCode, textParts: [rest], moneyItems: [] };
       const restStartX = row.items[Math.min(dateTokLen + (typeMatch ? 1 : 0), row.items.length - 1)];
       const relevantItems = restStartX ? row.items.filter((it) => it.x >= restStartX.x) : row.items;
-      current.moneyItems.push(...extractMoneyTokensFromItems(relevantItems));
+      const startMoney = extractMoneyTokensFromItems(relevantItems);
+      if (startMoney.length) current.moneyItems = startMoney;
       linesSinceStart = 0;
     } else if (current && linesSinceStart < 3) {
       current.textParts.push(trimmed);
-      current.moneyItems.push(...extractMoneyTokensFromItems(row.items));
+      // Replace, don't accumulate: a multi-line record's real amount and
+      // balance are always together on whichever line actually carries
+      // them, but an earlier description-only continuation line can
+      // coincidentally contain money-shaped numbers too — a real example:
+      // "REAL-DEBRID (EUR 16.00 @ 0.50)" / "(incl Currency Conversion
+      // Charge $0.41)" both read as amounts before the real "32.17
+      // 11,658.12" line. Accumulating all of them let a foreign-currency
+      // amount or conversion fee get column-matched as the withdrawal —
+      // the actual NZD withdrawal ended up read as the balance (11,658.12)
+      // instead of 32.17. Keeping only the most recent line that produced
+      // any money items is correct for every record shape seen on a real
+      // statement: single-line (only one line ever has money), and
+      // multi-line (money only ever appears on the final line).
+      const lineMoney = extractMoneyTokensFromItems(row.items);
+      if (lineMoney.length) current.moneyItems = lineMoney;
       linesSinceStart++;
     }
   });
