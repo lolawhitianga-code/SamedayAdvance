@@ -949,3 +949,82 @@ declines need to be explainable.
     (58.4%, unchanged — no simulated applicant's data contains "PBKA")
     and the full existing smoke/tab-split/FX/real-statement test suite (no
     new errors).
+
+  **24. New "TaleFin Report" tab — a genuinely different feature from the
+  PDF pipeline, not another statement parser.** The user shared photos of a
+  real TaleFin bank-data-provider report (applicant summary, a top-level
+  "Transaction Summary", then per-category "Overall Summary" stat blocks —
+  Centrelink, Other Credit, SACC Loans, Non-SACC Loans — each broken down
+  by specific payer/payee entity with its own mean/trimmed mean/frequency
+  figures and transaction list), then made the key realization: "if this
+  is a talefin report then i dont need you to categorise it." Correct — a
+  real production integration with a provider like TaleFin means the
+  categorization, statistical breakdowns, and payer/payee grouping are
+  already done upstream. The PDF-upload pipeline (categorizing raw
+  transaction text) is a dev/fallback tool for when there's no such feed;
+  it was never going to be the production path once one exists. What's
+  actually needed instead is an **adapter**: map a report's own
+  pre-computed stats straight onto the same risk fields the Assessment tab
+  already consumes, rather than re-deriving categories from scratch.
+  - **Input**: paste-based, not PDF-parsed — a real provider's report/API
+    output is structured text or JSON, not a scanned statement needing
+    OCR-grade heuristics. New "TaleFin Report" tab with a paste textarea.
+  - **`parseTaleFinReport(text)`**: generic, not hardcoded to the four
+    category names seen so far. Recognizes the report's own structural
+    tell — a header line is a new top-level category specifically when the
+    *next* line is "Overall Summary"; anything else at that position is a
+    payer/payee entity within the current category (e.g. "PENSION" or
+    "Cash Train", which never get their own "Overall Summary" line). Also
+    handles a flat category with no entity breakdown at all ("Other
+    Credit" goes straight from its Overall Summary into its own
+    transaction list). Stat lines ("Label (N Days): value") parse via one
+    generic regex + value normalizer (handles "$717.15", "-$536.49",
+    "762.60 CR", "-" → null, "active").
+  - **`deriveFromTaleFinReport(parsed)`**: honest about what a
+    period-summary report can and can't support, rather than guessing to
+    fill every field:
+    - Income (amount/frequency/source/payerConsistency/deposit/trend/
+      daysUntilNextPayday): picks the recurring entity (count ≥ 2, so a
+      one-off supplement payment doesn't get mistaken for regular income)
+      with the highest Credit Amount inside an income-shaped category
+      (Centrelink/salary/wages/pension). Deposit regularity from how close
+      the mean is to the trimmed mean (few outliers ⇒ consistent). Trend
+      from comparing the 30-day monthly-equivalent rate to the 90-day
+      one — the closest a period summary can get to "recent vs.
+      longer-run." `daysUntilNextPayday` resolves the report's year-less
+      dates ("14 Jul") against the header's own "Closing Date (90 Days)"
+      (which does have a year), then projects the next payment from the
+      primary entity's most recent credit.
+    - `otherRepayments`: counts distinct active lender entities across
+      SACC + Non-SACC Loan categories.
+    - `priorAdvances` / `gapSince` are left **null on purpose** — these
+      track this product's own repayment history, which a third-party
+      bank statement report has no way to know; they have to come from
+      internal records, not guessed from bank data.
+    - `overdraft` / `nearZero` / `buffer` also left null — no daily
+      balance series in a period summary, only min/max/opening/closing.
+    - `surplusSize`/`surplusConsistency` approximated from the header's
+      90-day credit/debit totals divided by the inferred number of pay
+      cycles — coarser than the real per-cycle breakdown raw transactions
+      give, documented as such.
+  - **`loadTaleFinIntoAssessment()`** is a separate function from the
+    existing `loadDerivedIntoAssessment()`, not a shared one — this
+    derivation intentionally returns `null` for several fields, and a
+    blind `Object.assign` (what the existing loader does, safe there
+    because it never produces nulls) would silently clobber whatever was
+    already set for buffer/overdraft/nearZero/priorAdvances/gapSince.
+    The TaleFin loader filters out null-valued keys before merging.
+  - Verified against a full transcription of the actual photographed
+    report (all four categories, all payer/payee entities, real dollar
+    figures): parses to exactly 4 categories / 6 entities, and the derived
+    fields check out against hand-computed expectations (e.g. avg net
+    cash flow over 90 days is slightly negative given SACC/Non-SACC
+    repayments roughly matching Centrelink income → `surplusSize: below`,
+    `surplusConsistency: negative`, matching the applicant's real
+    financial picture). Ran the full pipeline through Playwright: paste →
+    parse → category display → derived-field table → "Load into
+    Assessment" → confirmed `buffer` (intentionally null) stays untouched
+    while `incomeAmount` updates to 713 and the tab switches to
+    Assessment. Re-ran the 100-applicant validation (58.4%, unchanged —
+    purely additive) and the full existing smoke/tab-split test suite (no
+    new errors).
