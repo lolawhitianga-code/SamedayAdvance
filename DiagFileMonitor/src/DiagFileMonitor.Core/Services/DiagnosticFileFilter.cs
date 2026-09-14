@@ -6,6 +6,9 @@ public class FilterCriteria
 {
     public string SearchText { get; set; } = string.Empty;
     public string Status { get; set; } = DiagnosticFileFilter.AnyStatus;
+
+    /// <summary>Exact serial match, set when drilling into one machine's history.</summary>
+    public string? SerialNumber { get; set; }
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
 
@@ -13,7 +16,8 @@ public class FilterCriteria
         string.IsNullOrWhiteSpace(SearchText)
         && (string.IsNullOrEmpty(Status) || Status == DiagnosticFileFilter.AnyStatus)
         && FromDate is null
-        && ToDate is null;
+        && ToDate is null
+        && string.IsNullOrEmpty(SerialNumber);
 }
 
 /// <summary>Decides whether a dashboard row survives the current search box / status / date filters.</summary>
@@ -23,6 +27,12 @@ public static class DiagnosticFileFilter
 
     public static bool Matches(DiagnosticFileSummary row, FilterCriteria criteria)
     {
+        if (!string.IsNullOrEmpty(criteria.SerialNumber)
+            && !string.Equals(row.SerialNumber, criteria.SerialNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrEmpty(criteria.Status) && criteria.Status != AnyStatus
             && !string.Equals(row.Status, criteria.Status, StringComparison.OrdinalIgnoreCase))
         {

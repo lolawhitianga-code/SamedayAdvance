@@ -8,6 +8,7 @@
     <Window.Resources>
         <conv:InverseBooleanConverter x:Key="InverseBoolConverter" />
         <conv:NotNullConverter x:Key="NotNullConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <Style x:Key="StatTile" TargetType="Border">
             <Setter Property="BorderBrush" Value="#FFD4DCE6" />
@@ -191,6 +192,17 @@
             </StackPanel>
         </Border>
 
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="8,6" CornerRadius="3"
+                Background="#FFEEF6FF" BorderBrush="#FFB6D4F0" BorderThickness="1"
+                Visibility="{Binding IsMachineFilterActive, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Show all machines" Width="130"
+                        Command="{Binding ClearMachineFilterCommand}" />
+                <TextBlock Text="{Binding MachineHistory.Headline}" VerticalAlignment="Center"
+                           TextWrapping="Wrap" Margin="0,0,10,0" />
+            </DockPanel>
+        </Border>
+
         <DataGrid ItemsSource="{Binding FilesView}" SelectedItem="{Binding SelectedFile}"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
@@ -206,6 +218,9 @@
                                           Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}"
                                           IsEnabled="{Binding HasExtractedFolder}" />
+                                <MenuItem Header="Show this machine's _history"
+                                          Command="{Binding PlacementTarget.Tag.ShowMachineHistoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
                                 <MenuItem Header="_Copy summary for ticket"
                                           Command="{Binding PlacementTarget.Tag.CopySummaryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}" />

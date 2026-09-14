@@ -74,6 +74,38 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _editNotes = string.Empty;
 
+    [ObservableProperty]
+    private string? _machineFilterSerial;
+
+    [ObservableProperty]
+    private MachineHistory? _machineHistory;
+
+    public bool IsMachineFilterActive => !string.IsNullOrEmpty(MachineFilterSerial);
+
+    partial void OnMachineFilterSerialChanged(string? value)
+    {
+        MachineHistory = string.IsNullOrEmpty(value) ? null : MachineHistory.For(Files, value);
+        OnPropertyChanged(nameof(IsMachineFilterActive));
+        RefreshFilter();
+    }
+
+    [RelayCommand]
+    private void ShowMachineHistory(DiagnosticFileSummary? row)
+    {
+        var target = row ?? SelectedFile;
+        if (target is null)
+        {
+            StatusMessage = "Select a file to see that machine's history.";
+            return;
+        }
+
+        MachineFilterSerial = target.SerialNumber;
+        StatusMessage = $"Showing every bundle from {target.SerialNumber}.";
+    }
+
+    [RelayCommand]
+    private void ClearMachineFilter() => MachineFilterSerial = null;
+
     partial void OnSelectedFileChanged(DiagnosticFileSummary? value)
     {
         EditTicketNumber = value?.TicketNumber ?? string.Empty;
@@ -126,6 +158,7 @@ public partial class MainViewModel : ObservableObject
     {
         SearchText = SearchText,
         Status = SelectedStatusFilter,
+        SerialNumber = MachineFilterSerial,
         FromDate = FromDate,
         ToDate = ToDate
     };
@@ -146,7 +179,15 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FilterSummary));
     }
 
-    private void RecalculateStats() => Stats = DashboardStats.Calculate(Files, DateTime.Now);
+    private void RecalculateStats()
+    {
+        Stats = DashboardStats.Calculate(Files, DateTime.Now);
+
+        if (MachineFilterSerial is { } serial)
+        {
+            MachineHistory = MachineHistory.For(Files, serial);
+        }
+    }
 
     public string FilterSummary
     {
@@ -276,6 +317,7 @@ public partial class MainViewModel : ObservableObject
         SelectedStatusFilter = DiagnosticFileFilter.AnyStatus;
         FromDate = null;
         ToDate = null;
+        MachineFilterSerial = null;
     }
 
     [RelayCommand]
