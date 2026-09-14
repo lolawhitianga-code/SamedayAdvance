@@ -31,12 +31,66 @@ public static class KnowledgeReportFormatter
                 : $"  Serial {findings.SerialNumber} is not one we have history on yet.");
         }
 
+        AppendHomeInterlock(text, findings);
         AppendMatchedFaults(text, findings);
         AppendIssues(text, findings);
         AppendPlatePresent(text, findings);
         AppendAxes(text, findings);
         AppendNoise(text, knowledge);
         AppendGaps(text, knowledge);
+    }
+
+    private static void AppendHomeInterlock(StringBuilder text, KnowledgeFindings findings)
+    {
+        var home = findings.HomeInterlock;
+        if (!home.Any) return;
+
+        text.AppendLine();
+        text.AppendLine("  CAN IT HOME? - all four product sensors must read 0");
+
+        if (home.SensorsSeen.Count == 0)
+        {
+            text.AppendLine("    No product sensor changes in this log, so all four were most likely already");
+            text.AppendLine("    at 0. Nothing here says the interlock was the problem.");
+        }
+
+        foreach (var sensor in home.SensorsSeen)
+        {
+            var verdict = sensor.Value == 0
+                ? "clear"
+                : "STILL DETECTING SOMETHING - this alone stops the machine homing";
+
+            text.AppendLine($"    {sensor.Display}  at {sensor.ChangedAt:hh\\:mm\\:ss}  {verdict}");
+        }
+
+        if (home.SensorsNotInLog.Count > 0)
+        {
+            text.AppendLine($"    Never changed in this log: {string.Join(", ", home.SensorsNotInLog)}. The log only");
+            text.AppendLine("      records changes, so these were most likely sitting at 0 throughout.");
+        }
+
+        if (home.Attempts.Count == 0) return;
+
+        text.AppendLine();
+        foreach (var attempt in home.Attempts)
+        {
+            text.AppendLine($"    {attempt.Time:hh\\:mm\\:ss} {attempt.Command} - {attempt.Outcome}");
+
+            foreach (var blocked in attempt.Blocking)
+            {
+                text.AppendLine($"        blocked by {blocked.Display}");
+            }
+        }
+
+        var refusedWithCause = home.Refused.FirstOrDefault(a => a.Blocking.Count > 0);
+        if (refusedWithCause is not null)
+        {
+            text.AppendLine();
+            text.AppendLine($"    {Wrap($"The machine was told to home at {refusedWithCause.Time:hh\\:mm\\:ss} and "
+                + $"{refusedWithCause.Outcome}, with {string.Join(" and ", refusedWithCause.Blocking.Select(b => b.Display))}. "
+                + "That is the interlock doing its job - clear whatever that sensor is seeing, or check the "
+                + "sensor itself if there is nothing there.", 4)}");
+        }
     }
 
     private static void AppendMatchedFaults(StringBuilder text, KnowledgeFindings findings)

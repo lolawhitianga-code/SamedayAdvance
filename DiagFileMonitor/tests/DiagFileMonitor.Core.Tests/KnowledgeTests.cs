@@ -206,3 +206,127 @@ public class PlatePresentCheckTests
         Assert.Empty(events);
     }
 }
+
+public class HomeInterlockCheckTests
+{
+    private static IReadOnlyList<MachineLogEntry> Log(params string[] lines) => MachineLogFile.Parse(lines);
+
+    [Fact]
+    public void AProductSensorReadingOneStopsTheMachineHoming()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 1",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos",
+            "10:12:54.0000000,  Other, FixedSidePuller,  Axis Start Home"));
+
+        var attempt = Assert.Single(findings.Attempts);
+        Assert.True(attempt.WasRefused);
+        Assert.Equal("192.168.250.1-4.6", Assert.Single(attempt.Blocking).Address);
+        Assert.Contains("nothing homed for 38s", attempt.Outcome);
+    }
+
+    [Fact]
+    public void ASensorChangingOnTheSameTimestampAsTheCommandCounts()
+    {
+        // In the real M20716 export the sensor change and the HomeServos command share a
+        // timestamp, with the sensor printed on a later line. They are the same PLC scan, so
+        // the sensor was already reading 1 when the command was given.
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.6590038,  Other, ClsWallExtruder,  HomeServos",
+            "10:12:15.6590038,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 1"));
+
+        Assert.Single(Assert.Single(findings.Attempts).Blocking);
+    }
+
+    [Fact]
+    public void AClearMachineHomesWithNothingBlocking()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 0",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos",
+            "10:12:16.5000000,  Other, FixedSidePuller,  Axis Start Home"));
+
+        var attempt = Assert.Single(findings.Attempts);
+        Assert.False(attempt.WasRefused);
+        Assert.Empty(attempt.Blocking);
+    }
+
+    [Fact]
+    public void ASensorThatClearedBeforeTheCommandDoesNotBlock()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:10.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 1",
+            "10:12:14.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 0",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos",
+            "10:12:16.2000000,  Other, FixedSidePuller,  Axis Start Home"));
+
+        Assert.Empty(Assert.Single(findings.Attempts).Blocking);
+    }
+
+    [Fact]
+    public void ThePlatePresentSwitchesBlockHomingToo()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.0000000,  InputChange, PlatePresentSwitch,  Input (192.168.250.1-4.2) Changed to 1",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos"));
+
+        var attempt = Assert.Single(findings.Attempts);
+        Assert.Equal("PlatePresentSwitch", Assert.Single(attempt.Blocking).Tag);
+
+        // Nothing ever homed after it.
+        Assert.True(attempt.WasRefused);
+        Assert.Null(attempt.FirstAxisHomedAfter);
+    }
+
+    [Fact]
+    public void BothGrippersAreTrackedSeparately()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:10.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 1",
+            "10:12:11.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.7) Changed to 1",
+            "10:12:12.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 0",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos"));
+
+        // Only the one still reading 1 blocks.
+        var blocking = Assert.Single(Assert.Single(findings.Attempts).Blocking);
+        Assert.Equal("192.168.250.1-4.7", blocking.Address);
+        Assert.Equal(2, findings.SensorsSeen.Count);
+    }
+
+    [Fact]
+    public void SensorsThatNeverChangeAreReportedAsAbsentRatherThanBlocking()
+    {
+        // The log records changes only, so a sensor sitting at 0 the whole session never appears.
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos",
+            "10:12:16.2000000,  Other, FixedSidePuller,  Axis Start Home"));
+
+        Assert.Empty(Assert.Single(findings.Attempts).Blocking);
+        Assert.Equal(2, findings.SensorsNotInLog.Count);
+        Assert.Contains("GripperProductSensor", findings.SensorsNotInLog);
+        Assert.Contains("PlatePresentSwitch", findings.SensorsNotInLog);
+    }
+
+    [Fact]
+    public void OtherInputsAreNotTreatedAsProductSensors()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.0000000,  InputChange, TrolleyTopClampOpen,  Input (192.168.250.1-0.8) Changed to 1",
+            "10:12:15.1000000,  InputChange, LowerNailSensor,  Input (192.168.250.1-0.23) Changed to 1",
+            "10:12:16.0000000,  Other, ClsWallExtruder,  HomeServos"));
+
+        Assert.Empty(findings.SensorsSeen);
+        Assert.Empty(Assert.Single(findings.Attempts).Blocking);
+    }
+
+    [Fact]
+    public void ALogWithNoHomeCommandReportsNoAttempts()
+    {
+        var findings = HomeInterlockCheck.Check(Log(
+            "10:12:15.0000000,  InputChange, GripperProductSensor,  Input (192.168.250.1-4.6) Changed to 1"));
+
+        Assert.Empty(findings.Attempts);
+        Assert.Single(findings.SensorsSeen);
+        Assert.True(findings.Any);
+    }
+}

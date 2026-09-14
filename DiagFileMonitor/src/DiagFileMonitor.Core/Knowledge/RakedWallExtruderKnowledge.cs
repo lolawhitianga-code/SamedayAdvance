@@ -149,9 +149,14 @@ public static class RakedWallExtruderKnowledge
                 Title = "Product sensor interlock stopping the machine homing",
                 Serials = new[] { "M19820", "M20822", "M20716" },
                 Detail =
-                    "All four product sensors must read 0 before the machine will home or start "
-                    + "setup. If homing will not start, check all four sensor states first.",
-                Confidence = Confidence.Unconfirmed,
+                    "Both GripperProductSensor inputs and both PlatePresentSwitch inputs must read 0 "
+                    + "before the machine will home. Any one of them reading 1 means something is "
+                    + "still being detected and the home command is refused, with nothing on screen "
+                    + "to say why. Seen on M20716 on 27 Jul 2026: GripperProductSensor 4.6 went to 1 "
+                    + "at the same moment as the first HomeServos command, two home commands did "
+                    + "nothing, and no axis moved for 39 seconds. The report checks this on every "
+                    + "file - see \"CAN IT HOME?\".",
+                Confidence = Confidence.Confirmed,
                 Signals = new[] { "interlock", "will not home", "cannot home", "home failed" }
             },
             new()

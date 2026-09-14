@@ -196,6 +196,15 @@ public static class SpidaReportFormatter
 
         var leads = new List<string>();
 
+        // Something physically stopping the machine homing outranks everything else - nothing
+        // else can happen until it is cleared.
+        if (knowledge?.HomeInterlock.Refused.FirstOrDefault(a => a.Blocking.Count > 0) is { } refused)
+        {
+            leads.Add($"The machine was told to home at {refused.Time:hh\\:mm\\:ss} and {refused.Outcome}, "
+                      + $"with {string.Join(" and ", refused.Blocking.Select(b => b.Display))}. All four product "
+                      + "sensors have to read 0 before it will home - start by clearing that one.");
+        }
+
         // A fault we already understand beats anything worked out from the log shape alone.
         foreach (var match in knowledge?.MatchedFaults.Take(2) ?? Enumerable.Empty<MatchedFault>())
         {
