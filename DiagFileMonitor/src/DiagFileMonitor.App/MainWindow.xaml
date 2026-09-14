@@ -92,7 +92,23 @@
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="DarkSlateGray" />
 
         <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" IsReadOnly="True"
-                  CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternatingRowBackground="#FFF7F9FC">
+                  CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="ToolTip" Value="{Binding ErrorMessage}" />
+                    <Style.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                            <Setter Property="Background" Value="#FFF7F9FC" />
+                        </Trigger>
+                        <!-- Declared last so a failed bundle wins over the alternating stripe. -->
+                        <DataTrigger Binding="{Binding Status}" Value="Error">
+                            <Setter Property="Background" Value="#FFFDE8E8" />
+                            <Setter Property="Foreground" Value="#FF8B1A1A" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="File" Binding="{Binding OriginalFileName}" Width="220" />
                 <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="130" />
