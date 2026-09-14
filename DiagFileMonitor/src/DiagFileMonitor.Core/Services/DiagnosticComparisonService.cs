@@ -29,7 +29,19 @@ public class DiagnosticComparisonService
             var masterLog = ReadMachineLog(master, "master", notes);
             var comparedLog = ReadMachineLog(compared, "compared machine", notes);
 
-            var steps = StepTimingComparison.Compare(StepProfile.From(masterLog), StepProfile.From(comparedLog));
+            var masterProfile = StepProfile.From(masterLog);
+            var comparedProfile = StepProfile.From(comparedLog);
+
+            foreach (var (profile, role) in new[] { (masterProfile, "master"), (comparedProfile, "compared machine") })
+            {
+                if (profile.FinalStepWasStillRunning)
+                {
+                    notes.Add($"The {role} log ends part way through a step, so that step is left out of "
+                              + "the timings - its length is unknown rather than measured.");
+                }
+            }
+
+            var steps = StepTimingComparison.Compare(masterProfile, comparedProfile);
             var settings = SettingsComparison.Compare(MachineXmlPath(master), MachineXmlPath(compared));
 
             return CompareReportFormatter.Format(

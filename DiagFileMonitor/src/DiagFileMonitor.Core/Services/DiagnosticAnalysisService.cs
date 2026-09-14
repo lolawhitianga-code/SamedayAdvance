@@ -1,3 +1,4 @@
+using DiagFileMonitor.Core.Knowledge;
 using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.SpidaLogs;
 
@@ -53,7 +54,12 @@ public class DiagnosticAnalysisService
         var changeLog = ChangeLogFile.ParseFile(PathOf(bundle, LogFileKind.ChangeLog));
 
         var analysis = _analyser.Analyse(machineLog, errLog, changeLog, bundle.ArrivedAtUtc);
-        return SpidaReportFormatter.Format(summary, analysis);
+
+        // Machine.xml is the better source for the model; fall back to what the PLC reported.
+        var knowledge = KnowledgeAnnotator.Annotate(
+            analysis, machineLog, bundle.MachineType, bundle.SerialNumber);
+
+        return SpidaReportFormatter.Format(summary, analysis, knowledge);
     }
 
     private static string PathOf(DiagnosticFile bundle, LogFileKind kind) =>

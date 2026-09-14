@@ -406,3 +406,104 @@ public class SpidaLogAnalyserTests
         Assert.Contains(analysis.Notes, n => n.Contains("MachineLog.txt was empty"));
     }
 }
+
+public class StepProfileOpenStepTests
+{
+    private static IReadOnlyList<MachineLogEntry> Log(params string[] lines) => MachineLogFile.Parse(lines);
+
+    [Fact]
+    public void TheStepTheLogEndsInIsLeftOutOfTheTimings()
+    {
+        // Two exports of the same session differed only by a trailing SharePoint upload line
+        // written 1.3 minutes after the machine stopped. Measuring the last step to the end of
+        // the file made one export read as 421% slower than the other, which is nonsense.
+        var withoutTrailingLine = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:01.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:05.0000000,  Other, WallExtruderStep,  Step = 30",
+            "10:00:05.0300000,  MotionEvent, FixedSidePuller,  Axis Disabled"));
+
+        var withTrailingLine = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:01.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:05.0000000,  Other, WallExtruderStep,  Step = 30",
+            "10:00:05.0300000,  MotionEvent, FixedSidePuller,  Axis Disabled",
+            "10:01:20.0000000,  Other, SharepointReporting,  Upload succeeded"));
+
+        Assert.True(withoutTrailingLine.FinalStepWasStillRunning);
+        Assert.True(withTrailingLine.FinalStepWasStillRunning);
+
+        // Step 30 never finished, so neither export reports a duration for it at all.
+        Assert.False(withoutTrailingLine.MedianDuration.ContainsKey(30));
+        Assert.False(withTrailingLine.MedianDuration.ContainsKey(30));
+
+        // And the housekeeping line makes no difference to anything.
+        Assert.Equal(withoutTrailingLine.MedianCycleDuration, withTrailingLine.MedianCycleDuration);
+        Assert.Equal(withoutTrailingLine.MedianDuration[10], withTrailingLine.MedianDuration[10]);
+        Assert.Equal(withoutTrailingLine.MedianDuration[20], withTrailingLine.MedianDuration[20]);
+    }
+
+    [Fact]
+    public void StepsThatDidFinishAreStillTimed()
+    {
+        var profile = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:01.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:05.0000000,  Other, WallExtruderStep,  Step = 30"));
+
+        Assert.Equal(TimeSpan.FromSeconds(1), profile.MedianDuration[10]);
+        Assert.Equal(TimeSpan.FromSeconds(4), profile.MedianDuration[20]);
+        Assert.Equal(TimeSpan.FromSeconds(5), profile.MedianCycleDuration);
+    }
+
+    [Fact]
+    public void AUnitWhoseOnlyStepWasTheOpenOneIsNotCountedAsAUnit()
+    {
+        // A trailing step drop leaves a final unit holding nothing but the open step. It has no
+        // timing in it, so counting it drags the median cycle time towards zero.
+        var profile = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:01.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:05.0000000,  Other, WallExtruderStep,  Step = 30",
+            "10:00:08.0000000,  InputChange, PlateClampUp,  Input (192.168.250.1-0.10) Changed to 1",
+            "10:00:09.0000000,  Other, WallExtruderStep,  Step = 0",
+            "10:02:00.0000000,  Other, SharepointReporting,  Upload succeeded"));
+
+        Assert.Equal(1, profile.CycleCount);
+        Assert.Equal(TimeSpan.FromSeconds(8), profile.MedianCycleDuration);
+        Assert.False(profile.MedianDuration.ContainsKey(0));
+        Assert.Equal(TimeSpan.FromSeconds(3), profile.MedianDuration[30]);
+    }
+
+    [Fact]
+    public void TheStepTheLogEndsInStillCountsAsAStepTheMachineReached()
+    {
+        var profile = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:01.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:05.0000000,  Other, WallExtruderStep,  Step = 30"));
+
+        // It ran step 30, we just do not know for how long.
+        Assert.Equal([10, 20, 30], profile.Sequence);
+        Assert.False(profile.MedianDuration.ContainsKey(30));
+    }
+
+    [Fact]
+    public void TheLastStepOfAUnitRunsToTheEndOfThatUnit()
+    {
+        var profile = StepProfile.From(Log(
+            "10:00:00.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:02.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:09.0000000,  InputChange, PlateClampUp,  Input (192.168.250.1-0.10) Changed to 1",
+            "10:00:10.0000000,  Other, WallExtruderStep,  Step = 10",
+            "10:00:12.0000000,  Other, WallExtruderStep,  Step = 20",
+            "10:00:20.0000000,  Other, WallExtruderStep,  Step = 30"));
+
+        Assert.Equal(2, profile.CycleCount);
+        Assert.Equal(TimeSpan.FromSeconds(2), profile.MedianDuration[10]);
+
+        // Unit 1's step 20 ran to the end of unit 1 (7s), unit 2's to its step 30 (8s).
+        // The idle time between units is not charged to either.
+        Assert.Equal(TimeSpan.FromSeconds(7.5), profile.MedianDuration[20]);
+    }
+}
