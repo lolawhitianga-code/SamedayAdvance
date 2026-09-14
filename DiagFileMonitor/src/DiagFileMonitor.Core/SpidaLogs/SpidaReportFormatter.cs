@@ -1,4 +1,5 @@
 using System.Text;
+using DiagFileMonitor.Core.Knowledge;
 using DiagFileMonitor.Core.Models;
 
 namespace DiagFileMonitor.Core.SpidaLogs;
@@ -6,7 +7,10 @@ namespace DiagFileMonitor.Core.SpidaLogs;
 /// <summary>Writes the analysis up in the order the guide asks for.</summary>
 public static class SpidaReportFormatter
 {
-    public static string Format(DiagnosticFileSummary file, SpidaLogAnalysis analysis)
+    public static string Format(
+        DiagnosticFileSummary file,
+        SpidaLogAnalysis analysis,
+        KnowledgeFindings? knowledge = null)
     {
         var text = new StringBuilder();
 
@@ -28,8 +32,9 @@ public static class SpidaReportFormatter
         AppendRepeats(text, analysis);
         AppendErrors(text, analysis);
         AppendChanges(text, analysis);
-        AppendWhereToLook(text, file, analysis);
-        AppendQuestions(text, analysis);
+        if (knowledge is not null) KnowledgeReportFormatter.Append(text, knowledge);
+        AppendWhereToLook(text, file, analysis, knowledge);
+        AppendQuestions(text, analysis, knowledge);
 
         if (analysis.Notes.Count > 0)
         {
@@ -180,12 +185,36 @@ public static class SpidaReportFormatter
         text.AppendLine("  rather than assuming they are.");
     }
 
-    private static void AppendWhereToLook(StringBuilder text, DiagnosticFileSummary file, SpidaLogAnalysis analysis)
+    private static void AppendWhereToLook(
+        StringBuilder text,
+        DiagnosticFileSummary file,
+        SpidaLogAnalysis analysis,
+        KnowledgeFindings? knowledge)
     {
         text.AppendLine();
         text.AppendLine("WHERE TO START LOOKING");
 
         var leads = new List<string>();
+
+        // A fault we already understand beats anything worked out from the log shape alone.
+        foreach (var match in knowledge?.MatchedFaults.Take(2) ?? Enumerable.Empty<MatchedFault>())
+        {
+            leads.Add($"\"{match.SeenAs}\" - {match.Known.WhatToCheck.FirstOrDefault() ?? match.Known.Meaning}");
+        }
+
+        foreach (var issue in knowledge?.IssuesSeenInThisLog.Take(1)
+                              ?? Enumerable.Empty<KnownIssue>())
+        {
+            leads.Add($"Known problem on this machine, and this log shows signs of it: {issue.Title}. "
+                      + "Rule it in or out before looking elsewhere.");
+        }
+
+        foreach (var glitch in knowledge?.PlatePresentEvents.Where(e => e.Verdict == PlatePresentVerdict.SensorGlitch).Take(1)
+                               ?? Enumerable.Empty<PlatePresentEvent>())
+        {
+            leads.Add($"A plate present sensor glitched at {glitch.Time:hh\\:mm\\:ss} on the {glitch.Side.ToLowerInvariant()} "
+                      + "side with nothing physically moving - check that sensor and its cable.");
+        }
 
         foreach (var repeat in analysis.RepeatedFaults.Take(2))
         {
@@ -214,15 +243,21 @@ public static class SpidaReportFormatter
             return;
         }
 
-        foreach (var lead in leads) text.AppendLine($"  - {lead}");
+        foreach (var lead in leads) text.AppendLine($"  - {ReportText.Wrap(lead, 4)}");
     }
 
-    private static void AppendQuestions(StringBuilder text, SpidaLogAnalysis analysis)
+    private static void AppendQuestions(StringBuilder text, SpidaLogAnalysis analysis, KnowledgeFindings? knowledge)
     {
         text.AppendLine();
         text.AppendLine("QUESTIONS FOR THE CUSTOMER");
 
         var questions = new List<string>();
+
+        // Questions that matter on this particular machine go first.
+        if (knowledge?.Knowledge is { } machine)
+        {
+            questions.AddRange(machine.CustomerQuestions);
+        }
 
         if (analysis.RepeatedFaults.Count > 0)
         {
@@ -243,6 +278,9 @@ public static class SpidaReportFormatter
 
         questions.Add("Does the machine recover if it is restarted, and for how long?");
 
-        foreach (var question in questions.Take(4)) text.AppendLine($"  - {question}");
+        foreach (var question in questions.Distinct().Take(6))
+        {
+            text.AppendLine($"  - {ReportText.Wrap(question, 4)}");
+        }
     }
 }
