@@ -65,6 +65,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private DiagnosticFileSummary? _selectedFile;
 
+    [ObservableProperty]
+    private DashboardStats _stats = DashboardStats.Empty;
+
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository, FolderMonitorService monitorService)
     {
         _settingsService = settingsService;
@@ -106,6 +109,8 @@ public partial class MainViewModel : ObservableObject
         FilesView.Refresh();
         OnPropertyChanged(nameof(FilterSummary));
     }
+
+    private void RecalculateStats() => Stats = DashboardStats.Calculate(Files, DateTime.Now);
 
     public string FilterSummary
     {
@@ -149,6 +154,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         RefreshFilter();
+        RecalculateStats();
     }
 
     [RelayCommand]
@@ -273,6 +279,7 @@ public partial class MainViewModel : ObservableObject
                 ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber})."
                 : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
             OnPropertyChanged(nameof(FilterSummary));
+            RecalculateStats();
         });
     }
 
