@@ -5,6 +5,53 @@ for incoming diagnostic zip files, unpacks them, reads `machine.xml`, and stores
 everything in a local database. The dashboard lists what has arrived, grouped by
 serial number by default, with search, case notes and log searching on top.
 
+## Getting it running on your PC (start here)
+
+You need to do this once. After that, the app is just an icon you double-click.
+
+**1. Install .NET 8** (the toolkit that turns the code into a program)
+
+Go to <https://dotnet.microsoft.com/download/dotnet/8.0>, and under **.NET 8.0** find
+the **SDK** column. Download the **Windows x64** installer and run it. Click through
+the defaults.
+
+**2. Download this code**
+
+On the GitHub page for this repository, click the green **Code** button, then
+**Download ZIP**. Save it somewhere sensible like your Documents folder.
+
+**3. Unzip it**
+
+Right-click the downloaded ZIP, choose **Extract All**, and let it finish. You will
+end up with a folder containing a `DiagFileMonitor` folder.
+
+**4. Build it**
+
+Open the `DiagFileMonitor` folder and double-click **`build.bat`**.
+
+A black window appears and prints a lot of text. That is normal. The first build
+downloads packages and can take several minutes. When it finishes it tells you where
+your program is.
+
+If Windows warns about running the file, choose **More info** then **Run anyway** -
+that warning appears for any script that was downloaded.
+
+**5. Run it**
+
+Inside `DiagFileMonitor` there is now a `publish` folder. Double-click
+**`DiagFileMonitor.exe`** inside it. That is the app.
+
+To make it easy to get back to: right-click `DiagFileMonitor.exe`, choose
+**Show more options** then **Send to > Desktop (create shortcut)**, or pin it to your
+taskbar.
+
+**When I change the code later**, download the ZIP again, unzip, and double-click
+`build.bat` again. Your history, notes and settings are kept separately in your
+AppData folder, so they survive a rebuild.
+
+**If the build fails**, scroll up in the black window to the first line with the word
+`error` in it, and send me that line.
+
 ## Projects
 
 - `src/DiagFileMonitor.Core` — folder watching, zip extraction, XML parsing, the
@@ -96,15 +143,23 @@ the common ones; the rest can be edited by hand:
 Upgrading is safe: `DatabaseInitializer` adds any columns a newer build expects,
 so an existing database keeps its history rather than having to be deleted.
 
-## Building and running
+## Building from the command line
 
-Needs Windows and the .NET 8 SDK:
+`build.bat` wraps this. If you would rather type it yourself, on Windows with the
+.NET 8 SDK installed:
 
 ```
 cd DiagFileMonitor
-dotnet build
-dotnet run --project src\DiagFileMonitor.App
-dotnet test
+dotnet build                                  :: compile everything
+dotnet test                                   :: run the test suite
+dotnet run --project src\DiagFileMonitor.App   :: run without publishing
+```
+
+To produce the standalone folder that `build.bat` creates:
+
+```
+dotnet publish src\DiagFileMonitor.App\DiagFileMonitor.App.csproj ^
+    -c Release -r win-x64 --self-contained true -o publish
 ```
 
 ## Setting up Zoho Desk
