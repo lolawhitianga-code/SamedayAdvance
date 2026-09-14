@@ -13,4 +13,7 @@ public class AppSettings
 
     /// <summary>Show a notification-area balloon as each bundle lands.</summary>
     public bool NotifyOnArrival { get; set; } = true;
+
+    /// <summary>Delete unpacked files older than this many days. 0 keeps everything.</summary>
+    public int ExtractRetentionDays { get; set; }
 }

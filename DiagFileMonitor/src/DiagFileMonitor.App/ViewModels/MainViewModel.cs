@@ -17,6 +17,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagFileRepository _repository;
     private readonly FolderMonitorService _monitorService;
     private readonly TrayNotifier _notifier;
+    private readonly ExtractCleanupService _cleanupService;
     private readonly int _repeatWindowDays;
 
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
@@ -87,6 +88,53 @@ public partial class MainViewModel : ObservableObject
         var settings = _settingsService.Load();
         settings.NotifyOnArrival = value;
         _settingsService.Save(settings);
+    }
+
+    [ObservableProperty]
+    private int _retentionDays;
+
+    partial void OnRetentionDaysChanged(int value)
+    {
+        var settings = _settingsService.Load();
+        settings.ExtractRetentionDays = value;
+        _settingsService.Save(settings);
+    }
+
+    /// <summary>Runs the retention policy. Called on startup, and from the Clean up now button.</summary>
+    public async Task RunCleanupAsync(bool announceWhenNothingToDo)
+    {
+        var result = await _cleanupService.CleanupAsync(RetentionDays, DateTime.UtcNow);
+
+        if (result.FoldersDeleted > 0 || result.Failures > 0 || announceWhenNothingToDo)
+        {
+            StatusMessage = result.Summary;
+        }
+
+        if (result.FoldersDeleted > 0)
+        {
+            await LoadAsync();
+        }
+    }
+
+    [RelayCommand]
+    private async Task CleanUpNowAsync()
+    {
+        if (RetentionDays <= 0)
+        {
+            StatusMessage = "Set a retention period above 0 days first.";
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show(
+            $"Delete the unpacked files of every non-baseline bundle older than {RetentionDays} days?\n\n"
+            + "The dashboard history, notes and ticket references are kept - only the extracted files on disk are removed.",
+            "Clean up old extracts",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        await RunCleanupAsync(announceWhenNothingToDo: true);
     }
 
     [ObservableProperty]
@@ -181,12 +229,13 @@ public partial class MainViewModel : ObservableObject
     }
 
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
-        FolderMonitorService monitorService, TrayNotifier notifier)
+        FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService)
     {
         _settingsService = settingsService;
         _repository = repository;
         _monitorService = monitorService;
         _notifier = notifier;
+        _cleanupService = cleanupService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());
@@ -198,6 +247,7 @@ public partial class MainViewModel : ObservableObject
         var settings = _settingsService.Load();
         _repeatWindowDays = settings.RepeatWindowDays;
         _notifyOnArrival = settings.NotifyOnArrival;
+        _retentionDays = settings.ExtractRetentionDays;
         _notifier.Enabled = settings.NotifyOnArrival;
         WatchFolderPath = settings.WatchFolderPath;
         ExtensionsText = string.Join(", ", settings.FileExtensions);

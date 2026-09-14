@@ -129,7 +129,12 @@
                 <ComboBox ItemsSource="{Binding GroupByOptions}" SelectedItem="{Binding SelectedGroupBy}"
                           Width="180" Margin="0,0,12,0" />
                 <Button Content="Refresh" Command="{Binding LoadCommand}" Width="80" Margin="0,0,12,0" />
-                <Button Content="Search in logs..." Click="OpenLogSearch_Click" Width="130" />
+                <Button Content="Search in logs..." Click="OpenLogSearch_Click" Width="130" Margin="0,0,20,0" />
+                <TextBlock Text="Keep extracts for" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Text="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,6,0"
+                         ToolTip="Days to keep unpacked files. 0 keeps everything. Baselines are never removed." />
+                <TextBlock Text="days" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button Content="Clean up now" Command="{Binding CleanUpNowCommand}" Width="105" />
             </StackPanel>
 
             <Border BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" Padding="8,6" CornerRadius="3">

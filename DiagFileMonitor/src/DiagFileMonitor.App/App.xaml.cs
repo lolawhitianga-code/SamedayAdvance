@@ -43,12 +43,19 @@ public partial class App : System.Windows.Application
         _monitorService = new FolderMonitorService(processor);
         _notifier = new TrayNotifier();
 
-        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier);
+        var cleanupService = new ExtractCleanupService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
+        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier, cleanupService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
         mainWindow.Show();
 
-        _ = viewModel.LoadCommand.ExecuteAsync(null);
+        _ = InitialiseAsync(viewModel);
+    }
+
+    private static async Task InitialiseAsync(MainViewModel viewModel)
+    {
+        await viewModel.LoadCommand.ExecuteAsync(null);
+        await viewModel.RunCleanupAsync(announceWhenNothingToDo: false);
     }
 
     protected override void OnExit(ExitEventArgs e)
