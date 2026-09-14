@@ -1,7 +1,9 @@
 namespace DiagFileMonitor.Core.Knowledge;
 
 /// <summary>
-/// What is known about the Raked Wall Extruder (RakingWallExtruderV3DG).
+/// What is known about the Raked Wall Extruder (RakingWallExtruderV3DG) - a six-axis machine
+/// sharing its control logic and step tag scheme (WallExtruderStep, ClsWallExtruderPLC) with the
+/// standard Wall Extruder, with the raked parts layered on top.
 /// <para>
 /// Taken from the working knowledge write-up for the machine, with the axis tags corrected
 /// against a real M20716 export. Anything the write-up flagged as unsure is carried through as
@@ -14,11 +16,6 @@ public static class RakedWallExtruderKnowledge
     {
         Model = "RakingWallExtruderV3DG",
         AlsoMatches = new[] { "RakingWallExtruder", "RakedWallExtruder" },
-        Summary =
-            "Six-axis raked wall extruder. Shares its control logic and step tag scheme "
-            + "(WallExtruderStep, ClsWallExtruderPLC) with the standard Wall Extruder, with the "
-            + "raked parts - floating head laser check and rake-angle positioning - layered on top.",
-
         KnownSerials = new[] { "M19820", "M20822", "M20716" },
 
         Axes = new AxisRole[]
@@ -47,13 +44,14 @@ public static class RakedWallExtruderKnowledge
             new()
             {
                 LogName = "TrolleyHeight",
-                PlainName = "Trolley height - most likely the axis written down as \"Trolley Heart\"",
+                PlainName = "Trolley height (the axis written down as \"Trolley Heart\")",
                 Role =
-                    "Second vertical axis, separate from FloatingSideHeight. The write-up listed a "
-                    + "sixth axis called \"Trolley Heart\" with its role unknown; the real log has no "
-                    + "such tag but does have TrolleyHeight, which looks like the same axis written "
-                    + "down by ear. Its exact job is still not established.",
-                Confidence = Confidence.Inferred
+                    "Moves the floating side trolley (gripper) across to meet the starting height of "
+                    + "the panel. It then holds that position for the whole panel, and only moves "
+                    + "again - higher - to let the finished panel eject. How far it moves for the "
+                    + "eject depends on panel height. So one move at the start and one at the eject "
+                    + "is normal; moving part way through a panel is not.",
+                Confidence = Confidence.Confirmed
             },
             new()
             {
@@ -192,7 +190,6 @@ public static class RakedWallExtruderKnowledge
 
         OpenGaps = new[]
         {
-            "What the TrolleyHeight axis actually does, and whether it is the \"Trolley Heart\" from the write-up.",
             "Whether the Node0-Node3 mapping from the standard Wall Extruder playbook holds on a raked unit. "
                 + "The raked log lists Node0 to Node5 as status lines and names the axes separately, so the "
                 + "two have not been tied together yet.",

@@ -10,7 +10,8 @@ public static class SpidaReportFormatter
     public static string Format(
         DiagnosticFileSummary file,
         SpidaLogAnalysis analysis,
-        KnowledgeFindings? knowledge = null)
+        KnowledgeFindings? knowledge = null,
+        ComplaintFindings? complaint = null)
     {
         var text = new StringBuilder();
 
@@ -28,6 +29,7 @@ public static class SpidaReportFormatter
         }
 
         AppendOperatorText(text, file);
+        if (complaint is not null) AppendComplaint(text, complaint);
         AppendUnits(text, analysis);
         AppendRepeats(text, analysis);
         AppendErrors(text, analysis);
@@ -57,6 +59,60 @@ public static class SpidaReportFormatter
         if (!string.IsNullOrWhiteSpace(file.SupportPanel)) text.AppendLine($"  Panel:   {file.SupportPanel}");
         if (!string.IsNullOrWhiteSpace(file.SupportMembers)) text.AppendLine($"  Members: {file.SupportMembers}");
         if (!string.IsNullOrWhiteSpace(file.SupportIssue)) text.AppendLine($"  Issue:   \"{file.SupportIssue}\"");
+    }
+
+    /// <summary>
+    /// What the operator said, turned into somewhere to look. This goes first because the logs
+    /// are loudest about whatever happens most often, which is rarely the complaint.
+    /// </summary>
+    private static void AppendComplaint(StringBuilder text, ComplaintFindings complaint)
+    {
+        if (!complaint.HasIssueText) return;
+
+        text.AppendLine();
+        text.AppendLine("START HERE - WHAT THE OPERATOR DESCRIBED");
+
+        if (!complaint.Any)
+        {
+            text.AppendLine($"  \"{complaint.Issue}\"");
+            text.AppendLine("  Nothing in that matches a complaint we have a routine for, so the rest of this");
+            text.AppendLine("  report works from the logs alone. Read the operator's words first anyway.");
+            return;
+        }
+
+        foreach (var match in complaint.Topics)
+        {
+            text.AppendLine();
+            text.AppendLine($"  {match.Topic.Name.ToUpperInvariant()}");
+            text.AppendLine($"    (from \"{string.Join("\", \"", match.MatchedOn)}\" in what the operator wrote)");
+
+            foreach (var step in match.Topic.LookAt)
+            {
+                text.AppendLine($"      - {ReportText.Wrap(step, 8)}");
+            }
+
+            AppendRelatedChanges(text, match);
+        }
+    }
+
+    private static void AppendRelatedChanges(StringBuilder text, MatchedTopic match)
+    {
+        if (match.Topic.SettingWords.Count == 0) return;
+
+        text.AppendLine();
+
+        if (match.RelatedChanges.Count == 0)
+        {
+            text.AppendLine($"      Change.log has no {string.Join("/", match.Topic.SettingWords)} settings changed at all,");
+            text.AppendLine("      so this is not a setting somebody moved.");
+            return;
+        }
+
+        text.AppendLine($"      {match.RelatedChanges.Count} matching setting change(s), newest first:");
+        foreach (var change in match.RelatedChanges)
+        {
+            text.AppendLine($"        {change.Display}");
+        }
     }
 
     private static void AppendUnits(StringBuilder text, SpidaLogAnalysis analysis)

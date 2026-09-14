@@ -330,3 +330,126 @@ public class HomeInterlockCheckTests
         Assert.True(findings.Any);
     }
 }
+
+public class ComplaintRouterTests
+{
+    private static ChangeLogEntry Change(string date, string setting, string from, string to) => new()
+    {
+        Timestamp = DateTime.Parse(date), User = "Spida", Category = "Settings",
+        Setting = setting, OldValue = from, NewValue = to
+    };
+
+    private static readonly IReadOnlyList<ChangeLogEntry> Changes = new[]
+    {
+        Change("2026-05-05 13:09:03", "NailDistFromEdgeOfTimber", "22", "20"),
+        Change("2026-04-20 14:03:18", "GunFireTime", "150", "170"),
+        Change("2026-04-21 14:26:51", "RWEPanelHeightGap", "0", "2"),
+        Change("2026-01-20 11:38:30", "NailsPastSensor", "10", "20")
+    };
+
+    private static ComplaintFindings Route(string issue) =>
+        ComplaintRouter.Route(issue, Changes, Array.Empty<MachineLogEntry>());
+
+    [Fact]
+    public void ANailGunComplaintGoesToGunAndNailSettingsFirst()
+    {
+        var findings = Route("Nail gun in incorrect position");
+
+        var topic = findings.Topics[0];
+        Assert.Equal("Nail gun position or height", topic.Topic.Name);
+        Assert.Contains("NailDistFromEdgeOfTimber", topic.RelatedChanges.Select(c => c.Setting));
+        Assert.Contains("GunFireTime", topic.RelatedChanges.Select(c => c.Setting));
+    }
+
+    [Fact]
+    public void APanelHeightSettingIsNotDraggedIntoAGunComplaint()
+    {
+        // "height" as a search word pulls in RWEPanelHeightGap, which is nothing to do with
+        // where the gun fires.
+        var topic = Route("Nail gun in incorrect position").Topics[0];
+
+        Assert.DoesNotContain("RWEPanelHeightGap", topic.RelatedChanges.Select(c => c.Setting));
+    }
+
+    [Fact]
+    public void RelatedChangesAreNewestFirstAndNotLimitedToTheDayOfTheExport()
+    {
+        // A gun setting changed weeks ago still explains a gun complaint.
+        var changes = Route("nail gun wrong position").Topics[0].RelatedChanges;
+
+        Assert.Equal("NailDistFromEdgeOfTimber", changes[0].Setting);
+        Assert.True(changes[0].Timestamp > changes[^1].Timestamp);
+    }
+
+    [Fact]
+    public void TheRealComplaintFromM20716PointsAtTheInterlockFirst()
+    {
+        var findings = Route("trolleys not moving when i hit start panel");
+
+        Assert.Equal("Machine will not move or start", findings.Topics[0].Topic.Name);
+        Assert.Contains("CAN IT HOME?", findings.Topics[0].Topic.LookAt[0]);
+    }
+
+    [Fact]
+    public void TheTopicMatchingMostOfTheOperatorsWordsComesFirst()
+    {
+        // "trolleys not moving when i hit start panel" hits the movement topic three times and
+        // the trolley topic once, so movement leads.
+        var findings = Route("trolleys not moving when i hit start panel");
+
+        Assert.Equal(2, findings.Topics.Count);
+        Assert.True(findings.Topics[0].MatchedOn.Count > findings.Topics[1].MatchedOn.Count);
+        Assert.Equal("Trolley or floating head height", findings.Topics[1].Topic.Name);
+    }
+
+    [Fact]
+    public void AComplaintWeHaveNoRoutineForStillKeepsTheOperatorsWords()
+    {
+        var findings = Route("the screen colours look odd");
+
+        Assert.True(findings.HasIssueText);
+        Assert.False(findings.Any);
+        Assert.Equal("the screen colours look odd", findings.Issue);
+    }
+
+    [Fact]
+    public void NoIssueTextMeansNoRouting()
+    {
+        Assert.False(ComplaintRouter.Route("", Changes, Array.Empty<MachineLogEntry>()).HasIssueText);
+        Assert.False(ComplaintRouter.Route(null, Changes, Array.Empty<MachineLogEntry>()).HasIssueText);
+        Assert.False(ComplaintRouter.Route("   ", Changes, Array.Empty<MachineLogEntry>()).HasIssueText);
+    }
+
+    [Fact]
+    public void AnEjectionComplaintRaisesTheKnownBugAndTheTrolleyLift()
+    {
+        var topic = Route("panel wont come out at eject").Topics[0];
+
+        Assert.Equal("Ejection", topic.Topic.Name);
+        Assert.Contains("ejection bug", topic.Topic.LookAt[0]);
+        Assert.Contains("TrolleyHeight", topic.Topic.LookAt[1]);
+    }
+
+    [Fact]
+    public void AStudComplaintChecksNailMarkGenerationBeforeAnythingMechanical()
+    {
+        var topic = Route("studs are being skipped").Topics[0];
+
+        Assert.Equal("Studs skipped or in the wrong place", topic.Topic.Name);
+        Assert.Contains("Nail mark generation", topic.Topic.LookAt[0]);
+    }
+
+    [Fact]
+    public void RelatedLogLinesArePulledByTag()
+    {
+        var log = MachineLogFile.Parse(new[]
+        {
+            "10:12:15.0000000,  Other, TrolleyHeight,  Axis Start Home",
+            "10:12:16.0000000,  Other, FixedSidePuller,  Axis Start Home"
+        });
+
+        var topic = ComplaintRouter.Route("trolley is at the wrong height", Changes, log).Topics[0];
+
+        Assert.Equal("TrolleyHeight", Assert.Single(topic.RelatedLogLines).Tag);
+    }
+}
