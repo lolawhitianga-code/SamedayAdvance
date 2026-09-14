@@ -156,6 +156,8 @@ public partial class MainViewModel : ObservableObject
         ExtensionsText = string.Join(", ", settings.FileExtensions);
     }
 
+    public LogSearchViewModel CreateLogSearchViewModel() => new(_repository);
+
     private FilterCriteria CurrentCriteria() => new()
     {
         SearchText = SearchText,
