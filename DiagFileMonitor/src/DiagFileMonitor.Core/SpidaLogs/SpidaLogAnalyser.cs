@@ -196,7 +196,7 @@ public class SpidaLogAnalyser
 
             cycles.Add(new MachineCycle
             {
-                Number = cycles.Count + 1,
+                Number = cycles.Count + 1,   // renumbered below once slivers are dropped
                 Start = slice[0].Time,
                 End = slice[^1].Time,
                 Completed = completed,
@@ -205,7 +205,25 @@ public class SpidaLogAnalyser
             });
         }
 
-        return cycles;
+        // A trailing step drop can leave a slice of a fraction of a second with nothing in it.
+        // That is the tail of the log, not an attempt, so drop it rather than report it as one.
+        var real = cycles
+            .Where(c => c.Duration >= _options.MinimumRealCycle || c.Faults.Count > 0 || c.Completed)
+            .ToList();
+
+        if (real.Count == 0) real = cycles;
+
+        return real
+            .Select((c, index) => new MachineCycle
+            {
+                Number = index + 1,
+                Start = c.Start,
+                End = c.End,
+                Completed = c.Completed,
+                HighestStep = c.HighestStep,
+                Faults = c.Faults
+            })
+            .ToList();
     }
 
     private List<MachineLogFault> FindFaults(IReadOnlyList<MachineLogEntry> all, int from, int to)

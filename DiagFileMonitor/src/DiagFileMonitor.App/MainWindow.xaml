@@ -163,9 +163,11 @@
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock Text="{Binding SelectionLabel}" Style="{StaticResource Hint}" Margin="0,0,8,0"
                            MaxWidth="220" TextTrimming="CharacterEllipsis" />
-                <Button Content="Analyse" Command="{Binding AnalyseSelectedCommand}" Width="90" Margin="0,0,12,0"
+                <Button Content="Analyse" Command="{Binding AnalyseSelectedCommand}" Width="80" Margin="0,0,6,0"
                         Style="{StaticResource PrimaryButton}"
                         ToolTip="Read the logs in the selected bundle(s) and report what went wrong." />
+                <Button Content="Compare" Command="{Binding CompareWithMasterCommand}" Width="80" Margin="0,0,12,0"
+                        ToolTip="Measure the selected bundle against the benchmark master: step process, speed and settings." />
                 <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
                         IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
                 <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"
@@ -212,6 +214,17 @@
         </Border>
 
         <Border DockPanel.Dock="Top" Margin="0,0,0,8" Style="{StaticResource Panel}"
+                Background="#FFF3E8" BorderBrush="#E0A66A"
+                Visibility="{Binding HasMaster, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Clear benchmark" Width="120"
+                        Command="{Binding ClearMasterCommand}" />
+                <TextBlock Text="{Binding MasterLabel}" VerticalAlignment="Center"
+                           TextWrapping="Wrap" Margin="0,0,10,0" />
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Style="{StaticResource Panel}"
                 Background="{StaticResource BrandBlueTint}" BorderBrush="{StaticResource BrandBlue}"
                 Visibility="{Binding IsMachineFilterActive, Converter={StaticResource BoolToVisibility}}">
             <DockPanel>
@@ -240,6 +253,11 @@
                                           IsEnabled="{Binding HasExtractedFolder}" />
                                 <MenuItem Header="_Analyse selected file(s)"
                                           Command="{Binding PlacementTarget.Tag.AnalyseSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Set as benchmark _master"
+                                          Command="{Binding PlacementTarget.Tag.SetMasterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                                <MenuItem Header="Compare _with benchmark"
+                                          Command="{Binding PlacementTarget.Tag.CompareWithMasterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <Separator />
                                 <MenuItem Header="Mark / unmark as known-good _baseline"
                                           Command="{Binding PlacementTarget.Tag.ToggleBaselineCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
