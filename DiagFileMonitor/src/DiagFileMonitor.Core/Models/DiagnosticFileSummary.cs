@@ -12,6 +12,9 @@ public class DiagnosticFileSummary
     public string OriginalFileName { get; set; } = string.Empty;
     public string SerialNumber { get; set; } = Unknown;
     public string MachineType { get; set; } = Unknown;
+    public string MachineName { get; set; } = Unknown;
+    public string SiteLocation { get; set; } = Unknown;
+    public string SoftwareName { get; set; } = Unknown;
     public string Customer { get; set; } = Unknown;
     public string Version { get; set; } = Unknown;
     public DateTime ArrivedAtUtc { get; set; }
@@ -48,6 +51,9 @@ public class DiagnosticFileSummary
         OriginalFileName = file.OriginalFileName,
         SerialNumber = Display(file.SerialNumber),
         MachineType = Display(file.MachineType),
+        MachineName = Display(file.MachineName),
+        SiteLocation = Display(file.SiteLocation),
+        SoftwareName = Display(file.SoftwareName),
         Customer = Display(file.Customer),
         Version = Display(file.Version),
         ArrivedAtUtc = file.ArrivedAtUtc,

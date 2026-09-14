@@ -22,8 +22,11 @@ public class DiagnosticFile
     public string? ExtractedPath { get; set; }
 
     public string? MachineType { get; set; }
+    public string? MachineName { get; set; }
     public string? SerialNumber { get; set; }
     public string? Customer { get; set; }
+    public string? SiteLocation { get; set; }
+    public string? SoftwareName { get; set; }
     public string? Version { get; set; }
 
     public ProcessingStatus Status { get; set; } = ProcessingStatus.Pending;

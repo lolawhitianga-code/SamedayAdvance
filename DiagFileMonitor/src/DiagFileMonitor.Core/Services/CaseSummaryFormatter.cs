@@ -11,8 +11,11 @@ public static class CaseSummaryFormatter
         var text = new StringBuilder();
         text.AppendLine($"Diagnostic file: {file.OriginalFileName}");
         text.AppendLine($"Serial number:   {file.SerialNumber}");
-        text.AppendLine($"Machine type:    {file.MachineType}");
+        text.AppendLine($"Machine model:   {file.MachineType}");
+        text.AppendLine($"Machine name:    {file.MachineName}");
         text.AppendLine($"Customer:        {file.Customer}");
+        text.AppendLine($"Site location:   {file.SiteLocation}");
+        text.AppendLine($"Software:        {file.SoftwareName}");
         text.AppendLine($"Version:         {file.Version}");
         text.AppendLine($"Arrived:         {file.ArrivedDisplay}");
         text.AppendLine($"Status:          {file.Status}");

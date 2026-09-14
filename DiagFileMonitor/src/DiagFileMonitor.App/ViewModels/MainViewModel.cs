@@ -27,8 +27,10 @@ public partial class MainViewModel : ObservableObject
     public List<string> GroupByOptions { get; } = new()
     {
         "Serial Number",
-        "Machine Type",
+        "Model",
         "Customer",
+        "Site Location",
+        "Software Version",
         "Arrived Date",
         "Status"
     };
@@ -325,8 +327,10 @@ public partial class MainViewModel : ObservableObject
         var propertyName = SelectedGroupBy switch
         {
             "Serial Number" => nameof(DiagnosticFileSummary.SerialNumber),
-            "Machine Type" => nameof(DiagnosticFileSummary.MachineType),
+            "Model" => nameof(DiagnosticFileSummary.MachineType),
             "Customer" => nameof(DiagnosticFileSummary.Customer),
+            "Site Location" => nameof(DiagnosticFileSummary.SiteLocation),
+            "Software Version" => nameof(DiagnosticFileSummary.Version),
             "Arrived Date" => nameof(DiagnosticFileSummary.ArrivedDate),
             "Status" => nameof(DiagnosticFileSummary.Status),
             _ => nameof(DiagnosticFileSummary.SerialNumber)
