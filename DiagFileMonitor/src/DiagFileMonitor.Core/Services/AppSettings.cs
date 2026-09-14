@@ -19,4 +19,38 @@ public class AppSettings
 
     /// <summary>Delete unpacked files older than this many days. 0 keeps everything.</summary>
     public int ExtractRetentionDays { get; set; }
+
+    public AlertSettings Alerts { get; set; } = new();
+    public ZohoSettings Zoho { get; set; } = new();
+    public EmailSettings Email { get; set; } = new();
+}
+
+/// <summary>When a machine sending several bundles in a row should raise an alert, and how it is analysed.</summary>
+public class AlertSettings
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>How many bundles from one machine inside the window before alerting.</summary>
+    public int BurstThreshold { get; set; } = BurstDetector.DefaultThreshold;
+
+    public int BurstWindowHours { get; set; } = BurstDetector.DefaultWindowHours;
+
+    /// <summary>A step this much slower than the baseline median is reported. 1.5 = 50% slower.</summary>
+    public double SlowStepFactor { get; set; } = 1.5;
+
+    /// <summary>Changelog entries this recent are flagged as a possible cause.</summary>
+    public int RecentChangeDays { get; set; } = 30;
+
+    /// <summary>
+    /// Regex for a machinelog.txt line, with named groups timestamp, marker and step.
+    /// Blank uses the built-in default, which has not yet been checked against a real machine log.
+    /// </summary>
+    public string MachineLogPattern { get; set; } = string.Empty;
+
+    public AnalysisOptions ToAnalysisOptions() => new()
+    {
+        SlowStepFactor = SlowStepFactor,
+        RecentChangeDays = RecentChangeDays,
+        MachineLogPattern = string.IsNullOrWhiteSpace(MachineLogPattern) ? null : MachineLogPattern
+    };
 }

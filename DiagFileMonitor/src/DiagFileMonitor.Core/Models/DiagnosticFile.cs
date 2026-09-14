@@ -38,5 +38,13 @@ public class DiagnosticFile
     /// <summary>Marked as a known-good bundle to compare faulty machines of this type against.</summary>
     public bool IsBaseline { get; set; }
 
+    /// <summary>Zoho Desk ticket this bundle's analysis was posted to, if any.</summary>
+    public string? ZohoTicketId { get; set; }
+    public string? ZohoTicketNumber { get; set; }
+    public DateTime? ZohoTicketCreatedUtc { get; set; }
+
+    /// <summary>When a burst alert went out for this bundle, so it is not raised twice.</summary>
+    public DateTime? AlertSentUtc { get; set; }
+
     public List<ExtractedLogFile> LogFiles { get; set; } = new();
 }

@@ -51,6 +51,57 @@ public class DiagFileRepository
         return true;
     }
 
+    /// <summary>
+    /// The ticket most recently raised for this machine, if it is still inside the reuse window.
+    /// The local database is the record of which ticket belongs to which machine, so no custom
+    /// field is needed in Zoho.
+    /// </summary>
+    public async Task<DiagnosticFile?> FindRecentTicketForSerialAsync(string serialNumber, DateTime cutoffUtc)
+    {
+        await using var context = _contextFactory();
+        return await context.DiagnosticFiles
+            .Where(f => f.SerialNumber == serialNumber
+                        && f.ZohoTicketId != null
+                        && f.ZohoTicketCreatedUtc != null
+                        && f.ZohoTicketCreatedUtc >= cutoffUtc)
+            .OrderByDescending(f => f.ZohoTicketCreatedUtc)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> SaveTicketLinkAsync(int id, string ticketId, string ticketNumber, DateTime createdUtc)
+    {
+        await using var context = _contextFactory();
+        var file = await context.DiagnosticFiles.FirstOrDefaultAsync(f => f.Id == id);
+        if (file is null) return false;
+
+        file.ZohoTicketId = ticketId;
+        file.ZohoTicketNumber = ticketNumber;
+        file.ZohoTicketCreatedUtc = createdUtc;
+        await context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task MarkAlertSentAsync(int id, DateTime sentUtc)
+    {
+        await using var context = _contextFactory();
+        var file = await context.DiagnosticFiles.FirstOrDefaultAsync(f => f.Id == id);
+        if (file is null) return;
+
+        file.AlertSentUtc = sentUtc;
+        await context.SaveChangesAsync();
+    }
+
+    public async Task<List<DiagnosticFile>> GetBaselinesAsync()
+    {
+        await using var context = _contextFactory();
+        return await context.DiagnosticFiles
+            .Include(f => f.LogFiles)
+            .Where(f => f.IsBaseline)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
     public async Task<List<DiagnosticFile>> GetAllAsync()
     {
         await using var context = _contextFactory();
