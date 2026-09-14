@@ -10,6 +10,7 @@ public enum LogFileKind
     ChangeLog,
     MachineLog,
     ErrorLog,
+    SupportInfo,
     Other
 }
 

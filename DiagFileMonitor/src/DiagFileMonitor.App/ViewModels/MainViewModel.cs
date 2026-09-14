@@ -289,6 +289,7 @@ public partial class MainViewModel : ObservableObject
         _monitorService.FileProcessed += OnFileProcessed;
         _monitorService.FileFailed += OnFileFailed;
         _monitorService.FileSkippedAsTooOld += OnFileSkippedAsTooOld;
+        _monitorService.FileSkippedAsDuplicate += OnFileSkippedAsDuplicate;
 
         var settings = _settingsService.Load();
         _repeatWindowDays = settings.RepeatWindowDays;
@@ -489,8 +490,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void StartMonitoring()
     {
-        var extensions = ExtensionsText
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var extensions = CurrentExtensions();
 
         if (extensions.Length == 0)
         {
@@ -540,9 +540,8 @@ public partial class MainViewModel : ObservableObject
 
         WatchFolders.Add(dialog.FolderName);
         SaveFolderSettings();
-        StatusMessage = IsMonitoring
-            ? $"Added '{dialog.FolderName}'. Stop and start monitoring to pick it up."
-            : $"Added '{dialog.FolderName}'.";
+        RestartWatchersIfRunning();
+        StatusMessage = $"Added '{dialog.FolderName}'.";
     }
 
     [RelayCommand]
@@ -557,10 +556,31 @@ public partial class MainViewModel : ObservableObject
         var removed = SelectedWatchFolder;
         WatchFolders.Remove(removed);
         SaveFolderSettings();
-        StatusMessage = IsMonitoring
-            ? $"Removed '{removed}'. Stop and start monitoring to apply it."
-            : $"Removed '{removed}'.";
+        RestartWatchersIfRunning();
+        StatusMessage = $"Removed '{removed}'. No longer watching it.";
     }
+
+    /// <summary>
+    /// Points the watchers at the current list straight away, so a folder removed from the list
+    /// stops being watched without needing Stop and Start. Safe to re-scan: bundles already in
+    /// the database are skipped as duplicates.
+    /// </summary>
+    private void RestartWatchersIfRunning()
+    {
+        if (!IsMonitoring) return;
+
+        if (WatchFolders.Count == 0)
+        {
+            _monitorService.Stop();
+            IsMonitoring = false;
+            return;
+        }
+
+        _monitorService.Start(WatchFolders, CurrentExtensions());
+    }
+
+    private string[] CurrentExtensions() =>
+        ExtensionsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private void SaveFolderSettings(List<string>? extensions = null)
     {
@@ -652,6 +672,16 @@ public partial class MainViewModel : ObservableObject
 
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
             StatusMessage = $"Skipped {total} file(s) older than {MaxAgeDays} days.");
+    }
+
+    private int _skippedAsDuplicate;
+
+    private void OnFileSkippedAsDuplicate(object? sender, string path)
+    {
+        var total = Interlocked.Increment(ref _skippedAsDuplicate);
+
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            StatusMessage = $"Skipped {total} file(s) already in the database.");
     }
 
     private void OnFileFailed(object? sender, string path)

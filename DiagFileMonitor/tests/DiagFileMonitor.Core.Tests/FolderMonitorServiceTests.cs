@@ -125,6 +125,57 @@ public class FolderMonitorServiceTests
     }
 
     [Fact]
+    public async Task RestartingDoesNotImportTheSameBundleTwice()
+    {
+        using var env = new TestEnvironment();
+        using var monitor = new FolderMonitorService(env.Processor);
+
+        var first = await WaitForBundles(monitor, 1, () =>
+        {
+            monitor.Start([env.IncomingPath], [".zip"]);
+            env.CreateZip("dropped.zip", TestEnvironment.SampleBundle());
+            return Task.CompletedTask;
+        });
+        Assert.Single(first);
+
+        // Restarting re-scans the folder, which used to import everything again.
+        var skipped = new List<string>();
+        monitor.FileSkippedAsDuplicate += (_, path) => skipped.Add(path);
+
+        monitor.Start([env.IncomingPath], [".zip"]);
+        await Task.Delay(TimeSpan.FromSeconds(3));
+
+        Assert.Single(await env.Repository.GetAllAsync());
+        Assert.NotEmpty(skipped);
+    }
+
+    [Fact]
+    public async Task AFolderDroppedFromTheListIsNoLongerWatched()
+    {
+        using var env = new TestEnvironment();
+        using var monitor = new FolderMonitorService(env.Processor);
+
+        var second = Path.Combine(env.RootPath, "SecondDrop");
+        Directory.CreateDirectory(second);
+
+        monitor.Start([env.IncomingPath, second], [".zip"]);
+        Assert.Equal(2, monitor.WatchFolders.Count);
+
+        // Restart with only one folder, as the dashboard does when one is removed.
+        monitor.Start([env.IncomingPath], [".zip"]);
+        Assert.Equal([env.IncomingPath], monitor.WatchFolders);
+
+        var processed = new List<DiagnosticFile>();
+        monitor.FileProcessed += (_, file) => processed.Add(file);
+
+        var staged = env.CreateZip("ignored.zip", TestEnvironment.SampleBundle(serial: "SN-DROPPED"));
+        File.Move(staged, Path.Combine(second, "ignored.zip"));
+        await Task.Delay(TimeSpan.FromSeconds(3));
+
+        Assert.DoesNotContain(processed, p => p.SerialNumber == "SN-DROPPED");
+    }
+
+    [Fact]
     public void StopLeavesTheServiceIdle()
     {
         using var env = new TestEnvironment();

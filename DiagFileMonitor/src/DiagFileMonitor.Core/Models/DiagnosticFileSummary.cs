@@ -21,6 +21,29 @@ public class DiagnosticFileSummary
     public string Status { get; set; } = string.Empty;
     public string? ErrorMessage { get; set; }
     public string? ExtractedPath { get; set; }
+    public string? SupportPanel { get; set; }
+    public string? SupportMembers { get; set; }
+    public string? SupportIssue { get; set; }
+
+    /// <summary>
+    /// The Details column. A processing failure matters more than anything the operator typed,
+    /// so it wins; otherwise this is what they reported when raising the bundle.
+    /// </summary>
+    public string Details
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(ErrorMessage)) return ErrorMessage;
+
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(SupportPanel)) parts.Add($"Panel: {SupportPanel}");
+            if (!string.IsNullOrWhiteSpace(SupportMembers)) parts.Add($"Members: {SupportMembers}");
+            if (!string.IsNullOrWhiteSpace(SupportIssue)) parts.Add($"Issue: {SupportIssue}");
+
+            return string.Join("  |  ", parts);
+        }
+    }
+
     public string? Notes { get; set; }
     public string? TicketNumber { get; set; }
 
@@ -59,6 +82,9 @@ public class DiagnosticFileSummary
         ArrivedAtUtc = file.ArrivedAtUtc,
         Status = file.Status.ToString(),
         ErrorMessage = file.ErrorMessage,
+        SupportPanel = file.SupportPanel,
+        SupportMembers = file.SupportMembers,
+        SupportIssue = file.SupportIssue,
         ExtractedPath = file.ExtractedPath,
         Notes = file.Notes,
         TicketNumber = file.TicketNumber,

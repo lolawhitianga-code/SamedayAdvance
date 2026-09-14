@@ -29,6 +29,11 @@ public class DiagnosticFile
     public string? SoftwareName { get; set; }
     public string? Version { get; set; }
 
+    /// <summary>What the operator typed into supportinfo.txt when raising the bundle.</summary>
+    public string? SupportPanel { get; set; }
+    public string? SupportMembers { get; set; }
+    public string? SupportIssue { get; set; }
+
     public ProcessingStatus Status { get; set; } = ProcessingStatus.Pending;
     public string? ErrorMessage { get; set; }
 

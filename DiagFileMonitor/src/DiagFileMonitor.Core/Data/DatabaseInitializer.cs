@@ -20,7 +20,10 @@ public static class DatabaseInitializer
         ("DiagnosticFiles", "AlertSentUtc", "TEXT NULL"),
         ("DiagnosticFiles", "MachineName", "TEXT NULL"),
         ("DiagnosticFiles", "SiteLocation", "TEXT NULL"),
-        ("DiagnosticFiles", "SoftwareName", "TEXT NULL")
+        ("DiagnosticFiles", "SoftwareName", "TEXT NULL"),
+        ("DiagnosticFiles", "SupportPanel", "TEXT NULL"),
+        ("DiagnosticFiles", "SupportMembers", "TEXT NULL"),
+        ("DiagnosticFiles", "SupportIssue", "TEXT NULL")
     };
 
     public static void Initialize(DiagDbContext context)

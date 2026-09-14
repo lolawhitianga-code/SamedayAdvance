@@ -28,6 +28,9 @@ public class FolderMonitorService : IDisposable
 
     /// <summary>Raised for a file skipped for being older than MaxAgeDays.</summary>
     public event EventHandler<string>? FileSkippedAsTooOld;
+
+    /// <summary>Raised for a file skipped because it is already in the database.</summary>
+    public event EventHandler<string>? FileSkippedAsDuplicate;
     public bool IsRunning => _watchers.Count > 0;
 
     public event EventHandler<DiagnosticFile>? FileProcessed;
@@ -140,6 +143,13 @@ public class FolderMonitorService : IDisposable
 
             try
             {
+                // Re-scanning a folder must not import the same bundle again.
+                if (await _processor.IsAlreadyStoredAsync(path))
+                {
+                    FileSkippedAsDuplicate?.Invoke(this, path);
+                    continue;
+                }
+
                 if (!await WaitForFileReadyAsync(path, token))
                 {
                     SimpleLogger.Error($"Gave up waiting for '{path}' to finish arriving.");

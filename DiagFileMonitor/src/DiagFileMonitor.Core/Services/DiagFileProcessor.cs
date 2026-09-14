@@ -14,7 +14,8 @@ public class DiagFileProcessor
     {
         ["changelog.txt"] = LogFileKind.ChangeLog,
         ["machinelog.txt"] = LogFileKind.MachineLog,
-        ["errorlog.txt"] = LogFileKind.ErrorLog
+        ["errorlog.txt"] = LogFileKind.ErrorLog,
+        ["supportinfo.txt"] = LogFileKind.SupportInfo
     };
 
     public DiagFileProcessor(string extractRootPath, DiagFileRepository repository, bool fileNameTimesAreUtc = true)
@@ -23,6 +24,24 @@ public class DiagFileProcessor
         _repository = repository;
         _fileNameTimesAreUtc = fileNameTimesAreUtc;
         Directory.CreateDirectory(_extractRootPath);
+    }
+
+    /// <summary>Whether this bundle has been imported before, so a re-scan can skip it.</summary>
+    public async Task<bool> IsAlreadyStoredAsync(string zipPath)
+    {
+        try
+        {
+            var info = new FileInfo(zipPath);
+            if (!info.Exists) return false;
+
+            return await _repository.ExistsAsync(
+                info.Name, info.Length, DiagFileNameDate.ArrivedUtc(zipPath, _fileNameTimesAreUtc));
+        }
+        catch (IOException)
+        {
+            // If we cannot tell, let it through rather than silently dropping a bundle.
+            return false;
+        }
     }
 
     public async Task<DiagnosticFile> ProcessAsync(string zipPath, CancellationToken token = default)
@@ -63,6 +82,18 @@ public class DiagFileProcessor
             else
             {
                 SimpleLogger.Info($"No machine.xml found in '{zipPath}'.");
+            }
+
+            var supportInfoPath = Directory
+                .EnumerateFiles(extractDir, "supportinfo.txt", SearchOption.AllDirectories)
+                .FirstOrDefault();
+
+            if (supportInfoPath is not null)
+            {
+                var support = SupportInfoParser.ParseFile(supportInfoPath);
+                diagFile.SupportPanel = support.Panel;
+                diagFile.SupportMembers = support.Members;
+                diagFile.SupportIssue = support.Issue;
             }
 
             foreach (var extractedFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.AllDirectories))
