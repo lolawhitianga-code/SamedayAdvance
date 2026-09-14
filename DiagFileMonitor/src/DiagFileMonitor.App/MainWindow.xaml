@@ -147,6 +147,8 @@
                     <TextBlock Text="to:" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <DatePicker SelectedDate="{Binding ToDate}" Width="120" Margin="0,0,12,0" />
 
+                    <CheckBox Content="Baselines only" IsChecked="{Binding BaselinesOnly}"
+                              VerticalAlignment="Center" Margin="0,0,12,0" />
                     <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Width="70" Margin="0,0,12,0" />
                     <TextBlock Text="{Binding FilterSummary}" VerticalAlignment="Center" Foreground="Gray" />
                 </StackPanel>
@@ -219,6 +221,9 @@
                                           Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}"
                                           IsEnabled="{Binding HasExtractedFolder}" />
+                                <MenuItem Header="Mark / unmark as known-good _baseline"
+                                          Command="{Binding PlacementTarget.Tag.ToggleBaselineCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
                                 <MenuItem Header="Show this machine's _history"
                                           Command="{Binding PlacementTarget.Tag.ShowMachineHistoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}" />
@@ -265,6 +270,7 @@
                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
                 <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="90" />
                 <DataGridTextColumn Header="Repeat" Binding="{Binding RepeatLabel}" Width="65" />
+                <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineLabel}" Width="70" />
                 <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
                 <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />

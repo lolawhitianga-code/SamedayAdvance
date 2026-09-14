@@ -76,6 +76,35 @@ public partial class MainViewModel : ObservableObject
     private string _editNotes = string.Empty;
 
     [ObservableProperty]
+    private bool _baselinesOnly;
+
+    partial void OnBaselinesOnlyChanged(bool value) => RefreshFilter();
+
+    [RelayCommand]
+    private async Task ToggleBaselineAsync(DiagnosticFileSummary? row)
+    {
+        var target = row ?? SelectedFile;
+        if (target is null)
+        {
+            StatusMessage = "Select a file to mark as a baseline.";
+            return;
+        }
+
+        var newValue = !target.IsBaseline;
+        if (!await _repository.SetBaselineAsync(target.Id, newValue))
+        {
+            StatusMessage = "That file is no longer in the database.";
+            return;
+        }
+
+        target.IsBaseline = newValue;
+        RefreshFilter();
+        StatusMessage = newValue
+            ? $"Marked '{target.OriginalFileName}' as a known-good baseline for {target.MachineType}."
+            : $"'{target.OriginalFileName}' is no longer a baseline.";
+    }
+
+    [ObservableProperty]
     private string? _machineFilterSerial;
 
     [ObservableProperty]
@@ -163,6 +192,7 @@ public partial class MainViewModel : ObservableObject
         SearchText = SearchText,
         Status = SelectedStatusFilter,
         SerialNumber = MachineFilterSerial,
+        BaselinesOnly = BaselinesOnly,
         FromDate = FromDate,
         ToDate = ToDate
     };
@@ -328,6 +358,7 @@ public partial class MainViewModel : ObservableObject
         FromDate = null;
         ToDate = null;
         MachineFilterSerial = null;
+        BaselinesOnly = false;
     }
 
     [RelayCommand]

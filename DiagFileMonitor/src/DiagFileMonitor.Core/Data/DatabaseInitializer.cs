@@ -11,8 +11,9 @@ public static class DatabaseInitializer
 {
     private static readonly (string Table, string Column, string Type)[] ExpectedColumns =
     {
-        ("DiagnosticFiles", "Notes", "TEXT"),
-        ("DiagnosticFiles", "TicketNumber", "TEXT")
+        ("DiagnosticFiles", "Notes", "TEXT NULL"),
+        ("DiagnosticFiles", "TicketNumber", "TEXT NULL"),
+        ("DiagnosticFiles", "IsBaseline", "INTEGER NOT NULL DEFAULT 0")
     };
 
     public static void Initialize(DiagDbContext context)
@@ -26,7 +27,7 @@ public static class DatabaseInitializer
                 // EF1002: SQLite cannot parameterise table/column names, and these come from the
                 // constant list above rather than from anything a user can influence.
 #pragma warning disable EF1002
-                context.Database.ExecuteSqlRaw($"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {type} NULL;");
+                context.Database.ExecuteSqlRaw($"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {type};");
 #pragma warning restore EF1002
             }
         }

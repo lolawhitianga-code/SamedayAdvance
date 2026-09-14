@@ -35,5 +35,8 @@ public class DiagnosticFile
     /// <summary>Reference into whatever ticketing system is in use.</summary>
     public string? TicketNumber { get; set; }
 
+    /// <summary>Marked as a known-good bundle to compare faulty machines of this type against.</summary>
+    public bool IsBaseline { get; set; }
+
     public List<ExtractedLogFile> LogFiles { get; set; } = new();
 }

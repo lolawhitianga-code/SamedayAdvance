@@ -11,13 +11,15 @@ public class FilterCriteria
     public string? SerialNumber { get; set; }
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
+    public bool BaselinesOnly { get; set; }
 
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(SearchText)
         && (string.IsNullOrEmpty(Status) || Status == DiagnosticFileFilter.AnyStatus)
         && FromDate is null
         && ToDate is null
-        && string.IsNullOrEmpty(SerialNumber);
+        && string.IsNullOrEmpty(SerialNumber)
+        && !BaselinesOnly;
 }
 
 /// <summary>Decides whether a dashboard row survives the current search box / status / date filters.</summary>
@@ -32,6 +34,8 @@ public static class DiagnosticFileFilter
         {
             return false;
         }
+
+        if (criteria.BaselinesOnly && !row.IsBaseline) return false;
 
         if (!string.IsNullOrEmpty(criteria.Status) && criteria.Status != AnyStatus
             && !string.Equals(row.Status, criteria.Status, StringComparison.OrdinalIgnoreCase))

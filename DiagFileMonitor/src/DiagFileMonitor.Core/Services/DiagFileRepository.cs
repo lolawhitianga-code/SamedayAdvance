@@ -39,6 +39,18 @@ public class DiagFileRepository
         return true;
     }
 
+    /// <summary>Marks (or unmarks) a bundle as a known-good reference for its machine type.</summary>
+    public async Task<bool> SetBaselineAsync(int id, bool isBaseline)
+    {
+        await using var context = _contextFactory();
+        var file = await context.DiagnosticFiles.FirstOrDefaultAsync(f => f.Id == id);
+        if (file is null) return false;
+
+        file.IsBaseline = isBaseline;
+        await context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<List<DiagnosticFile>> GetAllAsync()
     {
         await using var context = _contextFactory();
