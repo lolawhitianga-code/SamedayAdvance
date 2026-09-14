@@ -21,6 +21,7 @@ public partial class MainViewModel : ObservableObject
     private readonly BurstAlertService? _alertService;
     private readonly DatabaseResetService _resetService;
     private readonly DiagnosticAnalysisService _analysisService;
+    private readonly DiagnosticComparisonService _comparisonService;
     private readonly int _repeatWindowDays;
 
     /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
@@ -89,6 +90,7 @@ public partial class MainViewModel : ObservableObject
         SelectedFiles = files.ToList();
         OnPropertyChanged(nameof(SelectionLabel));
         AnalyseSelectedCommand.NotifyCanExecuteChanged();
+        CompareWithMasterCommand.NotifyCanExecuteChanged();
     }
 
     public string SelectionLabel => SelectedFiles.Count > 1
@@ -138,6 +140,78 @@ public partial class MainViewModel : ObservableObject
         {
             IsAnalysing = false;
             AnalyseSelectedCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>The bundle held up as the known-good benchmark to measure others against.</summary>
+    [ObservableProperty]
+    private DiagnosticFileSummary? _masterFile;
+
+    public bool HasMaster => MasterFile is not null;
+
+    public string MasterLabel => MasterFile is null
+        ? "No benchmark set"
+        : $"Benchmark: {MasterFile.OriginalFileName}  ({MasterFile.MachineType}, serial {MasterFile.SerialNumber})";
+
+    partial void OnMasterFileChanged(DiagnosticFileSummary? value)
+    {
+        OnPropertyChanged(nameof(HasMaster));
+        OnPropertyChanged(nameof(MasterLabel));
+        CompareWithMasterCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    private void SetMaster(DiagnosticFileSummary? row)
+    {
+        var target = row ?? SelectedFile;
+        if (target is null)
+        {
+            StatusMessage = "Select a file to use as the benchmark.";
+            return;
+        }
+
+        MasterFile = target;
+        StatusMessage = $"'{target.OriginalFileName}' is now the benchmark to compare against.";
+    }
+
+    [RelayCommand]
+    private void ClearMaster()
+    {
+        MasterFile = null;
+        StatusMessage = "Benchmark cleared.";
+    }
+
+    private bool CanCompare() => !IsAnalysing && MasterFile is not null && SelectedFile is not null
+                                 && SelectedFile.Id != MasterFile.Id;
+
+    /// <summary>Measures the selected bundle against the benchmark: step process, speed and settings.</summary>
+    [RelayCommand(CanExecute = nameof(CanCompare))]
+    private async Task CompareWithMasterAsync()
+    {
+        if (MasterFile is null || SelectedFile is null) return;
+
+        IsAnalysing = true;
+        CompareWithMasterCommand.NotifyCanExecuteChanged();
+        StatusMessage = $"Comparing '{SelectedFile.OriginalFileName}' against the benchmark...";
+
+        try
+        {
+            var report = await _comparisonService.CompareAsync(MasterFile.Id, SelectedFile.Id);
+
+            AnalysisReady?.Invoke(this, new AnalysisResult(
+                $"{SelectedFile.OriginalFileName} vs benchmark {MasterFile.OriginalFileName}", report));
+
+            StatusMessage = "Comparison complete.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Comparison failed: {ex.Message}";
+            SimpleLogger.Error("Comparison failed", ex);
+        }
+        finally
+        {
+            IsAnalysing = false;
+            CompareWithMasterCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -310,6 +384,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(SelectionLabel));
         AnalyseSelectedCommand.NotifyCanExecuteChanged();
+        CompareWithMasterCommand.NotifyCanExecuteChanged();
         EditTicketNumber = value?.TicketNumber ?? string.Empty;
         EditNotes = value?.Notes ?? string.Empty;
     }
@@ -341,7 +416,7 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
         FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService,
         DatabaseResetService resetService, DiagnosticAnalysisService analysisService,
-        BurstAlertService? alertService = null)
+        DiagnosticComparisonService comparisonService, BurstAlertService? alertService = null)
     {
         _settingsService = settingsService;
         _repository = repository;
@@ -351,6 +426,7 @@ public partial class MainViewModel : ObservableObject
         _alertService = alertService;
         _resetService = resetService;
         _analysisService = analysisService;
+        _comparisonService = comparisonService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());

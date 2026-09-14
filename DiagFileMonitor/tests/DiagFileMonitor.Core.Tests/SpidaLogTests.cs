@@ -87,41 +87,103 @@ public class MachineLogFileTests
 
 public class ErrLogFileTests
 {
-    [Fact]
-    public void ReadsTimestampedErrors()
-    {
-        var entries = ErrLogFile.Parse(["2026-08-10 10:25:00, Object reference not set to an instance of an object."]);
+    /// <summary>Builds a block in the exact shape SDN writes, including the trailing fields.</summary>
+    internal static string[] Block(string dateTime, string message, string method = "Run()") =>
+    [
+        "Date/Time: " + dateTime,
+        "===========================================================================================",
+        "",
+        "Title: SDN",
+        "Message: " + message,
+        "Source: First",
+        "Method: " + method,
+        "StackTrace:    at System.Linq.Enumerable.First[TSource](IEnumerable`1 source)",
+        "   at SDN.ClsWallExtruderPLC.get_StartYHeight()",
+        "Additional Info: ",
+        "Errors missed since last Log: 0",
+        "Last Excecute CMD : ",
+        "Last Logged Mem Usage : 0"
+    ];
 
-        var entry = Assert.Single(entries);
-        Assert.Equal(new DateTime(2026, 8, 10, 10, 25, 0), entry.Timestamp);
-        Assert.Contains("Object reference", entry.Text);
+    [Fact]
+    public void ReadsTheBlockFormatSdnActuallyWrites()
+    {
+        var entry = Assert.Single(ErrLogFile.Parse(Block("10/02/2025 8:25:04 pm", "Sequence contains no elements")));
+
+        Assert.Equal(new DateTime(2025, 2, 10, 20, 25, 4), entry.Timestamp);
+        Assert.Equal("Sequence contains no elements", entry.Message);
+        Assert.Equal("SDN", entry.Title);
+        Assert.Equal("First", entry.Source);
     }
 
     [Fact]
-    public void FoldsStackTraceLinesIntoTheEntryAbove()
+    public void ReadsDayFirstDatesWithALowercaseMeridiem()
     {
-        var entries = ErrLogFile.Parse([
-            "2026-08-10 10:25:00, Object reference not set",
-            "   at Spida.Ui.SaveSettings()",
-            "   at Spida.Ui.Button_Click()"
-        ]);
+        // 21/04/2026 is 21 April, not an invalid month, and the file writes "pm" in lowercase.
+        var entry = Assert.Single(ErrLogFile.Parse(Block("21/04/2026 2:16:13 pm", "Something failed")));
 
-        var entry = Assert.Single(entries);
-        Assert.Contains("SaveSettings", entry.Text);
+        Assert.Equal(new DateTime(2026, 4, 21, 14, 16, 13), entry.Timestamp);
+    }
+
+    [Fact]
+    public void KeepsTheTopOfTheStackTrace()
+    {
+        var entry = Assert.Single(ErrLogFile.Parse(Block("10/02/2025 8:25:04 pm", "Sequence contains no elements")));
+
+        Assert.Contains("get_StartYHeight", entry.TopOfStack);
+    }
+
+    [Fact]
+    public void SeparatesConsecutiveBlocks()
+    {
+        var lines = Block("10/02/2025 8:25:04 pm", "First problem")
+            .Concat(Block("10/02/2025 8:25:05 pm", "Second problem"))
+            .ToArray();
+
+        var entries = ErrLogFile.Parse(lines);
+
+        Assert.Equal(2, entries.Count);
+        Assert.Equal("First problem", entries[0].Message);
+        Assert.Equal("Second problem", entries[1].Message);
     }
 
     [Fact]
     public void GroupsRepeatsByMaskingNumbers()
     {
-        var first = ErrLogFile.Parse(["2026-08-10 10:25:00, Timeout after 30 ms"])[0];
-        var second = ErrLogFile.Parse(["2026-08-10 11:00:00, Timeout after 45 ms"])[0];
+        var first = ErrLogFile.Parse(Block("10/02/2025 8:25:04 pm", "Timeout after 30 ms"))[0];
+        var second = ErrLogFile.Parse(Block("10/02/2025 9:00:00 pm", "Timeout after 45 ms"))[0];
 
         Assert.Equal(first.Signature, second.Signature);
+    }
+
+    [Fact]
+    public void SkipsABlockWithNoTitleOrMessage()
+    {
+        var entries = ErrLogFile.Parse([
+            "Date/Time: 10/02/2025 8:25:04 pm",
+            "===========================================",
+            "Last Logged Mem Usage : 0"
+        ]);
+
+        Assert.Empty(entries);
     }
 }
 
 public class ChangeLogFileTests
 {
+    [Fact]
+    public void ReadsTheDayFirstFormatRealFilesUse()
+    {
+        var entry = Assert.Single(ChangeLogFile.Parse(
+            ["21/04/2026 2:16:13 pm, Spida, WallExtruder, RWEPanelHeightGap, 2, 0"]));
+
+        Assert.Equal(new DateTime(2026, 4, 21, 14, 16, 13), entry.Timestamp);
+        Assert.Equal("Spida", entry.User);
+        Assert.Equal("RWEPanelHeightGap", entry.Setting);
+        Assert.Equal("2", entry.OldValue);
+        Assert.Equal("0", entry.NewValue);
+    }
+
     [Fact]
     public void ReadsTheSixFieldFormat()
     {
@@ -277,7 +339,7 @@ public class SpidaLogAnalyserTests
     [Fact]
     public void AnErrorWithAMatchingSettingsChangeIsTreatedAsCosmetic()
     {
-        var errors = ErrLogFile.Parse(["2026-08-10 09:00:30, Object reference not set to an instance of an object"]);
+        var errors = ErrLogFile.Parse(ErrLogFileTests.Block("10/08/2026 9:00:30 am", "Object reference not set"));
         var changes = ChangeLogFile.Parse(["2026-08-10 09:00:30, mark, Saw, BladeSpeed, 1200, 1400"]);
 
         var analysis = new SpidaLogAnalyser().Analyse(TwoAttempts(), errors, changes, Session);
@@ -290,7 +352,7 @@ public class SpidaLogAnalyserTests
     public void AnErrorOutsideTheMachineLogWindowIsSeparatedOut()
     {
         // The log runs 09:00 to 09:01; this error is hours later.
-        var errors = ErrLogFile.Parse(["2026-08-10 18:00:00, Something failed"]);
+        var errors = ErrLogFile.Parse(ErrLogFileTests.Block("10/08/2026 6:00:00 pm", "Something failed"));
 
         var analysis = new SpidaLogAnalyser().Analyse(TwoAttempts(), errors, [], Session);
 
@@ -301,7 +363,7 @@ public class SpidaLogAnalyserTests
     [Fact]
     public void AnErrorInsideTheWindowWithNoMatchingChangeIsReal()
     {
-        var errors = ErrLogFile.Parse(["2026-08-10 09:01:10, Servo Not Setup"]);
+        var errors = ErrLogFile.Parse(ErrLogFileTests.Block("10/08/2026 9:01:10 am", "Servo Not Setup"));
 
         var analysis = new SpidaLogAnalyser().Analyse(TwoAttempts(), errors, [], Session);
 
@@ -313,7 +375,7 @@ public class SpidaLogAnalyserTests
     public void AnErrorSeenEverySessionIsTreatedAsBackground()
     {
         var lines = Enumerable.Range(0, 8)
-            .Select(i => $"2026-08-10 09:00:{i:00}, Licence check failed after {i} tries")
+            .SelectMany(i => ErrLogFileTests.Block($"10/08/2026 9:00:{i:00} am", $"Licence check failed after {i} tries"))
             .ToList();
 
         var analysis = new SpidaLogAnalyser().Analyse(TwoAttempts(), ErrLogFile.Parse(lines), [], Session);
