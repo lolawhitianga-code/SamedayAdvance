@@ -105,6 +105,19 @@ public class DiagFileRepository
             && f.ArrivedAtUtc == arrivedAtUtc);
     }
 
+    public async Task<List<DiagnosticFile>> GetByIdsAsync(IEnumerable<int> ids)
+    {
+        var wanted = ids.ToList();
+
+        await using var context = _contextFactory();
+        return await context.DiagnosticFiles
+            .Include(f => f.LogFiles)
+            .Where(f => wanted.Contains(f.Id))
+            .OrderBy(f => f.ArrivedAtUtc)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
     public async Task<List<DiagnosticFile>> GetBaselinesAsync()
     {
         await using var context = _contextFactory();

@@ -12,9 +12,13 @@ public class DiagFileProcessor
 
     private static readonly Dictionary<string, LogFileKind> KnownLogFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["changelog.txt"] = LogFileKind.ChangeLog,
+        // Real Spida exports use Logs\MachineLog.txt, Logs\ErrLog.txt and Logs\Change.log.
+        // The lowercase spellings are kept so older or hand-made bundles still line up.
         ["machinelog.txt"] = LogFileKind.MachineLog,
+        ["errlog.txt"] = LogFileKind.ErrorLog,
         ["errorlog.txt"] = LogFileKind.ErrorLog,
+        ["change.log"] = LogFileKind.ChangeLog,
+        ["changelog.txt"] = LogFileKind.ChangeLog,
         ["supportinfo.txt"] = LogFileKind.SupportInfo
     };
 

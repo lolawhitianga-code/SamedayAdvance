@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ExtractCleanupService _cleanupService;
     private readonly BurstAlertService? _alertService;
     private readonly DatabaseResetService _resetService;
+    private readonly DiagnosticAnalysisService _analysisService;
     private readonly int _repeatWindowDays;
 
     /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
@@ -79,6 +80,71 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private DiagnosticFileSummary? _selectedFile;
+
+    /// <summary>Every row highlighted in the grid. WPF cannot bind SelectedItems, so the view pushes it here.</summary>
+    public List<DiagnosticFileSummary> SelectedFiles { get; private set; } = new();
+
+    public void SetSelectedFiles(IEnumerable<DiagnosticFileSummary> files)
+    {
+        SelectedFiles = files.ToList();
+        OnPropertyChanged(nameof(SelectionLabel));
+        AnalyseSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    public string SelectionLabel => SelectedFiles.Count > 1
+        ? $"{SelectedFiles.Count} files selected"
+        : SelectedFile?.OriginalFileName ?? "No file selected";
+
+    [ObservableProperty]
+    private bool _isAnalysing;
+
+    private bool CanAnalyse() => !IsAnalysing && (SelectedFiles.Count > 0 || SelectedFile is not null);
+
+    /// <summary>Analyses every highlighted row, or just the current one. Result opens in its own window.</summary>
+    [RelayCommand(CanExecute = nameof(CanAnalyse))]
+    private async Task AnalyseSelectedAsync()
+    {
+        var ids = SelectedFiles.Count > 0
+            ? SelectedFiles.Select(f => f.Id).ToList()
+            : SelectedFile is null ? new List<int>() : new List<int> { SelectedFile.Id };
+
+        if (ids.Count == 0)
+        {
+            StatusMessage = "Select one or more files to analyse.";
+            return;
+        }
+
+        IsAnalysing = true;
+        AnalyseSelectedCommand.NotifyCanExecuteChanged();
+        StatusMessage = ids.Count == 1 ? "Analysing..." : $"Analysing {ids.Count} files...";
+
+        try
+        {
+            var report = await _analysisService.AnalyseAsync(ids);
+
+            var heading = ids.Count == 1
+                ? $"Analysis of {SelectedFiles.FirstOrDefault()?.OriginalFileName ?? SelectedFile?.OriginalFileName}"
+                : $"Analysis of {ids.Count} diagnostic files";
+
+            AnalysisReady?.Invoke(this, new AnalysisResult(heading, report));
+            StatusMessage = ids.Count == 1 ? "Analysis complete." : $"Analysed {ids.Count} files.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Analysis failed: {ex.Message}";
+            SimpleLogger.Error("Analysis failed", ex);
+        }
+        finally
+        {
+            IsAnalysing = false;
+            AnalyseSelectedCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Raised when a report is ready; the view opens the window so the ViewModel stays free of it.</summary>
+    public event EventHandler<AnalysisResult>? AnalysisReady;
+
+    public record AnalysisResult(string Heading, string ReportText);
 
     [ObservableProperty]
     private DashboardStats _stats = DashboardStats.Empty;
@@ -242,6 +308,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedFileChanged(DiagnosticFileSummary? value)
     {
+        OnPropertyChanged(nameof(SelectionLabel));
+        AnalyseSelectedCommand.NotifyCanExecuteChanged();
         EditTicketNumber = value?.TicketNumber ?? string.Empty;
         EditNotes = value?.Notes ?? string.Empty;
     }
@@ -272,7 +340,8 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
         FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService,
-        DatabaseResetService resetService, BurstAlertService? alertService = null)
+        DatabaseResetService resetService, DiagnosticAnalysisService analysisService,
+        BurstAlertService? alertService = null)
     {
         _settingsService = settingsService;
         _repository = repository;
@@ -281,6 +350,7 @@ public partial class MainViewModel : ObservableObject
         _cleanupService = cleanupService;
         _alertService = alertService;
         _resetService = resetService;
+        _analysisService = analysisService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());

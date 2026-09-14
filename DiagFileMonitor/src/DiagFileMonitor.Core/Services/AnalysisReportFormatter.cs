@@ -14,6 +14,58 @@ public static class AnalysisReportFormatter
     public static string TicketSubject(BurstResult burst, AnalysisReport report) =>
         $"Repeated diagnostics: {burst.SerialNumber} ({report.MachineType}) - {report.Customer}";
 
+    /// <summary>One bundle, analysed on request from the dashboard.</summary>
+    public static string Format(AnalysisReport report)
+    {
+        var text = new StringBuilder();
+
+        text.AppendLine($"Diagnostic file: {report.BundleName}");
+        text.AppendLine($"Serial:          {report.SerialNumber}");
+        text.AppendLine($"Model:           {report.MachineType}");
+        text.AppendLine($"Customer:        {report.Customer}");
+        text.AppendLine($"Arrived:         {report.ArrivedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}");
+        text.AppendLine();
+        text.AppendLine($"Analysis: {report.Headline}");
+
+        if (report.BaselinesUsed > 0)
+        {
+            text.AppendLine($"Compared against {report.BaselinesUsed} known-good baseline(s) for this model.");
+        }
+
+        text.AppendLine();
+        AppendFindings(text, report);
+        AppendStepTimings(text, report);
+        AppendList(text, "Error lines not seen in known-good bundles", report.NewErrorLines);
+        AppendList(text, "Changes made shortly before this bundle", report.RecentChanges);
+
+        return text.ToString();
+    }
+
+    /// <summary>Several bundles analysed in one go, each reported in turn.</summary>
+    public static string FormatMany(IReadOnlyList<AnalysisReport> reports)
+    {
+        if (reports.Count == 0) return "Nothing to analyse.";
+        if (reports.Count == 1) return Format(reports[0]);
+
+        var text = new StringBuilder();
+        text.AppendLine($"Analysed {reports.Count} diagnostic files.");
+
+        var withProblems = reports.Count(r => r.HasProblems);
+        text.AppendLine(withProblems == 0
+            ? "None of them show an obvious problem."
+            : $"{withProblems} of them show at least one problem.");
+
+        foreach (var report in reports)
+        {
+            text.AppendLine();
+            text.AppendLine(new string('=', 78));
+            text.AppendLine();
+            text.Append(Format(report));
+        }
+
+        return text.ToString();
+    }
+
     public static string Format(BurstResult burst, AnalysisReport report)
     {
         var text = new StringBuilder();

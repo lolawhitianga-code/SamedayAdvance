@@ -7,6 +7,31 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is ViewModels.MainViewModel previous) previous.AnalysisReady -= OnAnalysisReady;
+        if (e.NewValue is ViewModels.MainViewModel current) current.AnalysisReady += OnAnalysisReady;
+    }
+
+    private void OnAnalysisReady(object? sender, ViewModels.MainViewModel.AnalysisResult result)
+    {
+        new AnalysisWindow
+        {
+            Owner = this,
+            DataContext = new ViewModels.AnalysisViewModel(result.Heading, result.ReportText)
+        }.Show();
+    }
+
+    /// <summary>WPF cannot bind SelectedItems, so the multi-selection is pushed to the ViewModel here.</summary>
+    private void FilesGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (DataContext is not ViewModels.MainViewModel viewModel) return;
+        if (sender is not System.Windows.Controls.DataGrid grid) return;
+
+        viewModel.SetSelectedFiles(grid.SelectedItems.OfType<Core.Models.DiagnosticFileSummary>());
     }
 
     private void OpenIntegrationSettings_Click(object sender, RoutedEventArgs e)

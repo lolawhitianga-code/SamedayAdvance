@@ -161,7 +161,11 @@
 
         <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="Selected file:" Style="{StaticResource Hint}" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding SelectionLabel}" Style="{StaticResource Hint}" Margin="0,0,8,0"
+                           MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                <Button Content="Analyse" Command="{Binding AnalyseSelectedCommand}" Width="90" Margin="0,0,12,0"
+                        Style="{StaticResource PrimaryButton}"
+                        ToolTip="Read the logs in the selected bundle(s) and report what went wrong." />
                 <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
                         IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
                 <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"
@@ -219,6 +223,7 @@
         </Border>
 
         <DataGrid ItemsSource="{Binding FilesView}" SelectedItem="{Binding SelectedFile}"
+                  SelectionMode="Extended" SelectionChanged="FilesGrid_SelectionChanged"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
             <DataGrid.RowStyle>
@@ -233,6 +238,9 @@
                                           Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}"
                                           IsEnabled="{Binding HasExtractedFolder}" />
+                                <MenuItem Header="_Analyse selected file(s)"
+                                          Command="{Binding PlacementTarget.Tag.AnalyseSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Separator />
                                 <MenuItem Header="Mark / unmark as known-good _baseline"
                                           Command="{Binding PlacementTarget.Tag.ToggleBaselineCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}" />
