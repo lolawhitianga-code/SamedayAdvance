@@ -21,6 +21,10 @@ public class DiagnosticFileSummary
     public string? Notes { get; set; }
     public string? TicketNumber { get; set; }
 
+    /// <summary>Set by RepeatSubmissionMarker, not stored: this machine sent another bundle just before.</summary>
+    public bool IsRepeatSubmission { get; set; }
+    public string RepeatLabel => IsRepeatSubmission ? "Repeat" : string.Empty;
+
     public string? ChangeLogPath { get; set; }
     public string? MachineLogPath { get; set; }
     public string? ErrorLogPath { get; set; }

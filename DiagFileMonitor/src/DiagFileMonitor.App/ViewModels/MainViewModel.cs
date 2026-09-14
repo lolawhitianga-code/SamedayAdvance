@@ -15,6 +15,7 @@ public partial class MainViewModel : ObservableObject
     private readonly SettingsService _settingsService;
     private readonly DiagFileRepository _repository;
     private readonly FolderMonitorService _monitorService;
+    private readonly int _repeatWindowDays;
 
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
     public ICollectionView FilesView { get; }
@@ -150,6 +151,7 @@ public partial class MainViewModel : ObservableObject
         _monitorService.FileFailed += OnFileFailed;
 
         var settings = _settingsService.Load();
+        _repeatWindowDays = settings.RepeatWindowDays;
         WatchFolderPath = settings.WatchFolderPath;
         ExtensionsText = string.Join(", ", settings.FileExtensions);
     }
@@ -179,14 +181,21 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FilterSummary));
     }
 
-    private void RecalculateStats()
+    /// <summary>
+    /// Recomputes everything derived from the file list, then redraws. Marking has to happen
+    /// before the refresh: the grid binds to plain DTOs that raise no change notifications.
+    /// </summary>
+    private void RefreshDerivedState()
     {
+        RepeatSubmissionMarker.Mark(Files, _repeatWindowDays);
         Stats = DashboardStats.Calculate(Files, DateTime.Now);
 
         if (MachineFilterSerial is { } serial)
         {
             MachineHistory = MachineHistory.For(Files, serial);
         }
+
+        RefreshFilter();
     }
 
     public string FilterSummary
@@ -230,8 +239,7 @@ public partial class MainViewModel : ObservableObject
             Files.Add(DiagnosticFileSummary.FromEntity(file));
         }
 
-        RefreshFilter();
-        RecalculateStats();
+        RefreshDerivedState();
     }
 
     [RelayCommand]
@@ -376,11 +384,12 @@ public partial class MainViewModel : ObservableObject
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
             Files.Insert(0, DiagnosticFileSummary.FromEntity(file));
+            RefreshDerivedState();
+
+            var row = Files[0];
             StatusMessage = file.Status == ProcessingStatus.Processed
-                ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber})."
+                ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber}).{(row.IsRepeatSubmission ? " Repeat from this machine." : string.Empty)}"
                 : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
-            OnPropertyChanged(nameof(FilterSummary));
-            RecalculateStats();
         });
     }
 

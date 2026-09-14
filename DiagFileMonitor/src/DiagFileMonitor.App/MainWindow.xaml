@@ -244,7 +244,10 @@
                         <Trigger Property="ItemsControl.AlternationIndex" Value="1">
                             <Setter Property="Background" Value="#FFF7F9FC" />
                         </Trigger>
-                        <!-- Declared last so a failed bundle wins over the alternating stripe. -->
+                        <DataTrigger Binding="{Binding IsRepeatSubmission}" Value="True">
+                            <Setter Property="Background" Value="#FFFFF6E0" />
+                        </DataTrigger>
+                        <!-- Declared last so a failed bundle wins over the stripe and the repeat tint. -->
                         <DataTrigger Binding="{Binding Status}" Value="Error">
                             <Setter Property="Background" Value="#FFFDE8E8" />
                             <Setter Property="Foreground" Value="#FF8B1A1A" />
@@ -260,6 +263,7 @@
                 <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="150" />
                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
                 <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="90" />
+                <DataGridTextColumn Header="Repeat" Binding="{Binding RepeatLabel}" Width="65" />
                 <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
                 <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />
