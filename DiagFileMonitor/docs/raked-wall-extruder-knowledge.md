@@ -21,7 +21,7 @@ This is a working knowledge dump for diagnosing this machine from `.szip` suppor
 | Floating Side Head (a.k.a. "trolley head") | Positions vertically for each stud's height, follows the rake angle progression |
 | Fixed Side Ejector | Pushes finished panel out, fixed side |
 | Floating Side Ejector | Pushes finished panel out, floating side |
-| Trolley Heart | The 6th axis — **not yet fully documented, confirm its exact role against a real log if it comes up in a fault** |
+| Trolley Heart (`TrolleyHeight` in the log) | Moves the floating side trolley/gripper across to the panel's starting height, holds it there for the whole panel, then moves higher to let the panel eject. Eject movement varies with panel height. **Confirmed.** One move at the start and one at the eject is normal — a move part way through a panel is not. |
 
 Also: 4 nail guns, dual ejectors, two THNTD (two-hand no-tie-down) safety buttons that must both be pressed/held for any dangerous movement.
 
@@ -177,7 +177,6 @@ A fault that repeats identically across 2+ restart attempts at the same step num
 
 ## Still to confirm / gaps
 
-- Exact role of the **Trolley Heart** axis and how it shows up in MachineLog.txt.
 - Whether the Node0–Node3 mapping from the standard Wall Extruder playbook lines up exactly with this machine's own axis names, or whether raked units log them differently.
 - Which circuits actually keep/lose power and air on E-Stop.
 - Whether the overcurrent/E-Stop faults on synchronised axis groups have a common root cause across the three known serials, or are independent per-machine issues.
@@ -191,9 +190,10 @@ Two support files from M20716 were read through the analyser. What that settled:
 - **The six axes are named in MachineLog.txt**, not just numbered:
   `FixedSidePuller`, `FloatingSidePuller`, `FloatingSideHeight`, `TrolleyHeight`,
   `FixedEjectServo`, `FloatingEjectServo`.
-- **"Trolley Heart" is almost certainly `TrolleyHeight`** — the log has no "Heart" tag but does
-  have `TrolleyHeight`, and it is a separate axis from `FloatingSideHeight`. Marked *inferred*,
-  not confirmed; what the axis actually does is still open.
+- **"Trolley Heart" is `TrolleyHeight`** — confirmed, along with its role: it moves the floating
+  side trolley/gripper to the panel's starting height, holds there for the whole panel, then
+  moves higher for ejection (distance varying with panel height). It is a separate axis from
+  `FloatingSideHeight`, which repositions per stud following the rake progression.
 - **The Node0–Node5 mapping is still not tied to the axis names.** The log lists
   `Node0 Status` … `Node5 Status` as one block at power-on and names the axes separately, so
   nothing in this export connects the two. Still open.

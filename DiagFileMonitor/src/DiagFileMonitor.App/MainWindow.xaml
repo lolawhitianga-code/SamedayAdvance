@@ -316,7 +316,7 @@
                 <DataGridTextColumn Header="Repeat" Binding="{Binding RepeatLabel}" Width="65" />
                 <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineLabel}" Width="70" />
                 <DataGridTextColumn Header="Zoho #" Binding="{Binding ZohoTicketNumber}" Width="80" />
-                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
+                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" SortMemberPath="ArrivedAtUtc" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
                 <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*" />
             </DataGrid.Columns>

@@ -11,25 +11,7 @@ public static class KnowledgeReportFormatter
 {
     public static void Append(StringBuilder text, KnowledgeFindings findings)
     {
-        if (findings.Knowledge is not { } knowledge)
-        {
-            text.AppendLine();
-            text.AppendLine("WHAT WE KNOW ABOUT THIS MACHINE");
-            text.AppendLine($"  Nothing written down yet for \"{findings.Model ?? "(unknown model)"}\".");
-            text.AppendLine("  Everything above comes from the logs alone.");
-            return;
-        }
-
-        text.AppendLine();
-        text.AppendLine($"WHAT WE KNOW ABOUT THIS MACHINE - {knowledge.Model}");
-        text.AppendLine($"  {Wrap(knowledge.Summary, 4)}");
-
-        if (findings.SerialNumber is { Length: > 0 })
-        {
-            text.AppendLine(findings.SerialIsKnown
-                ? $"  Serial {findings.SerialNumber} is one we already have history on."
-                : $"  Serial {findings.SerialNumber} is not one we have history on yet.");
-        }
+        if (findings.Knowledge is not { } knowledge) return;
 
         AppendHomeInterlock(text, findings);
         AppendMatchedFaults(text, findings);
@@ -46,12 +28,12 @@ public static class KnowledgeReportFormatter
         if (!home.Any) return;
 
         text.AppendLine();
-        text.AppendLine("  CAN IT HOME? - all four product sensors must read 0");
+        text.AppendLine("CAN IT HOME? - all four product sensors must read 0");
 
         if (home.SensorsSeen.Count == 0)
         {
-            text.AppendLine("    No product sensor changes in this log, so all four were most likely already");
-            text.AppendLine("    at 0. Nothing here says the interlock was the problem.");
+            text.AppendLine("  No product sensor changes in this log, so all four were most likely already");
+            text.AppendLine("  at 0. Nothing here says the interlock was the problem.");
         }
 
         foreach (var sensor in home.SensorsSeen)
@@ -60,13 +42,13 @@ public static class KnowledgeReportFormatter
                 ? "clear"
                 : "STILL DETECTING SOMETHING - this alone stops the machine homing";
 
-            text.AppendLine($"    {sensor.Display}  at {sensor.ChangedAt:hh\\:mm\\:ss}  {verdict}");
+            text.AppendLine($"  {sensor.Display}  at {sensor.ChangedAt:hh\\:mm\\:ss}  {verdict}");
         }
 
         if (home.SensorsNotInLog.Count > 0)
         {
-            text.AppendLine($"    Never changed in this log: {string.Join(", ", home.SensorsNotInLog)}. The log only");
-            text.AppendLine("      records changes, so these were most likely sitting at 0 throughout.");
+            text.AppendLine($"  Never changed in this log: {string.Join(", ", home.SensorsNotInLog)}.");
+            text.AppendLine("  The log records changes only, so these were most likely at 0 throughout.");
         }
 
         if (home.Attempts.Count == 0) return;
@@ -74,11 +56,11 @@ public static class KnowledgeReportFormatter
         text.AppendLine();
         foreach (var attempt in home.Attempts)
         {
-            text.AppendLine($"    {attempt.Time:hh\\:mm\\:ss} {attempt.Command} - {attempt.Outcome}");
+            text.AppendLine($"  {attempt.Time:hh\\:mm\\:ss} {attempt.Command} - {attempt.Outcome}");
 
             foreach (var blocked in attempt.Blocking)
             {
-                text.AppendLine($"        blocked by {blocked.Display}");
+                text.AppendLine($"      blocked by {blocked.Display}");
             }
         }
 
@@ -86,10 +68,10 @@ public static class KnowledgeReportFormatter
         if (refusedWithCause is not null)
         {
             text.AppendLine();
-            text.AppendLine($"    {Wrap($"The machine was told to home at {refusedWithCause.Time:hh\\:mm\\:ss} and "
+            text.AppendLine($"  {Wrap($"The machine was told to home at {refusedWithCause.Time:hh\\:mm\\:ss} and "
                 + $"{refusedWithCause.Outcome}, with {string.Join(" and ", refusedWithCause.Blocking.Select(b => b.Display))}. "
                 + "That is the interlock doing its job - clear whatever that sensor is seeing, or check the "
-                + "sensor itself if there is nothing there.", 4)}");
+                + "sensor itself if there is nothing there.", 2)}");
         }
     }
 
@@ -98,11 +80,11 @@ public static class KnowledgeReportFormatter
         if (findings.MatchedFaults.Count == 0 && findings.UnknownFaults.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  FAULTS IN THIS LOG WE RECOGNISE");
+        text.AppendLine("FAULTS IN THIS LOG WE RECOGNISE");
 
         if (findings.MatchedFaults.Count == 0)
         {
-            text.AppendLine("    None of the faults in this log match anything written down for this machine.");
+            text.AppendLine("  None of the faults in this log match anything written down for this machine.");
         }
 
         foreach (var match in findings.MatchedFaults)
@@ -112,16 +94,16 @@ public static class KnowledgeReportFormatter
                 : " - seen once";
 
             text.AppendLine();
-            text.AppendLine($"    \"{match.SeenAs}\"");
-            text.AppendLine($"      x{match.Occurrences}{repeats}.");
-            text.AppendLine($"      [{match.Known.Confidence.Label()}] {Wrap(match.Known.Meaning, 6)}");
+            text.AppendLine($"  \"{match.SeenAs}\"");
+            text.AppendLine($"    x{match.Occurrences}{repeats}.");
+            text.AppendLine($"    [{match.Known.Confidence.Label()}] {Wrap(match.Known.Meaning, 4)}");
 
             if (match.Known.WhatToCheck.Count > 0)
             {
-                text.AppendLine("      Check:");
+                text.AppendLine("    Check:");
                 foreach (var check in match.Known.WhatToCheck)
                 {
-                    text.AppendLine($"        - {Wrap(check, 10)}");
+                    text.AppendLine($"      - {Wrap(check, 8)}");
                 }
             }
         }
@@ -129,10 +111,10 @@ public static class KnowledgeReportFormatter
         if (findings.UnknownFaults.Count > 0)
         {
             text.AppendLine();
-            text.AppendLine("    Faults here we have nothing written down for - worth adding once understood:");
+            text.AppendLine("  Faults here we have nothing written down for - worth adding once understood:");
             foreach (var fault in findings.UnknownFaults.Take(8))
             {
-                text.AppendLine($"      - {fault}");
+                text.AppendLine($"    - {fault}");
             }
         }
     }
@@ -142,14 +124,14 @@ public static class KnowledgeReportFormatter
         if (findings.IssuesSeenInThisLog.Count > 0)
         {
             text.AppendLine();
-            text.AppendLine("  KNOWN PROBLEMS THIS LOG POINTS AT");
+            text.AppendLine("KNOWN PROBLEMS THIS LOG POINTS AT");
             foreach (var issue in findings.IssuesSeenInThisLog) AppendIssue(text, issue);
         }
 
         if (findings.IssueHistoryForSerial.Count > 0)
         {
             text.AppendLine();
-            text.AppendLine($"  HISTORY ON SERIAL {findings.SerialNumber} - background, nothing in this log points at these");
+            text.AppendLine($"HISTORY ON SERIAL {findings.SerialNumber} - background, nothing in this log points at these");
             foreach (var issue in findings.IssueHistoryForSerial) AppendIssue(text, issue);
         }
     }
@@ -161,8 +143,8 @@ public static class KnowledgeReportFormatter
             : " (whole family)";
 
         text.AppendLine();
-        text.AppendLine($"    [{issue.Confidence.Label()}] {issue.Title}{serials}");
-        text.AppendLine($"      {Wrap(issue.Detail, 6)}");
+        text.AppendLine($"  [{issue.Confidence.Label()}] {issue.Title}{serials}");
+        text.AppendLine($"    {Wrap(issue.Detail, 4)}");
     }
 
     private static void AppendPlatePresent(StringBuilder text, KnowledgeFindings findings)
@@ -170,17 +152,17 @@ public static class KnowledgeReportFormatter
         if (findings.PlatePresentEvents.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  PLATE PRESENT SENSOR - REAL OR GLITCH?");
+        text.AppendLine("PLATE PRESENT SENSOR - REAL OR GLITCH?");
 
         foreach (var group in findings.PlatePresentEvents.GroupBy(e => e.Verdict))
         {
             text.AppendLine();
-            text.AppendLine($"    {group.Count()} x {Describe(group.Key)}");
-            text.AppendLine($"      {Wrap(group.First().Explanation, 6)}");
+            text.AppendLine($"  {group.Count()} x {Describe(group.Key)}");
+            text.AppendLine($"    {Wrap(group.First().Explanation, 4)}");
 
             foreach (var occurrence in group.Take(5))
             {
-                text.AppendLine($"        {occurrence.Time:hh\\:mm\\:ss\\.fff}  {occurrence.Side} side ({occurrence.Address})");
+                text.AppendLine($"      {occurrence.Time:hh\\:mm\\:ss\\.fff}  {occurrence.Side} side ({occurrence.Address})");
             }
         }
     }
@@ -197,18 +179,18 @@ public static class KnowledgeReportFormatter
         if (findings.Axes.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  AXES THIS LOG MENTIONS");
+        text.AppendLine("AXES THIS LOG MENTIONS");
 
         foreach (var axis in findings.Axes)
         {
             if (axis.Known is { } known)
             {
-                text.AppendLine($"    {axis.LogName,-22} {known.PlainName}");
-                text.AppendLine($"      [{known.Confidence.Label()}] {Wrap(known.Role, 6)}");
+                text.AppendLine($"  {axis.LogName,-22} {known.PlainName}");
+                text.AppendLine($"    [{known.Confidence.Label()}] {Wrap(known.Role, 4)}");
             }
             else
             {
-                text.AppendLine($"    {axis.LogName,-22} not in our notes - new axis tag, worth writing down");
+                text.AppendLine($"  {axis.LogName,-22} not in our notes - new axis tag, worth writing down");
             }
         }
     }
@@ -218,10 +200,10 @@ public static class KnowledgeReportFormatter
         if (knowledge.BackgroundNoise.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  NORMAL FOR THIS MACHINE - DON'T CHASE ON ITS OWN");
+        text.AppendLine("NORMAL FOR THIS MACHINE - DON'T CHASE ON ITS OWN");
         foreach (var noise in knowledge.BackgroundNoise)
         {
-            text.AppendLine($"    - {Wrap(noise, 6)}");
+            text.AppendLine($"  - {Wrap(noise, 4)}");
         }
     }
 
@@ -230,10 +212,10 @@ public static class KnowledgeReportFormatter
         if (knowledge.OpenGaps.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  STILL UNPROVEN - don't quote these to a customer as fact");
+        text.AppendLine("STILL UNPROVEN - don't quote these to a customer as fact");
         foreach (var gap in knowledge.OpenGaps)
         {
-            text.AppendLine($"    - {Wrap(gap, 6)}");
+            text.AppendLine($"  - {Wrap(gap, 4)}");
         }
     }
 

@@ -78,8 +78,6 @@ public class MachineKnowledge
     /// <summary>Other model names this knowledge also covers.</summary>
     public IReadOnlyList<string> AlsoMatches { get; init; } = Array.Empty<string>();
 
-    public string Summary { get; init; } = string.Empty;
-
     public IReadOnlyList<string> KnownSerials { get; init; } = Array.Empty<string>();
     public IReadOnlyList<AxisRole> Axes { get; init; } = Array.Empty<AxisRole>();
     public IReadOnlyList<KnownFault> Faults { get; init; } = Array.Empty<KnownFault>();

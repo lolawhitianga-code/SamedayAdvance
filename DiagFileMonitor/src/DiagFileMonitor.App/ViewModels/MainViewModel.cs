@@ -32,8 +32,12 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
     public ICollectionView FilesView { get; }
 
+    /// <summary>The dropdown value that turns grouping off, so the grid is one flat list.</summary>
+    public const string NoGrouping = "(no grouping)";
+
     public List<string> GroupByOptions { get; } = new()
     {
+        NoGrouping,
         "Serial Number",
         "Model",
         "Customer",
@@ -51,7 +55,9 @@ public partial class MainViewModel : ObservableObject
     };
 
     [ObservableProperty]
-    private string _selectedGroupBy = "Serial Number";
+    // Ungrouped by default so the newest file is at the top of the list on opening. Grouping
+    // sorts by the group first, which pushes the newest file wherever its group happens to fall.
+    private string _selectedGroupBy = NoGrouping;
 
     public ObservableCollection<string> WatchFolders { get; } = new();
 
@@ -513,6 +519,16 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplyGrouping()
     {
+        FilesView.GroupDescriptions.Clear();
+        FilesView.SortDescriptions.Clear();
+
+        if (SelectedGroupBy == NoGrouping)
+        {
+            FilesView.SortDescriptions.Add(
+                new SortDescription(nameof(DiagnosticFileSummary.ArrivedAtUtc), ListSortDirection.Descending));
+            return;
+        }
+
         var propertyName = SelectedGroupBy switch
         {
             "Serial Number" => nameof(DiagnosticFileSummary.SerialNumber),
@@ -525,10 +541,10 @@ public partial class MainViewModel : ObservableObject
             _ => nameof(DiagnosticFileSummary.SerialNumber)
         };
 
-        FilesView.GroupDescriptions.Clear();
         FilesView.GroupDescriptions.Add(new PropertyGroupDescription(propertyName));
 
-        FilesView.SortDescriptions.Clear();
+        // The group has to sort first or the groups themselves come apart; newest-first applies
+        // within each group.
         FilesView.SortDescriptions.Add(new SortDescription(propertyName, ListSortDirection.Ascending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(DiagnosticFileSummary.ArrivedAtUtc), ListSortDirection.Descending));
     }

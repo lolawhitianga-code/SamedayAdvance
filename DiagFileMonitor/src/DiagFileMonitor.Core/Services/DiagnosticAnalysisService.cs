@@ -59,7 +59,10 @@ public class DiagnosticAnalysisService
         var knowledge = KnowledgeAnnotator.Annotate(
             analysis, machineLog, bundle.MachineType, bundle.SerialNumber);
 
-        return SpidaReportFormatter.Format(summary, analysis, knowledge);
+        // What the operator wrote in SupportInfo.txt decides where the report points first.
+        var complaint = ComplaintRouter.Route(bundle.SupportIssue, changeLog, machineLog);
+
+        return SpidaReportFormatter.Format(summary, analysis, knowledge, complaint);
     }
 
     private static string PathOf(DiagnosticFile bundle, LogFileKind kind) =>
