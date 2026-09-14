@@ -50,6 +50,20 @@ serial number by default, with search, case notes and log searching on top.
 - Bundles arriving within 7 days of the same machine's last one are flagged as a
   **Repeat** — usually a sign the first fix did not hold.
 
+**Alerting, analysis and Zoho**
+- When one serial sends several bundles inside a rolling window (default 2 in 24 hours), the
+  app analyses the latest bundle automatically, posts the report to a Zoho Desk ticket and
+  emails the alert.
+- Ticket handling matches how support actually works: a new Zoho ticket is raised per burst,
+  unless a ticket was already raised for that same machine recently (default 24 hours), in
+  which case the new report is added to it as a note. The local database is the record of
+  which ticket belongs to which machine, so no Zoho custom field is needed.
+- The analysis compares the bundle against bundles marked as known-good baselines of the same
+  machine type: per-step timings from machinelog.txt against the baseline median, steps that
+  never completed, error lines the baselines do not have, and changes made shortly beforehand.
+- Configure all of it under **Alerts and Zoho...**, which includes a Test Zoho button and a
+  send-test-email button.
+
 **Keeping on top of it**
 - Headline counts above the grid: arrivals today, arrivals over 7 days, failures,
   distinct machines, total stored, busiest customer.
@@ -75,6 +89,9 @@ the common ones; the rest can be edited by hand:
 | `RepeatWindowDays` | How close together two bundles count as a repeat (default 7) |
 | `NotifyOnArrival` | Show a notification-area balloon per arrival |
 | `ExtractRetentionDays` | Delete unpacked files older than this; `0` keeps everything |
+| `Alerts` | Burst threshold and window, slow-step factor, machinelog line pattern |
+| `Zoho` | Data-centre hosts, org id, OAuth client id/secret/refresh token, department and contact ids |
+| `Email` | SMTP host, port, SSL, credentials, from and recipient addresses |
 
 Upgrading is safe: `DatabaseInitializer` adds any columns a newer build expects,
 so an existing database keeps its history rather than having to be deleted.
@@ -90,12 +107,37 @@ dotnet run --project src\DiagFileMonitor.App
 dotnet test
 ```
 
+## Setting up Zoho Desk
+
+1. In the Zoho API console create a **Self Client** and note the client id and secret.
+2. Generate a code with the ticket scopes (`Desk.tickets.CREATE`, `Desk.tickets.UPDATE`,
+   `Desk.tickets.READ`, `Desk.basic.READ`) and exchange it for a **refresh token**.
+3. Find your **org id** in Zoho Desk under Setup.
+4. Put those in **Alerts and Zoho...**, set both hostnames to match your data centre
+   (`.com`, `.com.au`, `.eu`, ...), and press **Test Zoho**.
+5. Zoho normally requires a contact on a new ticket. Set a default contact id if ticket
+   creation is rejected.
+
+Credentials are stored in `settings.json` in plain text under your AppData folder. Anyone who
+can read your Windows profile can read them. If that is not acceptable, keep the app's
+Zoho account scoped to only what it needs.
+
 **Note on verification.** The Core library and its 92 tests were built and run
 during development, and the ViewModels were type-checked against the real WPF and
 WinForms reference assemblies. The WPF app itself (XAML compilation, and the app
 actually running) has **not** been built or launched, because that requires
 Windows. Give it a build and a run before relying on it — expect to shake out the
 odd layout detail that only shows up on screen.
+
+Two further gaps worth knowing about:
+
+- **The Zoho calls have never run against a real Zoho account.** They are written to the
+  documented Desk API shape and tested against a fake HTTP layer (URLs, headers, OAuth
+  refresh, token expiry, error handling), but the first real call may still need adjusting.
+  Use **Test Zoho** before trusting it.
+- **The machinelog parser has not seen a real machine log.** The default line pattern expects
+  `2026-09-01 08:00:00 START Preheat`. If your machines write something else, the analysis
+  will report no timed steps until `MachineLogPattern` is set to match.
 
 ## Trying it out
 

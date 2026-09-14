@@ -13,7 +13,11 @@ public static class DatabaseInitializer
     {
         ("DiagnosticFiles", "Notes", "TEXT NULL"),
         ("DiagnosticFiles", "TicketNumber", "TEXT NULL"),
-        ("DiagnosticFiles", "IsBaseline", "INTEGER NOT NULL DEFAULT 0")
+        ("DiagnosticFiles", "IsBaseline", "INTEGER NOT NULL DEFAULT 0"),
+        ("DiagnosticFiles", "ZohoTicketId", "TEXT NULL"),
+        ("DiagnosticFiles", "ZohoTicketNumber", "TEXT NULL"),
+        ("DiagnosticFiles", "ZohoTicketCreatedUtc", "TEXT NULL"),
+        ("DiagnosticFiles", "AlertSentUtc", "TEXT NULL")
     };
 
     public static void Initialize(DiagDbContext context)

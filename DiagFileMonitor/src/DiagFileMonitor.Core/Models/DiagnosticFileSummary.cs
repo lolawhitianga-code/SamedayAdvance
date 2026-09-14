@@ -22,6 +22,7 @@ public class DiagnosticFileSummary
     public string? TicketNumber { get; set; }
 
     public bool IsBaseline { get; set; }
+    public string? ZohoTicketNumber { get; set; }
     public string BaselineLabel => IsBaseline ? "Baseline" : string.Empty;
 
     /// <summary>Set by RepeatSubmissionMarker, not stored: this machine sent another bundle just before.</summary>
@@ -56,6 +57,7 @@ public class DiagnosticFileSummary
         Notes = file.Notes,
         TicketNumber = file.TicketNumber,
         IsBaseline = file.IsBaseline,
+        ZohoTicketNumber = file.ZohoTicketNumber,
         ChangeLogPath = PathOf(file, LogFileKind.ChangeLog),
         MachineLogPath = PathOf(file, LogFileKind.MachineLog),
         ErrorLogPath = PathOf(file, LogFileKind.ErrorLog)

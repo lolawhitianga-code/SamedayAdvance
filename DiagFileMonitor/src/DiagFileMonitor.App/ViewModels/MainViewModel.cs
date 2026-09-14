@@ -18,6 +18,7 @@ public partial class MainViewModel : ObservableObject
     private readonly FolderMonitorService _monitorService;
     private readonly TrayNotifier _notifier;
     private readonly ExtractCleanupService _cleanupService;
+    private readonly BurstAlertService? _alertService;
     private readonly int _repeatWindowDays;
 
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
@@ -231,13 +232,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
-        FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService)
+        FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService,
+        BurstAlertService? alertService = null)
     {
         _settingsService = settingsService;
         _repository = repository;
         _monitorService = monitorService;
         _notifier = notifier;
         _cleanupService = cleanupService;
+        _alertService = alertService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());
@@ -260,6 +263,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     public LogSearchViewModel CreateLogSearchViewModel() => new(_repository);
+
+    public IntegrationSettingsViewModel CreateIntegrationSettingsViewModel() => new(_settingsService);
 
     private FilterCriteria CurrentCriteria() => new()
     {
@@ -523,15 +528,56 @@ public partial class MainViewModel : ObservableObject
     {
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
-            Files.Insert(0, DiagnosticFileSummary.FromEntity(file));
-            RefreshDerivedState();
-
-            var row = Files[0];
-            NotifyArrival(file, row);
-            StatusMessage = file.Status == ProcessingStatus.Processed
-                ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber}).{(row.IsRepeatSubmission ? " Repeat from this machine." : string.Empty)}"
-                : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
+            OnFileProcessedOnUiThread(file);
         });
+
+        _ = RaiseAlertIfBurstAsync(file);
+    }
+
+    private void OnFileProcessedOnUiThread(DiagnosticFile file)
+    {
+        Files.Insert(0, DiagnosticFileSummary.FromEntity(file));
+        RefreshDerivedState();
+
+        var row = Files[0];
+        NotifyArrival(file, row);
+        StatusMessage = file.Status == ProcessingStatus.Processed
+            ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber}).{(row.IsRepeatSubmission ? " Repeat from this machine." : string.Empty)}"
+            : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
+    }
+
+    /// <summary>
+    /// Runs the burst check and everything it triggers, off the UI thread. Nothing here may
+    /// throw: a Zoho outage or a bad mail password must not disturb a bundle that was recorded
+    /// successfully.
+    /// </summary>
+    private async Task RaiseAlertIfBurstAsync(DiagnosticFile file)
+    {
+        if (_alertService is null) return;
+
+        try
+        {
+            var snapshot = (await _repository.GetAllAsync())
+                .Select(DiagnosticFileSummary.FromEntity)
+                .ToList();
+
+            var outcome = await _alertService.HandleAsync(file, snapshot);
+            if (!outcome.Triggered) return;
+
+            _notifier.Notify("Repeated diagnostics", outcome.Summary, isProblem: true);
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                StatusMessage = outcome.Summary;
+                await LoadAsync();
+            });
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.Error("Burst alert handling failed", ex);
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                () => StatusMessage = $"Burst alert failed: {ex.Message}");
+        }
     }
 
     private void NotifyArrival(DiagnosticFile file, DiagnosticFileSummary row)

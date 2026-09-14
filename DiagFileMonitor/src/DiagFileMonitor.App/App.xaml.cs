@@ -44,12 +44,31 @@ public partial class App : System.Windows.Application
         _notifier = new TrayNotifier();
 
         var cleanupService = new ExtractCleanupService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
-        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier, cleanupService);
+        var alertService = BuildAlertService(settings, repository);
+
+        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier, cleanupService, alertService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
         mainWindow.Show();
 
         _ = InitialiseAsync(viewModel);
+    }
+
+    /// <summary>Only wires up alerting when it is switched on, so an unconfigured app does no outbound work.</summary>
+    private static BurstAlertService? BuildAlertService(AppSettings settings, DiagFileRepository repository)
+    {
+        if (!settings.Alerts.Enabled) return null;
+
+        var zoho = settings.Zoho.IsConfigured ? new ZohoDeskClient(settings.Zoho) : null;
+        var email = settings.Email.IsConfigured ? new SmtpEmailAlertSender(settings.Email) : null;
+
+        return new BurstAlertService(
+            repository,
+            new DiagnosticAnalyser(settings.Alerts.ToAnalysisOptions()),
+            settings.Zoho,
+            settings.Alerts,
+            zoho,
+            email);
     }
 
     private static async Task InitialiseAsync(MainViewModel viewModel)

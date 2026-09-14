@@ -9,6 +9,17 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
+    private void OpenIntegrationSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ViewModels.MainViewModel viewModel) return;
+
+        new IntegrationSettingsWindow
+        {
+            Owner = this,
+            DataContext = viewModel.CreateIntegrationSettingsViewModel()
+        }.ShowDialog();
+    }
+
     private void OpenLogSearch_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ViewModels.MainViewModel viewModel) return;
