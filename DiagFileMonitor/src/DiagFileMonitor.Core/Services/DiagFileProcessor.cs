@@ -8,6 +8,7 @@ public class DiagFileProcessor
 {
     private readonly string _extractRootPath;
     private readonly DiagFileRepository _repository;
+    private readonly bool _fileNameTimesAreUtc;
 
     private static readonly Dictionary<string, LogFileKind> KnownLogFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -16,10 +17,11 @@ public class DiagFileProcessor
         ["errorlog.txt"] = LogFileKind.ErrorLog
     };
 
-    public DiagFileProcessor(string extractRootPath, DiagFileRepository repository)
+    public DiagFileProcessor(string extractRootPath, DiagFileRepository repository, bool fileNameTimesAreUtc = true)
     {
         _extractRootPath = extractRootPath;
         _repository = repository;
+        _fileNameTimesAreUtc = fileNameTimesAreUtc;
         Directory.CreateDirectory(_extractRootPath);
     }
 
@@ -31,7 +33,9 @@ public class DiagFileProcessor
             OriginalFileName = fileInfo.Name,
             SourcePath = zipPath,
             FileSizeBytes = fileInfo.Length,
-            ArrivedAtUtc = fileInfo.CreationTimeUtc,
+            // The name carries when the machine produced the bundle; the file date only
+            // says when it was last copied about.
+            ArrivedAtUtc = DiagFileNameDate.ArrivedUtc(zipPath, _fileNameTimesAreUtc),
             Status = ProcessingStatus.Pending
         };
 

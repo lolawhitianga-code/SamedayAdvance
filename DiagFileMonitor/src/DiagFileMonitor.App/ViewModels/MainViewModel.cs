@@ -19,6 +19,7 @@ public partial class MainViewModel : ObservableObject
     private readonly TrayNotifier _notifier;
     private readonly ExtractCleanupService _cleanupService;
     private readonly BurstAlertService? _alertService;
+    private readonly DatabaseResetService _resetService;
     private readonly int _repeatWindowDays;
 
     /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
@@ -98,6 +99,37 @@ public partial class MainViewModel : ObservableObject
         var settings = _settingsService.Load();
         settings.NotifyOnArrival = value;
         _settingsService.Save(settings);
+    }
+
+    [ObservableProperty]
+    private int _maxAgeDays;
+
+    partial void OnMaxAgeDaysChanged(int value)
+    {
+        _monitorService.MaxAgeDays = value;
+
+        var settings = _settingsService.Load();
+        settings.MonitorMaxAgeDays = value;
+        _settingsService.Save(settings);
+    }
+
+    [RelayCommand]
+    private async Task ClearDatabaseAsync()
+    {
+        var confirm = System.Windows.MessageBox.Show(
+            $"Delete all {Files.Count} stored diagnostic record(s) and their unpacked files?\n\n"
+            + "This also removes case notes, ticket numbers and baseline marks. It cannot be undone.\n\n"
+            + "The original .szip files in your watch folders are not touched, so they can be processed again.",
+            "Clear the database",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning,
+            System.Windows.MessageBoxResult.No);
+
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        var result = await _resetService.ResetAsync();
+        await LoadAsync();
+        StatusMessage = result.Summary + " Start monitoring to process the folders again.";
     }
 
     [ObservableProperty]
@@ -240,7 +272,7 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
         FolderMonitorService monitorService, TrayNotifier notifier, ExtractCleanupService cleanupService,
-        BurstAlertService? alertService = null)
+        DatabaseResetService resetService, BurstAlertService? alertService = null)
     {
         _settingsService = settingsService;
         _repository = repository;
@@ -248,6 +280,7 @@ public partial class MainViewModel : ObservableObject
         _notifier = notifier;
         _cleanupService = cleanupService;
         _alertService = alertService;
+        _resetService = resetService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());
@@ -255,11 +288,15 @@ public partial class MainViewModel : ObservableObject
 
         _monitorService.FileProcessed += OnFileProcessed;
         _monitorService.FileFailed += OnFileFailed;
+        _monitorService.FileSkippedAsTooOld += OnFileSkippedAsTooOld;
 
         var settings = _settingsService.Load();
         _repeatWindowDays = settings.RepeatWindowDays;
         _notifyOnArrival = settings.NotifyOnArrival;
         _retentionDays = settings.ExtractRetentionDays;
+        _maxAgeDays = settings.MonitorMaxAgeDays;
+        _monitorService.MaxAgeDays = settings.MonitorMaxAgeDays;
+        _monitorService.FileNameTimesAreUtc = settings.FileNameTimesAreUtc;
         _notifier.Enabled = settings.NotifyOnArrival;
         foreach (var folder in settings.WatchFolders)
         {
@@ -605,6 +642,16 @@ public partial class MainViewModel : ObservableObject
         }
 
         _notifier.Notify("Diagnostic file received", detail);
+    }
+
+    private int _skippedAsTooOld;
+
+    private void OnFileSkippedAsTooOld(object? sender, string path)
+    {
+        var total = Interlocked.Increment(ref _skippedAsTooOld);
+
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            StatusMessage = $"Skipped {total} file(s) older than {MaxAgeDays} days.");
     }
 
     private void OnFileFailed(object? sender, string path)

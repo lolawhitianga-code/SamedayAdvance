@@ -33,6 +33,20 @@
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <GroupBox Header="Diagnostic files">
+                    <StackPanel>
+                        <CheckBox Content="Timestamps in support file names are UTC"
+                                  IsChecked="{Binding FileNameTimesAreUtc}" Margin="0,0,0,4" />
+                        <TextBlock Text="The arrived date is read from the file name, e.g. _7_27_2026 9-53-10 PM. Untick this if the machine writes its own local time instead."
+                                   TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}" FontSize="11" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Only process files newer than" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                            <TextBox Text="{Binding MonitorMaxAgeDays}" Width="45" Margin="0,0,8,0" />
+                            <TextBlock Text="days (0 processes everything)" Style="{StaticResource FieldLabel}" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+
                 <GroupBox Header="Alerting">
                     <StackPanel>
                         <CheckBox Content="Alert when a machine sends several files in a short window"
