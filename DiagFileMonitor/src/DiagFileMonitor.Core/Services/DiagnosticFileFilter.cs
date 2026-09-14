@@ -51,7 +51,8 @@ public static class DiagnosticFileFilter
 
         // Every whitespace-separated term must appear somewhere, so "SN-001 wellington" narrows rather than widens.
         var haystack = $"{row.SerialNumber} {row.Customer} {row.OriginalFileName} {row.MachineType} {row.MachineName} "
-                       + $"{row.SiteLocation} {row.SoftwareName} {row.Version} {row.TicketNumber} {row.Notes}";
+                       + $"{row.SiteLocation} {row.SoftwareName} {row.Version} {row.TicketNumber} {row.Notes} "
+                       + $"{row.SupportPanel} {row.SupportMembers} {row.SupportIssue}";
         var terms = criteria.SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return terms.All(term => haystack.Contains(term, StringComparison.OrdinalIgnoreCase));

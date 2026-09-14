@@ -92,6 +92,19 @@ public class DiagFileRepository
         await context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// True when this exact bundle is already stored. Name, size and the name's timestamp
+    /// together identify a bundle, so re-scanning a folder does not import it twice.
+    /// </summary>
+    public async Task<bool> ExistsAsync(string originalFileName, long sizeBytes, DateTime arrivedAtUtc)
+    {
+        await using var context = _contextFactory();
+        return await context.DiagnosticFiles.AnyAsync(f =>
+            f.OriginalFileName == originalFileName
+            && f.FileSizeBytes == sizeBytes
+            && f.ArrivedAtUtc == arrivedAtUtc);
+    }
+
     public async Task<List<DiagnosticFile>> GetBaselinesAsync()
     {
         await using var context = _contextFactory();

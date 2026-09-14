@@ -20,6 +20,10 @@ public static class CaseSummaryFormatter
         text.AppendLine($"Arrived:         {file.ArrivedDisplay}");
         text.AppendLine($"Status:          {file.Status}");
 
+        if (!string.IsNullOrWhiteSpace(file.SupportPanel)) text.AppendLine($"Panel:           {file.SupportPanel}");
+        if (!string.IsNullOrWhiteSpace(file.SupportMembers)) text.AppendLine($"Members:         {file.SupportMembers}");
+        if (!string.IsNullOrWhiteSpace(file.SupportIssue)) text.AppendLine($"Reported issue:  {file.SupportIssue}");
+
         if (!string.IsNullOrWhiteSpace(file.TicketNumber))
         {
             text.AppendLine($"Ticket:          {file.TicketNumber}");

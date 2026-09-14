@@ -223,7 +223,7 @@
                   CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <Setter Property="ToolTip" Value="{Binding ErrorMessage}" />
+                    <Setter Property="ToolTip" Value="{Binding Details}" />
                     <!-- Gives the row's context menu a route back to the ViewModel's commands. -->
                     <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <Setter Property="ContextMenu">
@@ -292,7 +292,7 @@
                 <DataGridTextColumn Header="Zoho #" Binding="{Binding ZohoTicketNumber}" Width="80" />
                 <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
-                <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />
+                <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>
