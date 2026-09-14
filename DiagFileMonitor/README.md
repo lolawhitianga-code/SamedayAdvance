@@ -190,9 +190,8 @@ Two further gaps worth knowing about:
   documented Desk API shape and tested against a fake HTTP layer (URLs, headers, OAuth
   refresh, token expiry, error handling), but the first real call may still need adjusting.
   Use **Test Zoho** before trusting it.
-- **The machinelog parser has not seen a real machine log.** The default line pattern expects
-  `2026-09-01 08:00:00 START Preheat`. If your machines write something else, the analysis
-  will report no timed steps until `MachineLogPattern` is set to match.
+- **Burst alerts carry the same analysis as the Analyse button.** There is no separate
+  setting for how an alert analyses a bundle, and nothing to configure.
 
 ## Trying it out
 

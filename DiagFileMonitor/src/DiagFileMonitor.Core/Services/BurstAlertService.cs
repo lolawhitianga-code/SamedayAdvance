@@ -1,3 +1,4 @@
+using System.Text;
 using DiagFileMonitor.Core.Models;
 
 namespace DiagFileMonitor.Core.Services;
@@ -12,7 +13,10 @@ public class BurstAlertOutcome
 {
     public bool Triggered { get; init; }
     public BurstResult? Burst { get; init; }
-    public AnalysisReport? Report { get; init; }
+
+    /// <summary>The analysis that went out, exactly as Zoho and the email received it.</summary>
+    public string? ReportText { get; init; }
+
     public string? TicketNumber { get; init; }
     public bool TicketWasCreated { get; init; }
     public bool EmailSent { get; init; }
@@ -44,14 +48,22 @@ public class BurstAlertOutcome
 /// posts the report to a Zoho ticket (reusing a ticket raised recently for the same machine),
 /// and emails the alert.
 /// <para>
+/// The analysis comes from <see cref="DiagnosticAnalysisService"/> - the same one behind the
+/// dashboard's Analyse button, which is the only analysis path checked against real Spida
+/// exports. An earlier version used a separate analyser whose line pattern matched no real
+/// machine log, so an automated alert would have carried an empty analysis to a customer ticket.
+/// </para>
+/// <para>
 /// Every outbound step is best-effort. A Zoho outage or a bad mail password must not stop the
-/// bundle being recorded, so failures are collected rather than thrown.
+/// bundle being recorded, so failures are collected rather than thrown. The analysis itself is
+/// not best-effort: without it there is nothing worth sending, so the alert is left unsent and
+/// unmarked so it can be retried.
 /// </para>
 /// </summary>
 public class BurstAlertService
 {
     private readonly DiagFileRepository _repository;
-    private readonly DiagnosticAnalyser _analyser;
+    private readonly DiagnosticAnalysisService _analysisService;
     private readonly IZohoDeskClient? _zoho;
     private readonly IEmailAlertSender? _email;
     private readonly ZohoSettings _zohoSettings;
@@ -59,14 +71,14 @@ public class BurstAlertService
 
     public BurstAlertService(
         DiagFileRepository repository,
-        DiagnosticAnalyser analyser,
+        DiagnosticAnalysisService analysisService,
         ZohoSettings zohoSettings,
         AlertSettings alertSettings,
         IZohoDeskClient? zoho = null,
         IEmailAlertSender? email = null)
     {
         _repository = repository;
-        _analyser = analyser;
+        _analysisService = analysisService;
         _zohoSettings = zohoSettings;
         _alertSettings = alertSettings;
         _zoho = zoho;
@@ -86,14 +98,28 @@ public class BurstAlertService
             return new BurstAlertOutcome { Triggered = false, Burst = burst };
         }
 
-        var baselines = await _repository.GetBaselinesAsync();
-        var report = _analyser.Analyse(bundle, baselines);
-        var body = AnalysisReportFormatter.Format(burst, report);
+        string reportText;
+        try
+        {
+            reportText = await _analysisService.AnalyseAsync(new[] { bundle.Id }, token);
+        }
+        catch (Exception ex)
+        {
+            // Nothing worth sending without the analysis. Leaving AlertSentUtc unset means the
+            // next bundle from this machine tries again rather than the burst going unnoticed.
+            SimpleLogger.Error("Could not analyse the bundle for a burst alert", ex);
+
+            var failed = new BurstAlertOutcome { Triggered = true, Burst = burst };
+            failed.Problems.Add($"Analysis failed: {ex.Message}");
+            return failed;
+        }
+
+        var body = FormatBody(burst, trigger, reportText);
 
         var outcome = new TicketOutcome();
         if (_zoho is not null && _zohoSettings.IsConfigured)
         {
-            outcome = await PostToZohoAsync(bundle, burst, report, body, token);
+            outcome = await PostToZohoAsync(bundle, TicketSubject(burst, trigger), body, token);
         }
 
         var emailSent = false;
@@ -101,12 +127,11 @@ public class BurstAlertService
         {
             try
             {
-                var subject = AnalysisReportFormatter.Subject(burst, report);
                 var withTicket = outcome.TicketNumber is null
                     ? body
                     : body + Environment.NewLine + $"Zoho ticket: #{outcome.TicketNumber}" + Environment.NewLine;
 
-                await _email.SendAsync(subject, withTicket, token);
+                await _email.SendAsync(EmailSubject(burst, trigger), withTicket, token);
                 emailSent = true;
             }
             catch (Exception ex)
@@ -122,7 +147,7 @@ public class BurstAlertService
         {
             Triggered = true,
             Burst = burst,
-            Report = report,
+            ReportText = reportText,
             TicketNumber = outcome.TicketNumber,
             TicketWasCreated = outcome.Created,
             EmailSent = emailSent
@@ -130,6 +155,48 @@ public class BurstAlertService
 
         result.Problems.AddRange(outcome.Problems);
         return result;
+    }
+
+    /// <summary>A serial with nothing in it reads as "(unknown)" rather than as a blank gap.</summary>
+    private static string Display(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? DiagnosticFileSummary.Unknown : value;
+
+    internal static string EmailSubject(BurstResult burst, DiagnosticFileSummary trigger) =>
+        $"[Diag alert] {Display(burst.SerialNumber)} - {trigger.Customer} - "
+        + $"{burst.BundleCount} files in {burst.WindowHours}h";
+
+    internal static string TicketSubject(BurstResult burst, DiagnosticFileSummary trigger) =>
+        $"Repeated diagnostics: {Display(burst.SerialNumber)} ({trigger.MachineType}) - {trigger.Customer}";
+
+    /// <summary>
+    /// The burst context, then the full analysis verbatim. The analysis is not trimmed or
+    /// summarised: it is what a support person would have read had they pressed Analyse
+    /// themselves, and the whole point of the alert is that nobody did.
+    /// </summary>
+    internal static string FormatBody(BurstResult burst, DiagnosticFileSummary trigger, string reportText)
+    {
+        var text = new StringBuilder();
+
+        text.AppendLine(burst.Headline + ".");
+        text.AppendLine();
+        text.AppendLine($"Machine type: {trigger.MachineType}");
+        text.AppendLine($"Serial:       {Display(burst.SerialNumber)}");
+        text.AppendLine($"Customer:     {trigger.Customer}");
+        text.AppendLine($"Latest file:  {trigger.OriginalFileName} ({trigger.ArrivedDisplay})");
+        text.AppendLine();
+
+        text.AppendLine("Files in this burst:");
+        foreach (var file in burst.Bundles)
+        {
+            text.AppendLine($"  - {file.ArrivedDisplay}  {file.OriginalFileName}  [{file.Status}]");
+        }
+
+        text.AppendLine();
+        text.AppendLine(reportText.TrimEnd());
+        text.AppendLine();
+        text.AppendLine("-- Raised automatically by Diagnostic File Monitor.");
+
+        return text.ToString();
     }
 
     private sealed class TicketOutcome
@@ -140,7 +207,7 @@ public class BurstAlertService
     }
 
     private async Task<TicketOutcome> PostToZohoAsync(
-        DiagnosticFile bundle, BurstResult burst, AnalysisReport report, string body, CancellationToken token)
+        DiagnosticFile bundle, string ticketSubject, string body, CancellationToken token)
     {
         var outcome = new TicketOutcome();
 
@@ -159,8 +226,7 @@ public class BurstAlertService
             }
             else
             {
-                var ticket = await _zoho!.CreateTicketAsync(
-                    AnalysisReportFormatter.TicketSubject(burst, report), body, token);
+                var ticket = await _zoho!.CreateTicketAsync(ticketSubject, body, token);
 
                 ticketId = ticket.Id;
                 outcome.TicketNumber = ticket.TicketNumber;

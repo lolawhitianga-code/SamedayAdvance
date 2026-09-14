@@ -58,14 +58,8 @@
                             <TextBox Text="{Binding BurstWindowHours}" Width="45" Margin="0,0,8,0" />
                             <TextBlock Text="hours" Style="{StaticResource FieldLabel}" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <TextBlock Text="Flag a step slower than baseline by a factor of" Style="{StaticResource FieldLabel}" />
-                            <TextBox Text="{Binding SlowStepFactor}" Width="55" />
-                        </StackPanel>
-                        <TextBlock Text="machinelog.txt line pattern (leave blank for the default):" Margin="0,4,0,3" />
-                        <TextBox Text="{Binding MachineLogPattern}" FontFamily="Consolas" />
-                        <TextBlock Text="Needs named groups: timestamp, marker, step. The default has not been checked against a real machine log yet."
-                                   TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}" FontSize="11" />
+                        <TextBlock Text="The alert runs the same analysis as the Analyse button and posts all of it."
+                                   TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}" FontSize="11" Margin="0,4,0,0" />
                     </StackPanel>
                 </GroupBox>
 
