@@ -19,9 +19,18 @@ public class DiagnosticFileSummary
     public string? ErrorMessage { get; set; }
     public string? ExtractedPath { get; set; }
 
+    public string? ChangeLogPath { get; set; }
+    public string? MachineLogPath { get; set; }
+    public string? ErrorLogPath { get; set; }
+
     public DateTime ArrivedAtLocal => ArrivedAtUtc.ToLocalTime();
     public string ArrivedDate => ArrivedAtLocal.ToString("yyyy-MM-dd");
     public string ArrivedDisplay => ArrivedAtLocal.ToString("yyyy-MM-dd HH:mm");
+
+    public bool HasExtractedFolder => !string.IsNullOrWhiteSpace(ExtractedPath);
+    public bool HasChangeLog => !string.IsNullOrWhiteSpace(ChangeLogPath);
+    public bool HasMachineLog => !string.IsNullOrWhiteSpace(MachineLogPath);
+    public bool HasErrorLog => !string.IsNullOrWhiteSpace(ErrorLogPath);
 
     public static DiagnosticFileSummary FromEntity(DiagnosticFile file) => new()
     {
@@ -34,8 +43,14 @@ public class DiagnosticFileSummary
         ArrivedAtUtc = file.ArrivedAtUtc,
         Status = file.Status.ToString(),
         ErrorMessage = file.ErrorMessage,
-        ExtractedPath = file.ExtractedPath
+        ExtractedPath = file.ExtractedPath,
+        ChangeLogPath = PathOf(file, LogFileKind.ChangeLog),
+        MachineLogPath = PathOf(file, LogFileKind.MachineLog),
+        ErrorLogPath = PathOf(file, LogFileKind.ErrorLog)
     };
+
+    private static string? PathOf(DiagnosticFile file, LogFileKind kind) =>
+        file.LogFiles.FirstOrDefault(log => log.Kind == kind)?.FullPath;
 
     private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? Unknown : value;
 }

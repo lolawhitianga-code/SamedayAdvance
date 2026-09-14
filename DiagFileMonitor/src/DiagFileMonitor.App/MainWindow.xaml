@@ -89,13 +89,52 @@
             </Border>
         </StackPanel>
 
-        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="DarkSlateGray" />
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Selected file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray" />
+                <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
+                <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasErrorLog, FallbackValue=False}" />
+                <Button Content="machinelog.txt" Command="{Binding OpenMachineLogCommand}" Width="110" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasMachineLog, FallbackValue=False}" />
+                <Button Content="changelog.txt" Command="{Binding OpenChangeLogCommand}" Width="105"
+                        IsEnabled="{Binding SelectedFile.HasChangeLog, FallbackValue=False}" />
+            </StackPanel>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="DarkSlateGray" />
+        </StackPanel>
 
-        <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" IsReadOnly="True"
+        <DataGrid ItemsSource="{Binding FilesView}" SelectedItem="{Binding SelectedFile}"
+                  AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Setter Property="ToolTip" Value="{Binding ErrorMessage}" />
+                    <!-- Gives the row's context menu a route back to the ViewModel's commands. -->
+                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu>
+                                <MenuItem Header="Open extracted _folder"
+                                          Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasExtractedFolder}" />
+                                <Separator />
+                                <MenuItem Header="Open _errorlog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenErrorLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasErrorLog}" />
+                                <MenuItem Header="Open _machinelog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenMachineLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasMachineLog}" />
+                                <MenuItem Header="Open _changelog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenChangeLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasChangeLog}" />
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
                     <Style.Triggers>
                         <Trigger Property="ItemsControl.AlternationIndex" Value="1">
                             <Setter Property="Background" Value="#FFF7F9FC" />

@@ -106,6 +106,35 @@ public class DiagnosticFileFilterTests
     }
 
     [Fact]
+    public void SummaryPicksOutKnownLogPaths()
+    {
+        var entity = new DiagnosticFile
+        {
+            OriginalFileName = "x.zip",
+            SerialNumber = "SN-1",
+            ExtractedPath = @"C:\extract\x",
+            LogFiles =
+            {
+                new ExtractedLogFile { FileName = "changelog.txt", FullPath = @"C:\extract\x\changelog.txt", Kind = LogFileKind.ChangeLog },
+                new ExtractedLogFile { FileName = "errorlog.txt", FullPath = @"C:\extract\x\errorlog.txt", Kind = LogFileKind.ErrorLog },
+                new ExtractedLogFile { FileName = "machine.xml", FullPath = @"C:\extract\x\machine.xml", Kind = LogFileKind.Other }
+            }
+        };
+
+        var summary = DiagnosticFileSummary.FromEntity(entity);
+
+        Assert.Equal(@"C:\extract\x\changelog.txt", summary.ChangeLogPath);
+        Assert.Equal(@"C:\extract\x\errorlog.txt", summary.ErrorLogPath);
+        Assert.True(summary.HasChangeLog);
+        Assert.True(summary.HasErrorLog);
+        Assert.True(summary.HasExtractedFolder);
+
+        // This bundle had no machinelog.txt, so the menu item for it must stay disabled.
+        Assert.Null(summary.MachineLogPath);
+        Assert.False(summary.HasMachineLog);
+    }
+
+    [Fact]
     public void SummaryFallsBackToUnknownForMissingFields()
     {
         var summary = DiagnosticFileSummary.FromEntity(new DiagnosticFile

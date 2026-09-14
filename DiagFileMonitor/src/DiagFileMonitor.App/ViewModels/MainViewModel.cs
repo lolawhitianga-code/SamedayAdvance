@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -59,6 +61,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private DateTime? _toDate;
+
+    [ObservableProperty]
+    private DiagnosticFileSummary? _selectedFile;
 
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository, FolderMonitorService monitorService)
     {
@@ -144,6 +149,59 @@ public partial class MainViewModel : ObservableObject
         }
 
         RefreshFilter();
+    }
+
+    [RelayCommand]
+    private void OpenExtractedFolder(DiagnosticFileSummary? row)
+    {
+        var target = row ?? SelectedFile;
+        if (target?.ExtractedPath is null || !Directory.Exists(target.ExtractedPath))
+        {
+            StatusMessage = "That bundle has no extracted folder on disk.";
+            return;
+        }
+
+        Launch(target.ExtractedPath, isFolder: true);
+    }
+
+    [RelayCommand]
+    private void OpenChangeLog(DiagnosticFileSummary? row) => OpenLog((row ?? SelectedFile)?.ChangeLogPath, "changelog.txt");
+
+    [RelayCommand]
+    private void OpenMachineLog(DiagnosticFileSummary? row) => OpenLog((row ?? SelectedFile)?.MachineLogPath, "machinelog.txt");
+
+    [RelayCommand]
+    private void OpenErrorLog(DiagnosticFileSummary? row) => OpenLog((row ?? SelectedFile)?.ErrorLogPath, "errorlog.txt");
+
+    private void OpenLog(string? path, string label)
+    {
+        if (path is null || !File.Exists(path))
+        {
+            StatusMessage = $"This bundle has no {label}.";
+            return;
+        }
+
+        Launch(path, isFolder: false);
+    }
+
+    private void Launch(string path, bool isFolder)
+    {
+        try
+        {
+            if (isFolder)
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not open '{path}': {ex.Message}";
+            SimpleLogger.Error($"Could not open '{path}'", ex);
+        }
     }
 
     [RelayCommand]
