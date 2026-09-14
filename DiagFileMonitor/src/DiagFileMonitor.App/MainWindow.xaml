@@ -1,38 +1,18 @@
 <Window x:Class="DiagFileMonitor.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Diagnostic File Monitor" Height="650" Width="1150"
-        MinHeight="500" MinWidth="850">
+        Title="Diagnostic File Monitor" Height="700" Width="1220"
+        MinHeight="520" MinWidth="900"
+        Background="{StaticResource AppBackground}">
 
     <Window.Resources>
-        <Style x:Key="StatTile" TargetType="Border">
-            <Setter Property="BorderBrush" Value="#FFD4DCE6" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="CornerRadius" Value="3" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="MinWidth" Value="92" />
-        </Style>
-
-        <Style x:Key="StatValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="19" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#FF1F3A5F" />
-        </Style>
-
-        <Style x:Key="StatLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="Gray" />
-        </Style>
-
         <Style TargetType="GroupItem">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="GroupItem">
-                        <Expander IsExpanded="True" Background="#FFEFF3F8" Margin="0,4,0,0">
+                        <Expander IsExpanded="True" Background="{StaticResource BrandBlueTint}" Margin="0,4,0,0">
                             <Expander.Header>
-                                <TextBlock FontWeight="Bold" Padding="4">
+                                <TextBlock FontWeight="Bold" Padding="4" Foreground="{StaticResource BrandNavy}">
                                     <TextBlock.Text>
                                         <MultiBinding StringFormat="{}{0}  ({1} file(s))">
                                             <Binding Path="Name" />
@@ -53,7 +33,23 @@
 
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <DockPanel Margin="0,0,0,10">
+                <Border DockPanel.Dock="Right" Style="{StaticResource Panel}" Width="250" Height="74"
+                        Padding="12,8" VerticalAlignment="Top">
+                    <Grid>
+                        <Image Source="{Binding LogoImage}" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Visibility="{Binding HasLogo, Converter={StaticResource InverseBoolToVisibility}}">
+                            <TextBlock Text="SPIDA" Style="{StaticResource WordmarkPrimary}" HorizontalAlignment="Center" />
+                            <TextBlock Text="M A C H I N E R Y" Style="{StaticResource WordmarkSecondary}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <StackPanel Orientation="Horizontal">
                 <Border Style="{StaticResource StatTile}">
                     <StackPanel>
                         <TextBlock Text="{Binding Stats.ArrivedToday}" Style="{StaticResource StatValue}" />
@@ -68,7 +64,7 @@
                 </Border>
                 <Border Style="{StaticResource StatTile}">
                     <StackPanel>
-                        <TextBlock Text="{Binding Stats.ErrorCount}" Style="{StaticResource StatValue}" Foreground="#FF8B1A1A" />
+                        <TextBlock Text="{Binding Stats.ErrorCount}" Style="{StaticResource StatValue}" Foreground="{StaticResource DangerText}" />
                         <TextBlock Text="failed" Style="{StaticResource StatLabel}" />
                     </StackPanel>
                 </Border>
@@ -91,7 +87,8 @@
                         <TextBlock Text="busiest customer (7 days)" Style="{StaticResource StatLabel}" />
                     </StackPanel>
                 </Border>
-            </StackPanel>
+                </StackPanel>
+            </DockPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock Text="Watch folders:" VerticalAlignment="Top" Width="110" Margin="0,4,0,0" />
@@ -134,7 +131,7 @@
                 <Button Content="Alerts and Zoho..." Click="OpenIntegrationSettings_Click" Width="130" />
             </StackPanel>
 
-            <Border BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" Padding="8,6" CornerRadius="3">
+            <Border Style="{StaticResource Panel}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Search:" VerticalAlignment="Center" Width="56" />
                     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
@@ -160,7 +157,7 @@
 
         <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="Selected file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray" />
+                <TextBlock Text="Selected file:" Style="{StaticResource Hint}" Margin="0,0,8,0" />
                 <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
                         IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
                 <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"
@@ -170,13 +167,13 @@
                 <Button Content="changelog.txt" Command="{Binding OpenChangeLogCommand}" Width="105"
                         IsEnabled="{Binding SelectedFile.HasChangeLog, FallbackValue=False}" />
             </StackPanel>
-            <TextBlock Text="{Binding StatusMessage}" Foreground="DarkSlateGray" />
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource BrandNavy}" />
         </StackPanel>
 
         <Border DockPanel.Dock="Right" Width="270" Margin="10,0,0,0" Padding="10"
-                BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" CornerRadius="3">
+                Style="{StaticResource Panel}">
             <StackPanel>
-                <TextBlock Text="Case notes" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Text="Case notes" Style="{StaticResource SectionHeading}" Margin="0,0,0,8" />
                 <TextBlock Text="{Binding SelectedFile.OriginalFileName, FallbackValue='No file selected'}"
                            TextTrimming="CharacterEllipsis" Foreground="Gray" Margin="0,0,0,2" />
                 <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10">
@@ -199,14 +196,15 @@
                          Height="220" Margin="0,0,0,10" />
 
                 <Button Content="Save notes" Command="{Binding SaveNotesCommand}" Height="28" Margin="0,0,0,6"
+                        Style="{StaticResource PrimaryButton}"
                         IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
                 <Button Content="Copy summary for ticket" Command="{Binding CopySummaryCommand}" Height="28"
                         IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
             </StackPanel>
         </Border>
 
-        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="8,6" CornerRadius="3"
-                Background="#FFEEF6FF" BorderBrush="#FFB6D4F0" BorderThickness="1"
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Style="{StaticResource Panel}"
+                Background="{StaticResource BrandBlueTint}" BorderBrush="{StaticResource BrandBlue}"
                 Visibility="{Binding IsMachineFilterActive, Converter={StaticResource BoolToVisibility}}">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Show all machines" Width="130"
@@ -258,17 +256,22 @@
                     </Setter>
                     <Style.Triggers>
                         <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-                            <Setter Property="Background" Value="#FFF7F9FC" />
+                            <Setter Property="Background" Value="#FBFCFD" />
                         </Trigger>
                         <DataTrigger Binding="{Binding IsRepeatSubmission}" Value="True">
-                            <Setter Property="Background" Value="#FFFFF6E0" />
+                            <Setter Property="Background" Value="{StaticResource WarningFill}" />
                         </DataTrigger>
                         <!-- Declared last so a failed bundle wins over the stripe and the repeat tint. -->
                         <DataTrigger Binding="{Binding Status}" Value="Error">
-                            <Setter Property="Background" Value="#FFFDE8E8" />
-                            <Setter Property="Foreground" Value="#FF8B1A1A" />
+                            <Setter Property="Background" Value="{StaticResource DangerFill}" />
+                            <Setter Property="Foreground" Value="{StaticResource DangerText}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </DataTrigger>
+                        <!-- Last, so the selected row stays obvious whatever else it is. -->
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource BrandBlue}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
                     </Style.Triggers>
                 </Style>
             </DataGrid.RowStyle>

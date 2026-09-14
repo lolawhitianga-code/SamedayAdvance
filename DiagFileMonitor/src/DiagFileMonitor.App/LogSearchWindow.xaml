@@ -3,22 +3,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Search log contents" Height="520" Width="1000"
         MinHeight="380" MinWidth="700"
+        Background="{StaticResource AppBackground}"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Text="Find text:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock Text="Find text:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
             <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}" Width="330" Margin="0,0,6,0">
                 <TextBox.InputBindings>
                     <KeyBinding Key="Return" Command="{Binding SearchCommand}" />
                 </TextBox.InputBindings>
             </TextBox>
-            <Button Content="Search" Command="{Binding SearchCommand}" Width="90" Margin="0,0,12,0" />
+            <Button Content="Search" Command="{Binding SearchCommand}" Width="90" Margin="0,0,12,0"
+                    Style="{StaticResource PrimaryButton}" />
             <TextBlock Text="Searches changelog, machinelog, errorlog and other text files in every stored bundle."
-                       VerticalAlignment="Center" Foreground="Gray" />
+                       Style="{StaticResource Hint}" />
         </StackPanel>
 
-        <TextBlock DockPanel.Dock="Bottom" Text="{Binding ResultSummary}" Margin="0,8,0,0" Foreground="DarkSlateGray"
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding ResultSummary}" Margin="0,8,0,0" Foreground="{StaticResource BrandNavy}"
                    TextWrapping="Wrap" />
 
         <DataGrid ItemsSource="{Binding Hits}" SelectedItem="{Binding SelectedHit}"
