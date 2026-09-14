@@ -178,7 +178,14 @@
             <StackPanel>
                 <TextBlock Text="Case notes" FontWeight="SemiBold" Margin="0,0,0,8" />
                 <TextBlock Text="{Binding SelectedFile.OriginalFileName, FallbackValue='No file selected'}"
-                           TextTrimming="CharacterEllipsis" Foreground="Gray" Margin="0,0,0,10" />
+                           TextTrimming="CharacterEllipsis" Foreground="Gray" Margin="0,0,0,2" />
+                <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10">
+                    <Run Text="{Binding SelectedFile.MachineName, Mode=OneWay, FallbackValue=''}" />
+                    <Run Text=" | " />
+                    <Run Text="{Binding SelectedFile.SoftwareName, Mode=OneWay, FallbackValue=''}" />
+                    <Run Text=" " />
+                    <Run Text="{Binding SelectedFile.Version, Mode=OneWay, FallbackValue=''}" />
+                </TextBlock>
 
                 <TextBlock Text="Ticket number" Margin="0,0,0,3" />
                 <TextBox Text="{Binding EditTicketNumber, UpdateSourceTrigger=PropertyChanged}"
@@ -268,7 +275,8 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="File" Binding="{Binding OriginalFileName}" Width="220" />
                 <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="130" />
-                <DataGridTextColumn Header="Machine Type" Binding="{Binding MachineType}" Width="130" />
+                <DataGridTextColumn Header="Model" Binding="{Binding MachineType}" Width="90" />
+                <DataGridTextColumn Header="Location" Binding="{Binding SiteLocation}" Width="100" />
                 <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="150" />
                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
                 <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="90" />

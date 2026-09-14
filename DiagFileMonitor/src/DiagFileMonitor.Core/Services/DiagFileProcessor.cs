@@ -49,8 +49,11 @@ public class DiagFileProcessor
             {
                 var info = MachineXmlParser.Parse(machineXmlPath);
                 diagFile.MachineType = info.MachineType;
+                diagFile.MachineName = info.MachineName;
                 diagFile.SerialNumber = info.SerialNumber;
                 diagFile.Customer = info.Customer;
+                diagFile.SiteLocation = info.SiteLocation;
+                diagFile.SoftwareName = info.SoftwareName;
                 diagFile.Version = info.Version;
             }
             else
