@@ -21,6 +21,11 @@ public partial class MainViewModel : ObservableObject
     private readonly BurstAlertService? _alertService;
     private readonly int _repeatWindowDays;
 
+    /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
+    public System.Windows.Media.ImageSource? LogoImage { get; } = BrandLogo.Load();
+
+    public bool HasLogo => LogoImage is not null;
+
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
     public ICollectionView FilesView { get; }
 

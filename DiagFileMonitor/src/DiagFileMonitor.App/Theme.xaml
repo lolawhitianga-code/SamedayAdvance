@@ -1,0 +1,169 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Spida Machinery palette, read off the logo. If there is a brand guide with exact
+        hex values, change them here and the whole app follows - nothing else hardcodes a
+        brand colour.
+    -->
+    <Color x:Key="BrandBlueColor">#00A3DD</Color>
+    <Color x:Key="BrandNavyColor">#3C4A56</Color>
+
+    <SolidColorBrush x:Key="BrandBlue" Color="{StaticResource BrandBlueColor}" />
+    <SolidColorBrush x:Key="BrandBlueDark" Color="#0081B4" />
+    <SolidColorBrush x:Key="BrandBlueTint" Color="#E6F5FC" />
+    <SolidColorBrush x:Key="BrandNavy" Color="{StaticResource BrandNavyColor}" />
+    <SolidColorBrush x:Key="BrandGrey" Color="#8B98A3" />
+
+    <SolidColorBrush x:Key="AppBackground" Color="#F4F7F9" />
+    <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="BorderSoft" Color="#D9E1E8" />
+
+    <SolidColorBrush x:Key="DangerText" Color="#8B1A1A" />
+    <SolidColorBrush x:Key="DangerFill" Color="#FDE8E8" />
+    <SolidColorBrush x:Key="WarningFill" Color="#FFF6E0" />
+
+    <!-- Buttons keep a plain template so hover and pressed follow the brand rather than the Windows default. -->
+    <Style TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome" CornerRadius="3"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource BrandBlueTint}" />
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource BrandBlue}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource BrandBlue}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Background" Value="#F0F3F5" />
+                            <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The one or two buttons that should read as the primary action. -->
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{StaticResource BrandBlue}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrandBlue}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style TargetType="TextBox">
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+        <Setter Property="Padding" Value="3,2" />
+        <Setter Property="MinHeight" Value="24" />
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+        <Setter Property="MinHeight" Value="24" />
+    </Style>
+
+    <Style TargetType="ListBox">
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource BrandNavy}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="BorderBrush" Value="#4E5C68" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
+    <Style TargetType="DataGrid">
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+        <Setter Property="RowHeight" Value="22" />
+        <Setter Property="HorizontalGridLinesBrush" Value="#EDF1F4" />
+        <Setter Property="VerticalGridLinesBrush" Value="#EDF1F4" />
+    </Style>
+
+    <!-- Panel chrome: the filter bar, the notes panel, the machine history band. -->
+    <Style x:Key="Panel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style x:Key="StatTile" TargetType="Border" BasedOn="{StaticResource Panel}">
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="MinWidth" Value="92" />
+        <Setter Property="BorderThickness" Value="1,1,1,3" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrandBlue}" />
+    </Style>
+
+    <Style x:Key="StatValue" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="19" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style x:Key="StatLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style x:Key="SectionHeading" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style x:Key="Hint" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Wordmark shown until a logo image is dropped next to the exe. -->
+    <Style x:Key="WordmarkPrimary" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+    </Style>
+
+    <Style x:Key="WordmarkSecondary" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
+    </Style>
+
+</ResourceDictionary>

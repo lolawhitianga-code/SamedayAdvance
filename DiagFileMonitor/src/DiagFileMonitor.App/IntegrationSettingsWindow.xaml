@@ -3,32 +3,31 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Alerts, Zoho and email" Height="640" Width="640"
         MinHeight="480" MinWidth="560"
+        Background="{StaticResource AppBackground}"
         WindowStartupLocation="CenterOwner">
 
     <Window.Resources>
-        <Style TargetType="TextBlock" x:Key="FieldLabel">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-        </Style>
-        <Style TargetType="TextBox">
+        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Margin" Value="0,0,0,6" />
-            <Setter Property="Padding" Value="2" />
         </Style>
         <Style TargetType="GroupBox">
             <Setter Property="Margin" Value="0,0,0,12" />
             <Setter Property="Padding" Value="10" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}" />
+            <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
         </Style>
     </Window.Resources>
 
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Foreground="DarkSlateGray" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Foreground="{StaticResource BrandNavy}" Margin="0,0,0,8" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Test Zoho" Command="{Binding TestZohoCommand}" Width="100" Margin="0,0,6,0"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" />
                 <Button Content="Send test email" Command="{Binding TestEmailCommand}" Width="120" Margin="0,0,6,0"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}" />
-                <Button Content="Save" Command="{Binding SaveCommand}" Width="90" IsDefault="True" />
+                <Button Content="Save" Command="{Binding SaveCommand}" Width="90" IsDefault="True"
+                        Style="{StaticResource PrimaryButton}" />
             </StackPanel>
         </StackPanel>
 
@@ -52,7 +51,7 @@
                         <TextBlock Text="machinelog.txt line pattern (leave blank for the default):" Margin="0,4,0,3" />
                         <TextBox Text="{Binding MachineLogPattern}" FontFamily="Consolas" />
                         <TextBlock Text="Needs named groups: timestamp, marker, step. The default has not been checked against a real machine log yet."
-                                   TextWrapping="Wrap" Foreground="Gray" FontSize="11" />
+                                   TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}" FontSize="11" />
                     </StackPanel>
                 </GroupBox>
 
@@ -121,7 +120,7 @@
                     </StackPanel>
                 </GroupBox>
 
-                <TextBlock TextWrapping="Wrap" Foreground="#FF8B1A1A" FontSize="11"
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource DangerText}" FontSize="11"
                            Text="Credentials are stored in settings.json under your AppData folder in plain text. Anyone who can read your Windows profile can read them." />
             </StackPanel>
         </ScrollViewer>
