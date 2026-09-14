@@ -20,6 +20,12 @@ public class AppSettings
     /// <summary>Delete unpacked files older than this many days. 0 keeps everything.</summary>
     public int ExtractRetentionDays { get; set; }
 
+    /// <summary>Ignore bundles whose file name timestamp is older than this many days. 0 processes everything.</summary>
+    public int MonitorMaxAgeDays { get; set; }
+
+    /// <summary>Whether the timestamp in a support file name is UTC rather than the machine's local time.</summary>
+    public bool FileNameTimesAreUtc { get; set; } = true;
+
     public AlertSettings Alerts { get; set; } = new();
     public ZohoSettings Zoho { get; set; } = new();
     public EmailSettings Email { get; set; } = new();

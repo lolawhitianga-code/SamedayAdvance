@@ -14,6 +14,9 @@ public partial class IntegrationSettingsViewModel : ObservableObject
     [ObservableProperty] private double _slowStepFactor = 1.5;
     [ObservableProperty] private string _machineLogPattern = string.Empty;
 
+    [ObservableProperty] private bool _fileNameTimesAreUtc = true;
+    [ObservableProperty] private int _monitorMaxAgeDays;
+
     [ObservableProperty] private bool _zohoEnabled;
     [ObservableProperty] private string _zohoApiBaseUrl = "https://desk.zoho.com/api/v1";
     [ObservableProperty] private string _zohoAccountsBaseUrl = "https://accounts.zoho.com";
@@ -53,6 +56,8 @@ public partial class IntegrationSettingsViewModel : ObservableObject
         BurstWindowHours = settings.Alerts.BurstWindowHours;
         SlowStepFactor = settings.Alerts.SlowStepFactor;
         MachineLogPattern = settings.Alerts.MachineLogPattern;
+        FileNameTimesAreUtc = settings.FileNameTimesAreUtc;
+        MonitorMaxAgeDays = settings.MonitorMaxAgeDays;
 
         ZohoEnabled = settings.Zoho.Enabled;
         ZohoApiBaseUrl = settings.Zoho.ApiBaseUrl;
@@ -85,6 +90,8 @@ public partial class IntegrationSettingsViewModel : ObservableObject
         settings.Alerts.BurstWindowHours = Math.Max(1, BurstWindowHours);
         settings.Alerts.SlowStepFactor = SlowStepFactor <= 1 ? 1.5 : SlowStepFactor;
         settings.Alerts.MachineLogPattern = MachineLogPattern.Trim();
+        settings.FileNameTimesAreUtc = FileNameTimesAreUtc;
+        settings.MonitorMaxAgeDays = Math.Max(0, MonitorMaxAgeDays);
 
         settings.Zoho.Enabled = ZohoEnabled;
         settings.Zoho.ApiBaseUrl = ZohoApiBaseUrl.Trim();

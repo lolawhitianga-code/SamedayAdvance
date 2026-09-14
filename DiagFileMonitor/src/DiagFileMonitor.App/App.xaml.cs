@@ -39,14 +39,17 @@ public partial class App : System.Windows.Application
         }
 
         var repository = new DiagFileRepository(() => new DiagDbContext(BuildOptions()));
-        var processor = new DiagFileProcessor(settings.ExtractRootPath, repository);
+        var processor = new DiagFileProcessor(settings.ExtractRootPath, repository, settings.FileNameTimesAreUtc);
         _monitorService = new FolderMonitorService(processor);
         _notifier = new TrayNotifier();
 
         var cleanupService = new ExtractCleanupService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
         var alertService = BuildAlertService(settings, repository);
 
-        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier, cleanupService, alertService);
+        var resetService = new DatabaseResetService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
+
+        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier,
+            cleanupService, resetService, alertService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
         mainWindow.Show();

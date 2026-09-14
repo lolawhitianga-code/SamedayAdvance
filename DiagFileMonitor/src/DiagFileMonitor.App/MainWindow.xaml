@@ -106,8 +106,11 @@
                 <TextBox Text="{Binding ExtensionsText, UpdateSourceTrigger=PropertyChanged}"
                          Width="200" Margin="0,0,6,0"
                          IsReadOnly="{Binding IsMonitoring}" />
-                <TextBlock Text="(comma-separated, e.g. .zip, .7z)" VerticalAlignment="Center"
-                           Foreground="Gray" Margin="0,0,20,0" />
+                <TextBlock Text="(e.g. .szip, .zip)" Style="{StaticResource Hint}" Margin="0,0,12,0" />
+                <TextBlock Text="Only files newer than" Style="{StaticResource FieldLabel}" Margin="0,0,6,0" />
+                <TextBox Text="{Binding MaxAgeDays, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,6,0"
+                         ToolTip="Ignore bundles whose file name timestamp is older than this. 0 processes everything." />
+                <TextBlock Text="days" Style="{StaticResource FieldLabel}" Margin="0,0,16,0" />
 
                 <Button Content="Start Monitoring" Command="{Binding StartMonitoringCommand}"
                         Width="130" Margin="0,0,6,0"
@@ -128,7 +131,8 @@
                          ToolTip="Days to keep unpacked files. 0 keeps everything. Baselines are never removed." />
                 <TextBlock Text="days" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <Button Content="Clean up now" Command="{Binding CleanUpNowCommand}" Width="105" Margin="0,0,12,0" />
-                <Button Content="Alerts and Zoho..." Click="OpenIntegrationSettings_Click" Width="130" />
+                <Button Content="Alerts and Zoho..." Click="OpenIntegrationSettings_Click" Width="130" Margin="0,0,12,0" />
+                <Button Content="Clear database..." Command="{Binding ClearDatabaseCommand}" Width="115" />
             </StackPanel>
 
             <Border Style="{StaticResource Panel}">

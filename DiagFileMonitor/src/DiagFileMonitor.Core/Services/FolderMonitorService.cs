@@ -19,6 +19,15 @@ public class FolderMonitorService : IDisposable
 
     public IReadOnlyList<string> WatchFolders { get; private set; } = Array.Empty<string>();
     public IReadOnlyList<string> Extensions { get; private set; } = new List<string> { ".zip" };
+
+    /// <summary>Skip bundles older than this many days. 0 processes everything found.</summary>
+    public int MaxAgeDays { get; set; }
+
+    /// <summary>Whether the timestamp in a file name is UTC or the machine's local time.</summary>
+    public bool FileNameTimesAreUtc { get; set; } = true;
+
+    /// <summary>Raised for a file skipped for being older than MaxAgeDays.</summary>
+    public event EventHandler<string>? FileSkippedAsTooOld;
     public bool IsRunning => _watchers.Count > 0;
 
     public event EventHandler<DiagnosticFile>? FileProcessed;
@@ -87,11 +96,28 @@ public class FolderMonitorService : IDisposable
     private void EnqueueIfMatches(string fullPath)
     {
         var ext = Path.GetExtension(fullPath);
-        if (Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        if (!Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase)) return;
+
+        if (IsTooOld(fullPath))
         {
-            _queue.Enqueue(fullPath);
-            _signal.Release();
+            FileSkippedAsTooOld?.Invoke(this, fullPath);
+            return;
         }
+
+        _queue.Enqueue(fullPath);
+        _signal.Release();
+    }
+
+    /// <summary>
+    /// Age is judged on the timestamp in the file name, so re-copying an old bundle into the
+    /// folder does not make it look new.
+    /// </summary>
+    private bool IsTooOld(string fullPath)
+    {
+        if (MaxAgeDays <= 0) return false;
+
+        var arrived = DiagFileNameDate.ArrivedUtc(fullPath, FileNameTimesAreUtc);
+        return arrived < DateTime.UtcNow.AddDays(-MaxAgeDays);
     }
 
     private async Task ProcessQueueAsync(CancellationToken token)
