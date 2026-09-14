@@ -14,7 +14,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagFileRepository _repository;
     private readonly FolderMonitorService _monitorService;
 
-    public ObservableCollection<DiagnosticFileRow> Files { get; } = new();
+    public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
     public ICollectionView FilesView { get; }
 
     public List<string> GroupByOptions { get; } = new()
@@ -24,6 +24,13 @@ public partial class MainViewModel : ObservableObject
         "Customer",
         "Arrived Date",
         "Status"
+    };
+
+    public List<string> StatusFilterOptions { get; } = new()
+    {
+        DiagnosticFileFilter.AnyStatus,
+        nameof(ProcessingStatus.Processed),
+        nameof(ProcessingStatus.Error)
     };
 
     [ObservableProperty]
@@ -41,6 +48,18 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Not monitoring.";
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedStatusFilter = DiagnosticFileFilter.AnyStatus;
+
+    [ObservableProperty]
+    private DateTime? _fromDate;
+
+    [ObservableProperty]
+    private DateTime? _toDate;
+
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository, FolderMonitorService monitorService)
     {
         _settingsService = settingsService;
@@ -48,6 +67,7 @@ public partial class MainViewModel : ObservableObject
         _monitorService = monitorService;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
+        FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());
         ApplyGrouping();
 
         _monitorService.FileProcessed += OnFileProcessed;
@@ -58,18 +78,51 @@ public partial class MainViewModel : ObservableObject
         ExtensionsText = string.Join(", ", settings.FileExtensions);
     }
 
+    private FilterCriteria CurrentCriteria() => new()
+    {
+        SearchText = SearchText,
+        Status = SelectedStatusFilter,
+        FromDate = FromDate,
+        ToDate = ToDate
+    };
+
     partial void OnSelectedGroupByChanged(string value) => ApplyGrouping();
+
+    partial void OnSearchTextChanged(string value) => RefreshFilter();
+
+    partial void OnSelectedStatusFilterChanged(string value) => RefreshFilter();
+
+    partial void OnFromDateChanged(DateTime? value) => RefreshFilter();
+
+    partial void OnToDateChanged(DateTime? value) => RefreshFilter();
+
+    private void RefreshFilter()
+    {
+        FilesView.Refresh();
+        OnPropertyChanged(nameof(FilterSummary));
+    }
+
+    public string FilterSummary
+    {
+        get
+        {
+            var shown = FilesView.Cast<object>().Count();
+            return shown == Files.Count
+                ? $"{Files.Count} file(s)"
+                : $"{shown} of {Files.Count} file(s)";
+        }
+    }
 
     private void ApplyGrouping()
     {
         var propertyName = SelectedGroupBy switch
         {
-            "Serial Number" => nameof(DiagnosticFileRow.SerialNumber),
-            "Machine Type" => nameof(DiagnosticFileRow.MachineType),
-            "Customer" => nameof(DiagnosticFileRow.Customer),
-            "Arrived Date" => nameof(DiagnosticFileRow.ArrivedDate),
-            "Status" => nameof(DiagnosticFileRow.Status),
-            _ => nameof(DiagnosticFileRow.SerialNumber)
+            "Serial Number" => nameof(DiagnosticFileSummary.SerialNumber),
+            "Machine Type" => nameof(DiagnosticFileSummary.MachineType),
+            "Customer" => nameof(DiagnosticFileSummary.Customer),
+            "Arrived Date" => nameof(DiagnosticFileSummary.ArrivedDate),
+            "Status" => nameof(DiagnosticFileSummary.Status),
+            _ => nameof(DiagnosticFileSummary.SerialNumber)
         };
 
         FilesView.GroupDescriptions.Clear();
@@ -77,7 +130,7 @@ public partial class MainViewModel : ObservableObject
 
         FilesView.SortDescriptions.Clear();
         FilesView.SortDescriptions.Add(new SortDescription(propertyName, ListSortDirection.Ascending));
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(DiagnosticFileRow.ArrivedAtUtc), ListSortDirection.Descending));
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(DiagnosticFileSummary.ArrivedAtUtc), ListSortDirection.Descending));
     }
 
     [RelayCommand]
@@ -85,10 +138,21 @@ public partial class MainViewModel : ObservableObject
     {
         var all = await _repository.GetAllAsync();
         Files.Clear();
-        foreach (var f in all)
+        foreach (var file in all)
         {
-            Files.Add(ToRow(f));
+            Files.Add(DiagnosticFileSummary.FromEntity(file));
         }
+
+        RefreshFilter();
+    }
+
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        SearchText = string.Empty;
+        SelectedStatusFilter = DiagnosticFileFilter.AnyStatus;
+        FromDate = null;
+        ToDate = null;
     }
 
     [RelayCommand]
@@ -146,10 +210,11 @@ public partial class MainViewModel : ObservableObject
     {
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
-            Files.Insert(0, ToRow(file));
+            Files.Insert(0, DiagnosticFileSummary.FromEntity(file));
             StatusMessage = file.Status == ProcessingStatus.Processed
                 ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber})."
                 : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
+            OnPropertyChanged(nameof(FilterSummary));
         });
     }
 
@@ -160,18 +225,4 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = $"Failed to process '{path}'. See logs for details.";
         });
     }
-
-    private static DiagnosticFileRow ToRow(DiagnosticFile f) => new()
-    {
-        Id = f.Id,
-        OriginalFileName = f.OriginalFileName,
-        SerialNumber = string.IsNullOrWhiteSpace(f.SerialNumber) ? "(unknown)" : f.SerialNumber,
-        MachineType = string.IsNullOrWhiteSpace(f.MachineType) ? "(unknown)" : f.MachineType,
-        Customer = string.IsNullOrWhiteSpace(f.Customer) ? "(unknown)" : f.Customer,
-        Version = string.IsNullOrWhiteSpace(f.Version) ? "(unknown)" : f.Version,
-        ArrivedAtUtc = f.ArrivedAtUtc,
-        Status = f.Status.ToString(),
-        ErrorMessage = f.ErrorMessage,
-        ExtractedPath = f.ExtractedPath
-    };
 }

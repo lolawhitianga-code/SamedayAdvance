@@ -60,12 +60,33 @@
                         Width="130" IsEnabled="{Binding IsMonitoring}" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock Text="Group by:" VerticalAlignment="Center" Width="110" />
                 <ComboBox ItemsSource="{Binding GroupByOptions}" SelectedItem="{Binding SelectedGroupBy}"
                           Width="180" Margin="0,0,12,0" />
                 <Button Content="Refresh" Command="{Binding LoadCommand}" Width="80" />
             </StackPanel>
+
+            <Border BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" Padding="8,6" CornerRadius="3">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Search:" VerticalAlignment="Center" Width="56" />
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             Width="240" Margin="0,0,6,0"
+                             ToolTip="Matches serial number, customer, file name, machine type or version. Multiple words all have to match." />
+
+                    <TextBlock Text="Status:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <ComboBox ItemsSource="{Binding StatusFilterOptions}" SelectedItem="{Binding SelectedStatusFilter}"
+                              Width="110" Margin="0,0,6,0" />
+
+                    <TextBlock Text="Arrived from:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <DatePicker SelectedDate="{Binding FromDate}" Width="120" Margin="0,0,6,0" />
+                    <TextBlock Text="to:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <DatePicker SelectedDate="{Binding ToDate}" Width="120" Margin="0,0,12,0" />
+
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Width="70" Margin="0,0,12,0" />
+                    <TextBlock Text="{Binding FilterSummary}" VerticalAlignment="Center" Foreground="Gray" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="DarkSlateGray" />
@@ -78,7 +99,7 @@
                 <DataGridTextColumn Header="Machine Type" Binding="{Binding MachineType}" Width="130" />
                 <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="150" />
                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
-                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDate}" Width="100" />
+                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
                 <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />
             </DataGrid.Columns>
