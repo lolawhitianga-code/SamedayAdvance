@@ -48,8 +48,10 @@ public partial class App : System.Windows.Application
 
         var resetService = new DatabaseResetService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
 
+        var analysisService = new DiagnosticAnalysisService(repository);
+
         var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier,
-            cleanupService, resetService, alertService);
+            cleanupService, resetService, analysisService, alertService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
         mainWindow.Show();
