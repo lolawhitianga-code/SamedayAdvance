@@ -4,3 +4,7 @@ obj/
 .vs/
 TestResults/
 publish/
+
+# Verification rig build output
+tools/*/bin/
+tools/*/obj/
