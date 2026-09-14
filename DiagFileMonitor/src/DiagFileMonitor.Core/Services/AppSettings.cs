@@ -10,4 +10,7 @@ public class AppSettings
 
     /// <summary>How close together two bundles from one machine have to be to count as a repeat.</summary>
     public int RepeatWindowDays { get; set; } = RepeatSubmissionMarker.DefaultWindowDays;
+
+    /// <summary>Show a notification-area balloon as each bundle lands.</summary>
+    public bool NotifyOnArrival { get; set; } = true;
 }

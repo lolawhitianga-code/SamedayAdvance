@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DiagFileMonitor.App.Services;
 using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.Services;
 
@@ -15,6 +16,7 @@ public partial class MainViewModel : ObservableObject
     private readonly SettingsService _settingsService;
     private readonly DiagFileRepository _repository;
     private readonly FolderMonitorService _monitorService;
+    private readonly TrayNotifier _notifier;
     private readonly int _repeatWindowDays;
 
     public ObservableCollection<DiagnosticFileSummary> Files { get; } = new();
@@ -74,6 +76,18 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _editNotes = string.Empty;
+
+    [ObservableProperty]
+    private bool _notifyOnArrival = true;
+
+    partial void OnNotifyOnArrivalChanged(bool value)
+    {
+        _notifier.Enabled = value;
+
+        var settings = _settingsService.Load();
+        settings.NotifyOnArrival = value;
+        _settingsService.Save(settings);
+    }
 
     [ObservableProperty]
     private bool _baselinesOnly;
@@ -166,11 +180,13 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Saved notes for '{SelectedFile.OriginalFileName}'.";
     }
 
-    public MainViewModel(SettingsService settingsService, DiagFileRepository repository, FolderMonitorService monitorService)
+    public MainViewModel(SettingsService settingsService, DiagFileRepository repository,
+        FolderMonitorService monitorService, TrayNotifier notifier)
     {
         _settingsService = settingsService;
         _repository = repository;
         _monitorService = monitorService;
+        _notifier = notifier;
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());
@@ -181,6 +197,8 @@ public partial class MainViewModel : ObservableObject
 
         var settings = _settingsService.Load();
         _repeatWindowDays = settings.RepeatWindowDays;
+        _notifyOnArrival = settings.NotifyOnArrival;
+        _notifier.Enabled = settings.NotifyOnArrival;
         WatchFolderPath = settings.WatchFolderPath;
         ExtensionsText = string.Join(", ", settings.FileExtensions);
     }
@@ -420,10 +438,29 @@ public partial class MainViewModel : ObservableObject
             RefreshDerivedState();
 
             var row = Files[0];
+            NotifyArrival(file, row);
             StatusMessage = file.Status == ProcessingStatus.Processed
                 ? $"Processed '{file.OriginalFileName}' (serial {file.SerialNumber}).{(row.IsRepeatSubmission ? " Repeat from this machine." : string.Empty)}"
                 : $"Processed '{file.OriginalFileName}' with issues: {file.ErrorMessage}";
         });
+    }
+
+    private void NotifyArrival(DiagnosticFile file, DiagnosticFileSummary row)
+    {
+        if (file.Status == ProcessingStatus.Error)
+        {
+            _notifier.Notify("Diagnostic file failed", $"{file.OriginalFileName} could not be read: {file.ErrorMessage}", isProblem: true);
+            return;
+        }
+
+        var detail = $"{row.SerialNumber} - {row.Customer}";
+        if (row.IsRepeatSubmission)
+        {
+            _notifier.Notify("Repeat diagnostic file", $"{detail} has sent another bundle within {_repeatWindowDays} days.", isProblem: true);
+            return;
+        }
+
+        _notifier.Notify("Diagnostic file received", detail);
     }
 
     private void OnFileFailed(object? sender, string path)

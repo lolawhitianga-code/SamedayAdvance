@@ -120,7 +120,8 @@
                         Width="130" Margin="0,0,6,0"
                         IsEnabled="{Binding IsMonitoring, Converter={StaticResource InverseBoolConverter}}" />
                 <Button Content="Stop Monitoring" Command="{Binding StopMonitoringCommand}"
-                        Width="130" IsEnabled="{Binding IsMonitoring}" />
+                        Width="130" Margin="0,0,12,0" IsEnabled="{Binding IsMonitoring}" />
+                <CheckBox Content="Notify on arrival" IsChecked="{Binding NotifyOnArrival}" VerticalAlignment="Center" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
