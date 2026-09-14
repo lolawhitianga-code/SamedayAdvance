@@ -199,6 +199,15 @@ Two support files from M20716 were read through the analyser. What that settled:
   nothing in this export connects the two. Still open.
 - **`WallExtruderStep` numbers do not match the 1–25 operator sequence above.** The real export
   ran `0 → 10 → 300 → 302 → 0`. The two numberings must not be read as the same thing.
+- **The homing interlock rule is confirmed and now checked automatically.** Both
+  `GripperProductSensor` inputs and both `PlatePresentSwitch` inputs must read 0 before the
+  machine will home. On this export `GripperProductSensor` at `192.168.250.1-4.6` went to 1 at
+  the same moment as the first `HomeServos` command, two home commands did nothing, and no axis
+  moved for 39 seconds — matching the operator's "trolleys not moving when i hit start panel".
+  The report now has a **CAN IT HOME?** section that reads the last known state of every product
+  sensor at each home command and names whichever one is blocking. Note that MachineLog.txt
+  records *changes* only, so a sensor sitting at 0 all session never appears — the check reports
+  those as absent rather than assuming a state.
 - **The `PlatePresentSwitch` fault pattern did not appear** in either export — only
   `IO-PlatePresentBypass`. The glitch-vs-real check is implemented and tested, but has still
   only ever been seen on a Spida Saw, not on this machine.

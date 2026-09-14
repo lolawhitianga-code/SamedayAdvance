@@ -53,10 +53,14 @@ public class KnowledgeFindings
     public IReadOnlyList<AxisSighting> Axes { get; init; } = Array.Empty<AxisSighting>();
     public IReadOnlyList<PlatePresentEvent> PlatePresentEvents { get; init; } = Array.Empty<PlatePresentEvent>();
 
+    /// <summary>Whether anything was stopping the machine homing.</summary>
+    public HomeInterlockFindings HomeInterlock { get; init; } = new();
+
     public bool HasAnything =>
         Knowledge is not null
         && (MatchedFaults.Count > 0 || IssuesSeenInThisLog.Count > 0 || IssueHistoryForSerial.Count > 0
-            || Axes.Count > 0 || PlatePresentEvents.Count > 0 || UnknownFaults.Count > 0);
+            || Axes.Count > 0 || PlatePresentEvents.Count > 0 || UnknownFaults.Count > 0
+            || HomeInterlock.Any);
 }
 
 /// <summary>
@@ -133,7 +137,8 @@ public static class KnowledgeAnnotator
                             && i.Serials.Any(s => s.Equals(serialNumber, StringComparison.OrdinalIgnoreCase)))
                 .ToList(),
             Axes = FindAxes(knowledge, machineLog),
-            PlatePresentEvents = PlatePresentCheck.Find(machineLog)
+            PlatePresentEvents = PlatePresentCheck.Find(machineLog),
+            HomeInterlock = HomeInterlockCheck.Check(machineLog)
         };
     }
 
