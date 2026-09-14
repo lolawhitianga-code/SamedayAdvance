@@ -1,0 +1,87 @@
+<Window x:Class="DiagFileMonitor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:DiagFileMonitor.App.Converters"
+        Title="Diagnostic File Monitor" Height="650" Width="1150"
+        MinHeight="500" MinWidth="850">
+
+    <Window.Resources>
+        <conv:InverseBooleanConverter x:Key="InverseBoolConverter" />
+
+        <Style TargetType="GroupItem">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupItem">
+                        <Expander IsExpanded="True" Background="#FFEFF3F8" Margin="0,4,0,0">
+                            <Expander.Header>
+                                <TextBlock FontWeight="Bold" Padding="4">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0}  ({1} file(s))">
+                                            <Binding Path="Name" />
+                                            <Binding Path="ItemCount" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Expander.Header>
+                            <Expander.Content>
+                                <ItemsPresenter Margin="16,0,0,0" />
+                            </Expander.Content>
+                        </Expander>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="10">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Watch folder:" VerticalAlignment="Center" Width="110" />
+                <TextBox Text="{Binding WatchFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                         Width="420" Margin="0,0,6,0"
+                         IsReadOnly="{Binding IsMonitoring}" />
+                <Button Content="Browse..." Command="{Binding BrowseFolderCommand}"
+                        Width="80" Margin="0,0,12,0"
+                        IsEnabled="{Binding IsMonitoring, Converter={StaticResource InverseBoolConverter}}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Extensions:" VerticalAlignment="Center" Width="110" />
+                <TextBox Text="{Binding ExtensionsText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="200" Margin="0,0,6,0"
+                         IsReadOnly="{Binding IsMonitoring}" />
+                <TextBlock Text="(comma-separated, e.g. .zip, .7z)" VerticalAlignment="Center"
+                           Foreground="Gray" Margin="0,0,20,0" />
+
+                <Button Content="Start Monitoring" Command="{Binding StartMonitoringCommand}"
+                        Width="130" Margin="0,0,6,0"
+                        IsEnabled="{Binding IsMonitoring, Converter={StaticResource InverseBoolConverter}}" />
+                <Button Content="Stop Monitoring" Command="{Binding StopMonitoringCommand}"
+                        Width="130" IsEnabled="{Binding IsMonitoring}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Group by:" VerticalAlignment="Center" Width="110" />
+                <ComboBox ItemsSource="{Binding GroupByOptions}" SelectedItem="{Binding SelectedGroupBy}"
+                          Width="180" Margin="0,0,12,0" />
+                <Button Content="Refresh" Command="{Binding LoadCommand}" Width="80" />
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="DarkSlateGray" />
+
+        <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternatingRowBackground="#FFF7F9FC">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="File" Binding="{Binding OriginalFileName}" Width="220" />
+                <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="130" />
+                <DataGridTextColumn Header="Machine Type" Binding="{Binding MachineType}" Width="130" />
+                <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="150" />
+                <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
+                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDate}" Width="100" />
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
+                <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

@@ -1,0 +1,117 @@
+using System.IO.Compression;
+using DiagFileMonitor.Core.Models;
+
+namespace DiagFileMonitor.Core.Services;
+
+/// <summary>Unpacks one diagnostic zip, reads machine.xml, indexes the extracted files, and persists the result.</summary>
+public class DiagFileProcessor
+{
+    private readonly string _extractRootPath;
+    private readonly DiagFileRepository _repository;
+
+    private static readonly Dictionary<string, LogFileKind> KnownLogFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["changelog.txt"] = LogFileKind.ChangeLog,
+        ["machinelog.txt"] = LogFileKind.MachineLog,
+        ["errorlog.txt"] = LogFileKind.ErrorLog
+    };
+
+    public DiagFileProcessor(string extractRootPath, DiagFileRepository repository)
+    {
+        _extractRootPath = extractRootPath;
+        _repository = repository;
+        Directory.CreateDirectory(_extractRootPath);
+    }
+
+    public async Task<DiagnosticFile> ProcessAsync(string zipPath, CancellationToken token = default)
+    {
+        var fileInfo = new FileInfo(zipPath);
+        var diagFile = new DiagnosticFile
+        {
+            OriginalFileName = fileInfo.Name,
+            SourcePath = zipPath,
+            FileSizeBytes = fileInfo.Length,
+            ArrivedAtUtc = fileInfo.CreationTimeUtc,
+            Status = ProcessingStatus.Pending
+        };
+
+        try
+        {
+            var extractDir = CreateUniqueExtractDir(fileInfo.Name);
+            ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
+            diagFile.ExtractedPath = extractDir;
+
+            var machineXmlPath = Directory
+                .EnumerateFiles(extractDir, "machine.xml", SearchOption.AllDirectories)
+                .FirstOrDefault();
+
+            if (machineXmlPath is not null)
+            {
+                var info = MachineXmlParser.Parse(machineXmlPath);
+                diagFile.MachineType = info.MachineType;
+                diagFile.SerialNumber = info.SerialNumber;
+                diagFile.Customer = info.Customer;
+                diagFile.Version = info.Version;
+            }
+            else
+            {
+                SimpleLogger.Info($"No machine.xml found in '{zipPath}'.");
+            }
+
+            foreach (var extractedFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.AllDirectories))
+            {
+                var name = Path.GetFileName(extractedFile);
+                var kind = KnownLogFiles.TryGetValue(name, out var knownKind) ? knownKind : LogFileKind.Other;
+
+                diagFile.LogFiles.Add(new ExtractedLogFile
+                {
+                    FileName = name,
+                    FullPath = extractedFile,
+                    SizeBytes = new FileInfo(extractedFile).Length,
+                    Kind = kind
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(diagFile.SerialNumber))
+            {
+                diagFile.Status = ProcessingStatus.Error;
+                diagFile.ErrorMessage = "machine.xml was missing or did not contain a serial number.";
+            }
+            else
+            {
+                diagFile.Status = ProcessingStatus.Processed;
+            }
+        }
+        catch (Exception ex)
+        {
+            diagFile.Status = ProcessingStatus.Error;
+            diagFile.ErrorMessage = ex.Message;
+            SimpleLogger.Error($"Error processing '{zipPath}'", ex);
+        }
+        finally
+        {
+            diagFile.ProcessedAtUtc = DateTime.UtcNow;
+        }
+
+        await _repository.AddAsync(diagFile);
+        return diagFile;
+    }
+
+    private string CreateUniqueExtractDir(string zipFileName)
+    {
+        var baseName = SanitizeForPath(Path.GetFileNameWithoutExtension(zipFileName));
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfff");
+        var dir = Path.Combine(_extractRootPath, $"{stamp}_{baseName}");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private static string SanitizeForPath(string name)
+    {
+        foreach (var c in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(c, '_');
+        }
+        return name;
+    }
+}

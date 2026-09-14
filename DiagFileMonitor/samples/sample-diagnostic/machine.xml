@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Machine>
+  <MachineType>CoffeeRoaster-5000</MachineType>
+  <SerialNumber>SN-00123</SerialNumber>
+  <Customer>Wellington Roasters Ltd</Customer>
+  <Version>2.4.1</Version>
+</Machine>
