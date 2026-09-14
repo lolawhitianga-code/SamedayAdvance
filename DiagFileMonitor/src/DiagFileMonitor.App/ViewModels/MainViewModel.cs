@@ -42,8 +42,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedGroupBy = "Serial Number";
 
+    public ObservableCollection<string> WatchFolders { get; } = new();
+
     [ObservableProperty]
-    private string _watchFolderPath = string.Empty;
+    private string? _selectedWatchFolder;
 
     [ObservableProperty]
     private string _extensionsText = ".zip";
@@ -249,7 +251,11 @@ public partial class MainViewModel : ObservableObject
         _notifyOnArrival = settings.NotifyOnArrival;
         _retentionDays = settings.ExtractRetentionDays;
         _notifier.Enabled = settings.NotifyOnArrival;
-        WatchFolderPath = settings.WatchFolderPath;
+        foreach (var folder in settings.WatchFolders)
+        {
+            WatchFolders.Add(folder);
+        }
+
         ExtensionsText = string.Join(", ", settings.FileExtensions);
     }
 
@@ -441,20 +447,19 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(WatchFolderPath))
+        if (WatchFolders.Count == 0)
         {
-            StatusMessage = "Choose a folder to monitor first.";
+            StatusMessage = "Add at least one folder to monitor first.";
             return;
         }
 
-        _monitorService.Start(WatchFolderPath, extensions);
+        _monitorService.Start(WatchFolders, extensions);
         IsMonitoring = true;
-        StatusMessage = $"Monitoring '{WatchFolderPath}' for {string.Join(", ", extensions)}";
+        StatusMessage = WatchFolders.Count == 1
+            ? $"Monitoring '{WatchFolders[0]}' for {string.Join(", ", extensions)}"
+            : $"Monitoring {WatchFolders.Count} folders for {string.Join(", ", extensions)}";
 
-        var settings = _settingsService.Load();
-        settings.WatchFolderPath = WatchFolderPath;
-        settings.FileExtensions = extensions.ToList();
-        _settingsService.Save(settings);
+        SaveFolderSettings(extensions.ToList());
     }
 
     [RelayCommand]
@@ -466,18 +471,52 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void BrowseFolder()
+    private void AddFolder()
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "Choose folder to monitor for diagnostic files",
-            InitialDirectory = string.IsNullOrWhiteSpace(WatchFolderPath) ? null : WatchFolderPath
+            Title = "Choose a folder to monitor for diagnostic files",
+            InitialDirectory = WatchFolders.Count > 0 ? WatchFolders[0] : null
         };
 
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() != true) return;
+
+        if (WatchFolders.Contains(dialog.FolderName, StringComparer.OrdinalIgnoreCase))
         {
-            WatchFolderPath = dialog.FolderName;
+            StatusMessage = "That folder is already being watched.";
+            return;
         }
+
+        WatchFolders.Add(dialog.FolderName);
+        SaveFolderSettings();
+        StatusMessage = IsMonitoring
+            ? $"Added '{dialog.FolderName}'. Stop and start monitoring to pick it up."
+            : $"Added '{dialog.FolderName}'.";
+    }
+
+    [RelayCommand]
+    private void RemoveFolder()
+    {
+        if (SelectedWatchFolder is null)
+        {
+            StatusMessage = "Select a folder to remove.";
+            return;
+        }
+
+        var removed = SelectedWatchFolder;
+        WatchFolders.Remove(removed);
+        SaveFolderSettings();
+        StatusMessage = IsMonitoring
+            ? $"Removed '{removed}'. Stop and start monitoring to apply it."
+            : $"Removed '{removed}'.";
+    }
+
+    private void SaveFolderSettings(List<string>? extensions = null)
+    {
+        var settings = _settingsService.Load();
+        settings.WatchFolders = WatchFolders.ToList();
+        if (extensions is not null) settings.FileExtensions = extensions;
+        _settingsService.Save(settings);
     }
 
     private void OnFileProcessed(object? sender, DiagnosticFile file)

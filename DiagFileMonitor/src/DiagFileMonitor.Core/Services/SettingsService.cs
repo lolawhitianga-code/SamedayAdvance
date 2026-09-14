@@ -31,12 +31,26 @@ public class SettingsService
         {
             var json = File.ReadAllText(_settingsFilePath);
             var settings = JsonSerializer.Deserialize<AppSettings>(json);
-            return settings ?? CreateDefaults();
+            if (settings is null) return CreateDefaults();
+
+            Migrate(settings);
+            return settings;
         }
         catch
         {
             return CreateDefaults();
         }
+    }
+
+    /// <summary>Folds the old single-folder setting into the folder list.</summary>
+    private static void Migrate(AppSettings settings)
+    {
+        if (settings.WatchFolders.Count == 0 && !string.IsNullOrWhiteSpace(settings.WatchFolderPath))
+        {
+            settings.WatchFolders.Add(settings.WatchFolderPath);
+        }
+
+        settings.WatchFolderPath = null;
     }
 
     public void Save(AppSettings settings)
@@ -54,7 +68,7 @@ public class SettingsService
 
         return new AppSettings
         {
-            WatchFolderPath = watchFolder,
+            WatchFolders = new List<string> { watchFolder },
             ExtractRootPath = extractRoot,
             FileExtensions = new List<string> { ".zip" },
             DatabasePath = Path.Combine(_appDataDir, "diagfiles.db")
