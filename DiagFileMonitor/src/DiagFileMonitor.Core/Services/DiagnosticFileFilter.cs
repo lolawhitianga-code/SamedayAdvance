@@ -36,7 +36,7 @@ public static class DiagnosticFileFilter
         if (string.IsNullOrWhiteSpace(criteria.SearchText)) return true;
 
         // Every whitespace-separated term must appear somewhere, so "SN-001 wellington" narrows rather than widens.
-        var haystack = $"{row.SerialNumber} {row.Customer} {row.OriginalFileName} {row.MachineType} {row.Version}";
+        var haystack = $"{row.SerialNumber} {row.Customer} {row.OriginalFileName} {row.MachineType} {row.Version} {row.TicketNumber} {row.Notes}";
         var terms = criteria.SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return terms.All(term => haystack.Contains(term, StringComparison.OrdinalIgnoreCase));

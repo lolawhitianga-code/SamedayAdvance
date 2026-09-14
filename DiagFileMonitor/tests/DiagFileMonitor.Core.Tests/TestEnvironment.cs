@@ -27,7 +27,7 @@ public sealed class TestEnvironment : IDisposable
         _databasePath = Path.Combine(RootPath, "test.db");
         using (var context = CreateContext())
         {
-            context.Database.EnsureCreated();
+            DatabaseInitializer.Initialize(context);
         }
 
         Repository = new DiagFileRepository(CreateContext);

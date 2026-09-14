@@ -33,7 +33,7 @@ public partial class App : System.Windows.Application
 
         using (var context = new DiagDbContext(BuildOptions()))
         {
-            context.Database.EnsureCreated();
+            DatabaseInitializer.Initialize(context);
         }
 
         var repository = new DiagFileRepository(() => new DiagDbContext(BuildOptions()));

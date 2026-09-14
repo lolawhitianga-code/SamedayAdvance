@@ -18,6 +18,8 @@ public class DiagnosticFileSummary
     public string Status { get; set; } = string.Empty;
     public string? ErrorMessage { get; set; }
     public string? ExtractedPath { get; set; }
+    public string? Notes { get; set; }
+    public string? TicketNumber { get; set; }
 
     public string? ChangeLogPath { get; set; }
     public string? MachineLogPath { get; set; }
@@ -44,6 +46,8 @@ public class DiagnosticFileSummary
         Status = file.Status.ToString(),
         ErrorMessage = file.ErrorMessage,
         ExtractedPath = file.ExtractedPath,
+        Notes = file.Notes,
+        TicketNumber = file.TicketNumber,
         ChangeLogPath = PathOf(file, LogFileKind.ChangeLog),
         MachineLogPath = PathOf(file, LogFileKind.MachineLog),
         ErrorLogPath = PathOf(file, LogFileKind.ErrorLog)

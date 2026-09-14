@@ -68,6 +68,42 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private DashboardStats _stats = DashboardStats.Empty;
 
+    [ObservableProperty]
+    private string _editTicketNumber = string.Empty;
+
+    [ObservableProperty]
+    private string _editNotes = string.Empty;
+
+    partial void OnSelectedFileChanged(DiagnosticFileSummary? value)
+    {
+        EditTicketNumber = value?.TicketNumber ?? string.Empty;
+        EditNotes = value?.Notes ?? string.Empty;
+    }
+
+    [RelayCommand]
+    private async Task SaveNotesAsync()
+    {
+        if (SelectedFile is null)
+        {
+            StatusMessage = "Select a file before saving notes.";
+            return;
+        }
+
+        var saved = await _repository.UpdateNotesAsync(SelectedFile.Id, EditTicketNumber, EditNotes);
+        if (!saved)
+        {
+            StatusMessage = "That file is no longer in the database.";
+            return;
+        }
+
+        SelectedFile.TicketNumber = string.IsNullOrWhiteSpace(EditTicketNumber) ? null : EditTicketNumber.Trim();
+        SelectedFile.Notes = string.IsNullOrWhiteSpace(EditNotes) ? null : EditNotes.Trim();
+
+        // The grid binds to a plain DTO, so nudge the view to redraw the ticket column.
+        FilesView.Refresh();
+        StatusMessage = $"Saved notes for '{SelectedFile.OriginalFileName}'.";
+    }
+
     public MainViewModel(SettingsService settingsService, DiagFileRepository repository, FolderMonitorService monitorService)
     {
         _settingsService = settingsService;
