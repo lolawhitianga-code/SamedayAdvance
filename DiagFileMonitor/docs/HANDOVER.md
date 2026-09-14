@@ -310,24 +310,18 @@ target PC needs no runtime installed.
 
 ## 10. Known bugs and gaps
 
-### B1 — Burst alerting uses a parser that cannot read real Spida logs *(high)*
+### B1 — Burst alerting used a parser that could not read real Spida logs — **FIXED**
 
-There are **two analysis paths**, and only one has met real data:
+Resolved. `BurstAlertService` now analyses through `DiagnosticAnalysisService`, the same path
+behind the Analyse button, and posts the complete report to Zoho and the alert email. The
+legacy trio (`DiagnosticAnalyser`, `MachineLogParser`, `AnalysisReportFormatter`), the
+`AnalysisReport` model and the `MachineLogPattern` / `SlowStepFactor` settings are gone, so
+there is now exactly one analysis path.
 
-| Path | Used by | State |
-|---|---|---|
-| `SpidaLogs/` + `Knowledge/` | Analyse button, Compare | Validated against real files |
-| `DiagnosticAnalyser` + `MachineLogParser` + `AnalysisReportFormatter` | `BurstAlertService` only | **Never validated** |
-
-`MachineLogParser.DefaultLinePattern` expects `2026-09-01 08:00:00.000 START Preheat`. Real
-Spida lines are `10:12:15.6590038,  Other, ClsWallExtruder,  HomeServos` — no date, comma
-delimited. **It will parse zero steps from a real machine log**, so any automated burst alert
-would carry a near-empty analysis.
-
-Fix: point `BurstAlertService` at `DiagnosticAnalysisService`/`SpidaLogAnalyser` and delete
-the legacy trio (`DiagnosticAnalyser.cs`, `MachineLogParser.cs`, `AnalysisReportFormatter.cs`)
-plus `DiagnosticAnalyserTests.cs` and the `MachineLogPattern` setting. ~16 tests cover the
-legacy path and will go with it.
+Left behind for whoever reads this next: the analysis is **not** best-effort the way Zoho and
+email are. If it throws, the alert is abandoned and `AlertSentUtc` is left unset, so the next
+bundle from that machine retries rather than the burst going unnoticed. That is deliberate —
+an alert with no analysis in it is worse than no alert.
 
 ### B2 — Zoho has never run against a real account *(medium)*
 `ZohoDeskClient` is tested only against a fake `HttpMessageHandler`. OAuth refresh flow,
@@ -378,17 +372,14 @@ re-read button; the only remedy is clearing the database, which loses notes.
 
 In order.
 
-1. **Fix B1.** It is the only *wrong* behaviour in the app — everything else is missing rather
-   than broken. If burst alerting is ever switched on it will post useless analyses to real
-   customer tickets. Deleting the legacy path also removes the confusion of two analysers.
-2. **Read `CloudLog/`.** Start with `maint_data.json` and the `err_*.log` files (the formats are
+1. **Read `CloudLog/`.** Start with `maint_data.json` and the `err_*.log` files (the formats are
    already nearly understood) before tackling the `msg_` timestamp encoding. This turns the tool
    from single-snapshot to trend analysis: "this output's on-count has doubled since July".
-3. **Get a real Zoho sandbox and exercise B2** before relying on ticket posting.
-4. **Ask the user for more complaint types.** The complaint router is the feature most directly
+2. **Get a real Zoho sandbox and exercise B2** before relying on ticket posting.
+3. **Ask the user for more complaint types.** The complaint router is the feature most directly
    aimed at their daily work and the cheapest to extend. Each new topic needs only: keywords,
    what to check in order, and which settings to search.
-5. Ask for a bundle from a **different machine model** — every parser fix so far came from real
+4. Ask for a bundle from a **different machine model** — every parser fix so far came from real
    files, and the knowledge layer has only ever been exercised against one model.
 
 ### Working style that has held up

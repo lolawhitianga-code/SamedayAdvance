@@ -20,7 +20,11 @@ public class DiagnosticAnalysisService
         _analyser = new SpidaLogAnalyser(options);
     }
 
-    public async Task<string> AnalyseAsync(IEnumerable<int> diagnosticFileIds, CancellationToken token = default)
+    /// <summary>
+    /// Virtual so a test can stand in a failing analysis. Burst alerting depends on this
+    /// succeeding, and the behaviour when it does not is worth pinning down.
+    /// </summary>
+    public virtual async Task<string> AnalyseAsync(IEnumerable<int> diagnosticFileIds, CancellationToken token = default)
     {
         var bundles = await _repository.GetByIdsAsync(diagnosticFileIds);
 

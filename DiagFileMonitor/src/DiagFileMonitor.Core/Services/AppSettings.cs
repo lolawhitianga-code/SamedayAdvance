@@ -31,7 +31,10 @@ public class AppSettings
     public EmailSettings Email { get; set; } = new();
 }
 
-/// <summary>When a machine sending several bundles in a row should raise an alert, and how it is analysed.</summary>
+/// <summary>
+/// When a machine sending several bundles in a row should raise an alert. How the bundle is
+/// analysed is not configurable here - the alert runs the same analysis as the Analyse button.
+/// </summary>
 public class AlertSettings
 {
     public bool Enabled { get; set; }
@@ -41,22 +44,4 @@ public class AlertSettings
 
     public int BurstWindowHours { get; set; } = BurstDetector.DefaultWindowHours;
 
-    /// <summary>A step this much slower than the baseline median is reported. 1.5 = 50% slower.</summary>
-    public double SlowStepFactor { get; set; } = 1.5;
-
-    /// <summary>Changelog entries this recent are flagged as a possible cause.</summary>
-    public int RecentChangeDays { get; set; } = 30;
-
-    /// <summary>
-    /// Regex for a machinelog.txt line, with named groups timestamp, marker and step.
-    /// Blank uses the built-in default, which has not yet been checked against a real machine log.
-    /// </summary>
-    public string MachineLogPattern { get; set; } = string.Empty;
-
-    public AnalysisOptions ToAnalysisOptions() => new()
-    {
-        SlowStepFactor = SlowStepFactor,
-        RecentChangeDays = RecentChangeDays,
-        MachineLogPattern = string.IsNullOrWhiteSpace(MachineLogPattern) ? null : MachineLogPattern
-    };
 }

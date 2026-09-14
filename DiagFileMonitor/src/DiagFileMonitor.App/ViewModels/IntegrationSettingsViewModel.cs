@@ -11,8 +11,6 @@ public partial class IntegrationSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _alertsEnabled;
     [ObservableProperty] private int _burstThreshold = BurstDetector.DefaultThreshold;
     [ObservableProperty] private int _burstWindowHours = BurstDetector.DefaultWindowHours;
-    [ObservableProperty] private double _slowStepFactor = 1.5;
-    [ObservableProperty] private string _machineLogPattern = string.Empty;
 
     [ObservableProperty] private bool _fileNameTimesAreUtc = true;
     [ObservableProperty] private int _monitorMaxAgeDays;
@@ -54,8 +52,6 @@ public partial class IntegrationSettingsViewModel : ObservableObject
         AlertsEnabled = settings.Alerts.Enabled;
         BurstThreshold = settings.Alerts.BurstThreshold;
         BurstWindowHours = settings.Alerts.BurstWindowHours;
-        SlowStepFactor = settings.Alerts.SlowStepFactor;
-        MachineLogPattern = settings.Alerts.MachineLogPattern;
         FileNameTimesAreUtc = settings.FileNameTimesAreUtc;
         MonitorMaxAgeDays = settings.MonitorMaxAgeDays;
 
@@ -88,8 +84,6 @@ public partial class IntegrationSettingsViewModel : ObservableObject
         settings.Alerts.Enabled = AlertsEnabled;
         settings.Alerts.BurstThreshold = Math.Max(2, BurstThreshold);
         settings.Alerts.BurstWindowHours = Math.Max(1, BurstWindowHours);
-        settings.Alerts.SlowStepFactor = SlowStepFactor <= 1 ? 1.5 : SlowStepFactor;
-        settings.Alerts.MachineLogPattern = MachineLogPattern.Trim();
         settings.FileNameTimesAreUtc = FileNameTimesAreUtc;
         settings.MonitorMaxAgeDays = Math.Max(0, MonitorMaxAgeDays);
 

@@ -44,12 +44,13 @@ public partial class App : System.Windows.Application
         _notifier = new TrayNotifier();
 
         var cleanupService = new ExtractCleanupService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
-        var alertService = BuildAlertService(settings, repository);
-
         var resetService = new DatabaseResetService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
 
         var analysisService = new DiagnosticAnalysisService(repository);
         var comparisonService = new DiagnosticComparisonService(repository);
+
+        // The alert posts the same analysis the Analyse button produces, so it shares the service.
+        var alertService = BuildAlertService(settings, repository, analysisService);
 
         var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier,
             cleanupService, resetService, analysisService, comparisonService, alertService);
@@ -61,7 +62,8 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>Only wires up alerting when it is switched on, so an unconfigured app does no outbound work.</summary>
-    private static BurstAlertService? BuildAlertService(AppSettings settings, DiagFileRepository repository)
+    private static BurstAlertService? BuildAlertService(
+        AppSettings settings, DiagFileRepository repository, DiagnosticAnalysisService analysisService)
     {
         if (!settings.Alerts.Enabled) return null;
 
@@ -70,7 +72,7 @@ public partial class App : System.Windows.Application
 
         return new BurstAlertService(
             repository,
-            new DiagnosticAnalyser(settings.Alerts.ToAnalysisOptions()),
+            analysisService,
             settings.Zoho,
             settings.Alerts,
             zoho,
