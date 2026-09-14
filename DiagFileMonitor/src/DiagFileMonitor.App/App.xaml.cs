@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using DiagFileMonitor.App.Services;
 using DiagFileMonitor.App.ViewModels;
 using DiagFileMonitor.Core.Data;
 using DiagFileMonitor.Core.Services;
@@ -10,6 +11,7 @@ namespace DiagFileMonitor.App;
 public partial class App : System.Windows.Application
 {
     private FolderMonitorService? _monitorService;
+    private TrayNotifier? _notifier;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -33,24 +35,33 @@ public partial class App : System.Windows.Application
 
         using (var context = new DiagDbContext(BuildOptions()))
         {
-            context.Database.EnsureCreated();
+            DatabaseInitializer.Initialize(context);
         }
 
         var repository = new DiagFileRepository(() => new DiagDbContext(BuildOptions()));
         var processor = new DiagFileProcessor(settings.ExtractRootPath, repository);
         _monitorService = new FolderMonitorService(processor);
+        _notifier = new TrayNotifier();
 
-        var viewModel = new MainViewModel(settingsService, repository, _monitorService);
+        var cleanupService = new ExtractCleanupService(() => new DiagDbContext(BuildOptions()), settings.ExtractRootPath);
+        var viewModel = new MainViewModel(settingsService, repository, _monitorService, _notifier, cleanupService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
         mainWindow.Show();
 
-        _ = viewModel.LoadCommand.ExecuteAsync(null);
+        _ = InitialiseAsync(viewModel);
+    }
+
+    private static async Task InitialiseAsync(MainViewModel viewModel)
+    {
+        await viewModel.LoadCommand.ExecuteAsync(null);
+        await viewModel.RunCleanupAsync(announceWhenNothingToDo: false);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         _monitorService?.Dispose();
+        _notifier?.Dispose();
         base.OnExit(e);
     }
 }

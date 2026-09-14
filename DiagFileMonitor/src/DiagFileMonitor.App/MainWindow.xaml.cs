@@ -8,4 +8,15 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
     }
+
+    private void OpenLogSearch_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ViewModels.MainViewModel viewModel) return;
+
+        new LogSearchWindow
+        {
+            Owner = this,
+            DataContext = viewModel.CreateLogSearchViewModel()
+        }.Show();
+    }
 }

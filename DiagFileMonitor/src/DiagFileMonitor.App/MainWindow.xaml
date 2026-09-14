@@ -7,6 +7,29 @@
 
     <Window.Resources>
         <conv:InverseBooleanConverter x:Key="InverseBoolConverter" />
+        <conv:NotNullConverter x:Key="NotNullConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <Style x:Key="StatTile" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#FFD4DCE6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="MinWidth" Value="92" />
+        </Style>
+
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#FF1F3A5F" />
+        </Style>
+
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="Gray" />
+        </Style>
 
         <Style TargetType="GroupItem">
             <Setter Property="Template">
@@ -35,14 +58,55 @@
 
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Border Style="{StaticResource StatTile}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.ArrivedToday}" Style="{StaticResource StatValue}" />
+                        <TextBlock Text="arrived today" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StatTile}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.ArrivedLast7Days}" Style="{StaticResource StatValue}" />
+                        <TextBlock Text="last 7 days" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StatTile}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.ErrorCount}" Style="{StaticResource StatValue}" Foreground="#FF8B1A1A" />
+                        <TextBlock Text="failed" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StatTile}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.DistinctMachines}" Style="{StaticResource StatValue}" />
+                        <TextBlock Text="machines seen" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StatTile}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.Total}" Style="{StaticResource StatValue}" />
+                        <TextBlock Text="total stored" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StatTile}" MinWidth="200">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Stats.TopCustomerLast7Days}" Style="{StaticResource StatValue}"
+                                   FontSize="14" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="busiest customer (7 days)" Style="{StaticResource StatLabel}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="Watch folder:" VerticalAlignment="Center" Width="110" />
-                <TextBox Text="{Binding WatchFolderPath, UpdateSourceTrigger=PropertyChanged}"
-                         Width="420" Margin="0,0,6,0"
-                         IsReadOnly="{Binding IsMonitoring}" />
-                <Button Content="Browse..." Command="{Binding BrowseFolderCommand}"
-                        Width="80" Margin="0,0,12,0"
-                        IsEnabled="{Binding IsMonitoring, Converter={StaticResource InverseBoolConverter}}" />
+                <TextBlock Text="Watch folders:" VerticalAlignment="Top" Width="110" Margin="0,4,0,0" />
+                <ListBox ItemsSource="{Binding WatchFolders}" SelectedItem="{Binding SelectedWatchFolder}"
+                         Width="420" Height="58" Margin="0,0,6,0" />
+                <StackPanel>
+                    <Button Content="Add folder..." Command="{Binding AddFolderCommand}" Width="90" Margin="0,0,0,4" />
+                    <Button Content="Remove" Command="{Binding RemoveFolderCommand}" Width="90"
+                            IsEnabled="{Binding SelectedWatchFolder, Converter={StaticResource NotNullConverter}}" />
+                </StackPanel>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -57,28 +121,164 @@
                         Width="130" Margin="0,0,6,0"
                         IsEnabled="{Binding IsMonitoring, Converter={StaticResource InverseBoolConverter}}" />
                 <Button Content="Stop Monitoring" Command="{Binding StopMonitoringCommand}"
-                        Width="130" IsEnabled="{Binding IsMonitoring}" />
+                        Width="130" Margin="0,0,12,0" IsEnabled="{Binding IsMonitoring}" />
+                <CheckBox Content="Notify on arrival" IsChecked="{Binding NotifyOnArrival}" VerticalAlignment="Center" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBlock Text="Group by:" VerticalAlignment="Center" Width="110" />
                 <ComboBox ItemsSource="{Binding GroupByOptions}" SelectedItem="{Binding SelectedGroupBy}"
                           Width="180" Margin="0,0,12,0" />
-                <Button Content="Refresh" Command="{Binding LoadCommand}" Width="80" />
+                <Button Content="Refresh" Command="{Binding LoadCommand}" Width="80" Margin="0,0,12,0" />
+                <Button Content="Search in logs..." Click="OpenLogSearch_Click" Width="130" Margin="0,0,20,0" />
+                <TextBlock Text="Keep extracts for" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Text="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,6,0"
+                         ToolTip="Days to keep unpacked files. 0 keeps everything. Baselines are never removed." />
+                <TextBlock Text="days" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button Content="Clean up now" Command="{Binding CleanUpNowCommand}" Width="105" />
             </StackPanel>
+
+            <Border BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" Padding="8,6" CornerRadius="3">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Search:" VerticalAlignment="Center" Width="56" />
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             Width="240" Margin="0,0,6,0"
+                             ToolTip="Matches serial number, customer, file name, machine type or version. Multiple words all have to match." />
+
+                    <TextBlock Text="Status:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <ComboBox ItemsSource="{Binding StatusFilterOptions}" SelectedItem="{Binding SelectedStatusFilter}"
+                              Width="110" Margin="0,0,6,0" />
+
+                    <TextBlock Text="Arrived from:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <DatePicker SelectedDate="{Binding FromDate}" Width="120" Margin="0,0,6,0" />
+                    <TextBlock Text="to:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <DatePicker SelectedDate="{Binding ToDate}" Width="120" Margin="0,0,12,0" />
+
+                    <CheckBox Content="Baselines only" IsChecked="{Binding BaselinesOnly}"
+                              VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Width="70" Margin="0,0,12,0" />
+                    <TextBlock Text="{Binding FilterSummary}" VerticalAlignment="Center" Foreground="Gray" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
-        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="DarkSlateGray" />
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Selected file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray" />
+                <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
+                <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasErrorLog, FallbackValue=False}" />
+                <Button Content="machinelog.txt" Command="{Binding OpenMachineLogCommand}" Width="110" Margin="0,0,6,0"
+                        IsEnabled="{Binding SelectedFile.HasMachineLog, FallbackValue=False}" />
+                <Button Content="changelog.txt" Command="{Binding OpenChangeLogCommand}" Width="105"
+                        IsEnabled="{Binding SelectedFile.HasChangeLog, FallbackValue=False}" />
+            </StackPanel>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="DarkSlateGray" />
+        </StackPanel>
 
-        <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" IsReadOnly="True"
-                  CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternatingRowBackground="#FFF7F9FC">
+        <Border DockPanel.Dock="Right" Width="270" Margin="10,0,0,0" Padding="10"
+                BorderBrush="#FFD4DCE6" BorderThickness="1" Background="#FFFAFBFD" CornerRadius="3">
+            <StackPanel>
+                <TextBlock Text="Case notes" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Text="{Binding SelectedFile.OriginalFileName, FallbackValue='No file selected'}"
+                           TextTrimming="CharacterEllipsis" Foreground="Gray" Margin="0,0,0,10" />
+
+                <TextBlock Text="Ticket number" Margin="0,0,0,3" />
+                <TextBox Text="{Binding EditTicketNumber, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}"
+                         Margin="0,0,0,10" />
+
+                <TextBlock Text="Notes" Margin="0,0,0,3" />
+                <TextBox Text="{Binding EditNotes, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}"
+                         AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                         Height="220" Margin="0,0,0,10" />
+
+                <Button Content="Save notes" Command="{Binding SaveNotesCommand}" Height="28" Margin="0,0,0,6"
+                        IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
+                <Button Content="Copy summary for ticket" Command="{Binding CopySummaryCommand}" Height="28"
+                        IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="8,6" CornerRadius="3"
+                Background="#FFEEF6FF" BorderBrush="#FFB6D4F0" BorderThickness="1"
+                Visibility="{Binding IsMachineFilterActive, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Show all machines" Width="130"
+                        Command="{Binding ClearMachineFilterCommand}" />
+                <TextBlock Text="{Binding MachineHistory.Headline}" VerticalAlignment="Center"
+                           TextWrapping="Wrap" Margin="0,0,10,0" />
+            </DockPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding FilesView}" SelectedItem="{Binding SelectedFile}"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" GridLinesVisibility="Horizontal" AlternationCount="2">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="ToolTip" Value="{Binding ErrorMessage}" />
+                    <!-- Gives the row's context menu a route back to the ViewModel's commands. -->
+                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu>
+                                <MenuItem Header="Open extracted _folder"
+                                          Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasExtractedFolder}" />
+                                <MenuItem Header="Mark / unmark as known-good _baseline"
+                                          Command="{Binding PlacementTarget.Tag.ToggleBaselineCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                                <MenuItem Header="Show this machine's _history"
+                                          Command="{Binding PlacementTarget.Tag.ShowMachineHistoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                                <MenuItem Header="_Copy summary for ticket"
+                                          Command="{Binding PlacementTarget.Tag.CopySummaryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                                <Separator />
+                                <MenuItem Header="Open _errorlog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenErrorLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasErrorLog}" />
+                                <MenuItem Header="Open _machinelog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenMachineLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasMachineLog}" />
+                                <MenuItem Header="Open _changelog.txt"
+                                          Command="{Binding PlacementTarget.Tag.OpenChangeLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}"
+                                          IsEnabled="{Binding HasChangeLog}" />
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                            <Setter Property="Background" Value="#FFF7F9FC" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsRepeatSubmission}" Value="True">
+                            <Setter Property="Background" Value="#FFFFF6E0" />
+                        </DataTrigger>
+                        <!-- Declared last so a failed bundle wins over the stripe and the repeat tint. -->
+                        <DataTrigger Binding="{Binding Status}" Value="Error">
+                            <Setter Property="Background" Value="#FFFDE8E8" />
+                            <Setter Property="Foreground" Value="#FF8B1A1A" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="File" Binding="{Binding OriginalFileName}" Width="220" />
                 <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="130" />
                 <DataGridTextColumn Header="Machine Type" Binding="{Binding MachineType}" Width="130" />
                 <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="150" />
                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
-                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDate}" Width="100" />
+                <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="90" />
+                <DataGridTextColumn Header="Repeat" Binding="{Binding RepeatLabel}" Width="65" />
+                <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineLabel}" Width="70" />
+                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="130" />
                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
                 <DataGridTextColumn Header="Details" Binding="{Binding ErrorMessage}" Width="*" />
             </DataGrid.Columns>

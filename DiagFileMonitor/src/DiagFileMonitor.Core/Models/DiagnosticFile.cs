@@ -29,5 +29,14 @@ public class DiagnosticFile
     public ProcessingStatus Status { get; set; } = ProcessingStatus.Pending;
     public string? ErrorMessage { get; set; }
 
+    /// <summary>Support's own case notes against this bundle.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>Reference into whatever ticketing system is in use.</summary>
+    public string? TicketNumber { get; set; }
+
+    /// <summary>Marked as a known-good bundle to compare faulty machines of this type against.</summary>
+    public bool IsBaseline { get; set; }
+
     public List<ExtractedLogFile> LogFiles { get; set; } = new();
 }

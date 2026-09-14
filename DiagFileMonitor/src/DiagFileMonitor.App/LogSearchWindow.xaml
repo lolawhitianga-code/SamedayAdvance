@@ -1,0 +1,51 @@
+<Window x:Class="DiagFileMonitor.App.LogSearchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Search log contents" Height="520" Width="1000"
+        MinHeight="380" MinWidth="700"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="10">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Find text:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}" Width="330" Margin="0,0,6,0">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding SearchCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+            <Button Content="Search" Command="{Binding SearchCommand}" Width="90" Margin="0,0,12,0" />
+            <TextBlock Text="Searches changelog, machinelog, errorlog and other text files in every stored bundle."
+                       VerticalAlignment="Center" Foreground="Gray" />
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding ResultSummary}" Margin="0,8,0,0" Foreground="DarkSlateGray"
+                   TextWrapping="Wrap" />
+
+        <DataGrid ItemsSource="{Binding Hits}" SelectedItem="{Binding SelectedHit}"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu>
+                                <MenuItem Header="_Open this log file"
+                                          Command="{Binding PlacementTarget.Tag.OpenHitCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
+                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="110" />
+                <DataGridTextColumn Header="Customer" Binding="{Binding Customer}" Width="140" />
+                <DataGridTextColumn Header="Arrived" Binding="{Binding ArrivedDisplay}" Width="125" />
+                <DataGridTextColumn Header="Log" Binding="{Binding LogFileName}" Width="110" />
+                <DataGridTextColumn Header="Line" Binding="{Binding LineNumber}" Width="55" />
+                <DataGridTextColumn Header="Matching text" Binding="{Binding Line}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

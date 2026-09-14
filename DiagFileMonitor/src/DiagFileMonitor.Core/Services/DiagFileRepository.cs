@@ -26,6 +26,31 @@ public class DiagFileRepository
         return file.Id;
     }
 
+    /// <summary>Saves support's case notes against a bundle. Returns false if the row is gone.</summary>
+    public async Task<bool> UpdateNotesAsync(int id, string? ticketNumber, string? notes)
+    {
+        await using var context = _contextFactory();
+        var file = await context.DiagnosticFiles.FirstOrDefaultAsync(f => f.Id == id);
+        if (file is null) return false;
+
+        file.TicketNumber = string.IsNullOrWhiteSpace(ticketNumber) ? null : ticketNumber.Trim();
+        file.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        await context.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>Marks (or unmarks) a bundle as a known-good reference for its machine type.</summary>
+    public async Task<bool> SetBaselineAsync(int id, bool isBaseline)
+    {
+        await using var context = _contextFactory();
+        var file = await context.DiagnosticFiles.FirstOrDefaultAsync(f => f.Id == id);
+        if (file is null) return false;
+
+        file.IsBaseline = isBaseline;
+        await context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<List<DiagnosticFile>> GetAllAsync()
     {
         await using var context = _contextFactory();

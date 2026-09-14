@@ -101,7 +101,15 @@ public class DiagFileProcessor
     {
         var baseName = SanitizeForPath(Path.GetFileNameWithoutExtension(zipFileName));
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfff");
+
+        // Two bundles can land inside the same millisecond, so keep trying until we get a new folder.
         var dir = Path.Combine(_extractRootPath, $"{stamp}_{baseName}");
+        var attempt = 1;
+        while (Directory.Exists(dir))
+        {
+            dir = Path.Combine(_extractRootPath, $"{stamp}_{baseName}_{attempt++}");
+        }
+
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -4,22 +4,22 @@ using DiagFileMonitor.Core.Models;
 namespace DiagFileMonitor.Core.Services;
 
 /// <summary>
-/// Watches a folder for new files matching a configurable extension filter, waits for each
-/// file to finish being written, then hands it to the DiagFileProcessor on a single background
-/// worker (so two zips landing at once don't race each other into the database).
+/// Watches one or more folders for new files matching a configurable extension filter, waits
+/// for each file to finish being written, then hands it to the DiagFileProcessor on a single
+/// background worker (so two zips landing at once don't race each other into the database).
 /// </summary>
 public class FolderMonitorService : IDisposable
 {
     private readonly DiagFileProcessor _processor;
     private readonly ConcurrentQueue<string> _queue = new();
     private readonly SemaphoreSlim _signal = new(0);
+    private readonly List<FileSystemWatcher> _watchers = new();
 
-    private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _cts;
 
-    public string? WatchFolderPath { get; private set; }
+    public IReadOnlyList<string> WatchFolders { get; private set; } = Array.Empty<string>();
     public IReadOnlyList<string> Extensions { get; private set; } = new List<string> { ".zip" };
-    public bool IsRunning => _watcher is not null;
+    public bool IsRunning => _watchers.Count > 0;
 
     public event EventHandler<DiagnosticFile>? FileProcessed;
     public event EventHandler<string>? FileFailed;
@@ -29,45 +29,55 @@ public class FolderMonitorService : IDisposable
         _processor = processor;
     }
 
-    public void Start(string folderPath, IEnumerable<string> extensions)
+    public void Start(IEnumerable<string> folderPaths, IEnumerable<string> extensions)
     {
         Stop();
 
-        WatchFolderPath = folderPath;
+        WatchFolders = folderPaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         Extensions = NormalizeExtensions(extensions);
 
-        Directory.CreateDirectory(folderPath);
-
         _cts = new CancellationTokenSource();
-        _ = Task.Run(() => ProcessQueueAsync(_cts.Token));
+        var token = _cts.Token;
+        _ = Task.Run(() => ProcessQueueAsync(token), token);
 
-        _watcher = new FileSystemWatcher(folderPath)
+        foreach (var folder in WatchFolders)
         {
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-            IncludeSubdirectories = false
-        };
-        _watcher.Created += OnFileEvent;
-        _watcher.Renamed += OnFileEvent;
-        _watcher.EnableRaisingEvents = true;
+            Directory.CreateDirectory(folder);
 
-        // Pick up anything that arrived before monitoring was started.
-        foreach (var existing in Directory.EnumerateFiles(folderPath))
-        {
-            EnqueueIfMatches(existing);
+            var watcher = new FileSystemWatcher(folder)
+            {
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                IncludeSubdirectories = false
+            };
+            watcher.Created += OnFileEvent;
+            watcher.Renamed += OnFileEvent;
+            watcher.EnableRaisingEvents = true;
+            _watchers.Add(watcher);
+
+            // Pick up anything that arrived before monitoring was started.
+            foreach (var existing in Directory.EnumerateFiles(folder))
+            {
+                EnqueueIfMatches(existing);
+            }
         }
     }
 
     public void Stop()
     {
-        if (_watcher is not null)
+        foreach (var watcher in _watchers)
         {
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Created -= OnFileEvent;
-            _watcher.Renamed -= OnFileEvent;
-            _watcher.Dispose();
-            _watcher = null;
+            watcher.EnableRaisingEvents = false;
+            watcher.Created -= OnFileEvent;
+            watcher.Renamed -= OnFileEvent;
+            watcher.Dispose();
         }
 
+        _watchers.Clear();
         _cts?.Cancel();
         _cts = null;
     }
@@ -114,6 +124,10 @@ public class FolderMonitorService : IDisposable
                 var result = await _processor.ProcessAsync(path, token);
                 FileProcessed?.Invoke(this, result);
             }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 SimpleLogger.Error($"Failed to process '{path}'", ex);
@@ -151,7 +165,7 @@ public class FolderMonitorService : IDisposable
                 // Still being written to / locked by the producer - keep polling.
             }
 
-            await Task.Delay(500, token);
+            await Task.Delay(250, token);
         }
 
         return false;
