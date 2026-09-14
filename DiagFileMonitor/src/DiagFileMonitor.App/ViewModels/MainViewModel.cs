@@ -247,6 +247,29 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void CopySummary(DiagnosticFileSummary? row)
+    {
+        var target = row ?? SelectedFile;
+        if (target is null)
+        {
+            StatusMessage = "Select a file to copy its summary.";
+            return;
+        }
+
+        try
+        {
+            System.Windows.Clipboard.SetText(CaseSummaryFormatter.Format(target));
+            StatusMessage = $"Copied summary for '{target.OriginalFileName}' to the clipboard.";
+        }
+        catch (Exception ex)
+        {
+            // The clipboard can be locked by another process.
+            StatusMessage = $"Could not copy to clipboard: {ex.Message}";
+            SimpleLogger.Error("Clipboard copy failed", ex);
+        }
+    }
+
+    [RelayCommand]
     private void ClearFilters()
     {
         SearchText = string.Empty;

@@ -184,7 +184,9 @@
                          AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                          Height="220" Margin="0,0,0,10" />
 
-                <Button Content="Save notes" Command="{Binding SaveNotesCommand}" Height="28"
+                <Button Content="Save notes" Command="{Binding SaveNotesCommand}" Height="28" Margin="0,0,0,6"
+                        IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
+                <Button Content="Copy summary for ticket" Command="{Binding CopySummaryCommand}" Height="28"
                         IsEnabled="{Binding SelectedFile, Converter={StaticResource NotNullConverter}}" />
             </StackPanel>
         </Border>
@@ -204,6 +206,9 @@
                                           Command="{Binding PlacementTarget.Tag.OpenExtractedFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}"
                                           IsEnabled="{Binding HasExtractedFolder}" />
+                                <MenuItem Header="_Copy summary for ticket"
+                                          Command="{Binding PlacementTarget.Tag.CopySummaryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
                                 <Separator />
                                 <MenuItem Header="Open _errorlog.txt"
                                           Command="{Binding PlacementTarget.Tag.OpenErrorLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
