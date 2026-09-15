@@ -1,3 +1,4 @@
+using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.Knowledge;
 using DiagFileMonitor.Core.SpidaLogs;
 using Xunit;
@@ -451,5 +452,107 @@ public class ComplaintRouterTests
         var topic = ComplaintRouter.Route("trolley is at the wrong height", Changes, log).Topics[0];
 
         Assert.Equal("TrolleyHeight", Assert.Single(topic.RelatedLogLines).Tag);
+    }
+}
+
+public class SoftwareVersionTests
+{
+    [Theory]
+    [InlineData("V0.0.0.0")]
+    [InlineData("v0.0.0.0")]
+    [InlineData("0.0.0.0")]
+    [InlineData("0.0.0")]
+    [InlineData("0")]
+    [InlineData(" V0.0.0.0 ")]
+    public void AllZeroVersionsAreUnstampedDevBuilds(string version)
+    {
+        Assert.True(SoftwareVersion.IsUnstampedDevBuild(version));
+        Assert.NotNull(SoftwareVersion.Note(version));
+    }
+
+    [Theory]
+    [InlineData("V2.4.0.0")]
+    [InlineData("V2.6.1")]
+    [InlineData("V0.1.0.0")]
+    [InlineData("V1.0.0.0")]
+    [InlineData("V2.0.0.0")]
+    [InlineData("(unknown)")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void RealVersionsAreLeftAlone(string? version)
+    {
+        // V0.1.0.0 and V2.0.0.0 contain zeros but are real versions - only all-zero is the dev build.
+        Assert.False(SoftwareVersion.IsUnstampedDevBuild(version));
+        Assert.Null(SoftwareVersion.Note(version));
+    }
+
+    [Fact]
+    public void TheNoteSaysNotToTrustTheFieldRatherThanGuessingTheBuild()
+    {
+        var note = SoftwareVersion.Note("V0.0.0.0")!;
+
+        Assert.StartsWith("V0.0.0.0 is a dev build", note);
+        Assert.Contains("V2.6.1", note);
+        Assert.Contains("rather than trusting this field", note);
+    }
+
+    [Fact]
+    public void TwoDevBuildsGetOneWarningSayingTheyMayNotMatchEachOther()
+    {
+        var note = SoftwareVersion.CompareNote("V0.0.0.0", "V0.0.0.0")!;
+
+        Assert.Contains("Both files report V0.0.0.0", note);
+        Assert.Contains("not necessarily the same build as each other", note);
+    }
+
+    [Fact]
+    public void OnlyTheSideThatIsADevBuildIsNamed()
+    {
+        Assert.StartsWith("The benchmark is on", SoftwareVersion.CompareNote("V0.0.0.0", "V2.4.0.0"));
+        Assert.StartsWith("The compared machine is on", SoftwareVersion.CompareNote("V2.4.0.0", "V0.0.0.0"));
+        Assert.Null(SoftwareVersion.CompareNote("V2.4.0.0", "V2.6.1"));
+    }
+
+    [Fact]
+    public void TheAnalysisReportFlagsADevBuildBesideTheVersion()
+    {
+        var analysis = new SpidaLogAnalyser().Analyse(
+            Array.Empty<MachineLogEntry>(), Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(),
+            new DateTime(2026, 7, 27));
+
+        var devBuild = SpidaReportFormatter.Format(
+            new DiagnosticFileSummary { SoftwareName = "Spida SDN", Version = "V0.0.0.0" }, analysis);
+
+        var released = SpidaReportFormatter.Format(
+            new DiagnosticFileSummary { SoftwareName = "Spida SDN", Version = "V2.4.0.0" }, analysis);
+
+        Assert.Contains("dev build", devBuild);
+        Assert.DoesNotContain("dev build", released);
+    }
+
+    [Fact]
+    public void TheCompareReportWarnsOnceWhenBothSidesAreDevBuilds()
+    {
+        var both = new DiagnosticFileSummary { OriginalFileName = "x.szip", Version = "V0.0.0.0" };
+
+        var text = CompareReportFormatter.Format(both, both,
+            StepTimingComparison.Compare(new StepProfile(), new StepProfile()),
+            new SettingsComparison(), Array.Empty<string>());
+
+        Assert.Equal(1, text.Split("dev build").Length - 1);
+        Assert.Contains("Both files report V0.0.0.0", text);
+    }
+
+    [Fact]
+    public void TheCompareReportFlagsWhicheverSideIsADevBuild()
+    {
+        var text = CompareReportFormatter.Format(
+            new DiagnosticFileSummary { OriginalFileName = "m.szip", Version = "V2.4.0.0" },
+            new DiagnosticFileSummary { OriginalFileName = "c.szip", Version = "V0.0.0.0" },
+            StepTimingComparison.Compare(new StepProfile(), new StepProfile()),
+            new SettingsComparison(), Array.Empty<string>());
+
+        Assert.Contains("The compared machine is on V0.0.0.0", text);
+        Assert.DoesNotContain("The benchmark is on", text);
     }
 }

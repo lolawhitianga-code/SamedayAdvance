@@ -20,6 +20,11 @@ public static class SpidaReportFormatter
         text.AppendLine($"Machine:   {file.MachineType} ({file.MachineName})   serial {file.SerialNumber}");
         text.AppendLine($"Customer:  {file.Customer}, {file.SiteLocation}");
         text.AppendLine($"Software:  {file.SoftwareName} {file.Version}");
+
+        if (SoftwareVersion.Note(file.Version) is { } versionNote)
+        {
+            text.AppendLine($"           !! {ReportText.Wrap(versionNote, 14)}");
+        }
         text.AppendLine($"Arrived:   {file.ArrivedDisplay}");
 
         if (analysis.MachineModelFromLog is { } fromLog)

@@ -1,4 +1,5 @@
 using System.Text;
+using DiagFileMonitor.Core.Knowledge;
 using DiagFileMonitor.Core.Models;
 
 namespace DiagFileMonitor.Core.SpidaLogs;
@@ -20,6 +21,8 @@ public static class CompareReportFormatter
         text.AppendLine($"Compared:            {compared.OriginalFileName}");
         text.AppendLine($"                     {compared.MachineType}  serial {compared.SerialNumber}  {compared.Customer}");
         text.AppendLine($"                     {compared.SoftwareName} {compared.Version}   {compared.ArrivedDisplay}");
+
+        AppendVersionWarning(text, master, compared);
 
         if (!string.Equals(master.MachineType, compared.MachineType, StringComparison.OrdinalIgnoreCase))
         {
@@ -48,6 +51,15 @@ public static class CompareReportFormatter
         }
 
         return text.ToString();
+    }
+
+    private static void AppendVersionWarning(
+        StringBuilder text, DiagnosticFileSummary master, DiagnosticFileSummary compared)
+    {
+        if (SoftwareVersion.CompareNote(master.Version, compared.Version) is not { } note) return;
+
+        text.AppendLine();
+        text.AppendLine($"  !! {ReportText.Wrap(note, 5)}");
     }
 
     private static void AppendCycle(StringBuilder text, StepTimingComparison steps)
