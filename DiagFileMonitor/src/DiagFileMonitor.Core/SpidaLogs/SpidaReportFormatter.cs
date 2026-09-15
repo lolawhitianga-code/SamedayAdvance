@@ -170,39 +170,52 @@ public static class SpidaReportFormatter
     }
 
     /// <summary>
-    /// Motors told to run that never said they were running. This is the difference between "the
-    /// machine was asked to cut" and "the blade was turning", and it is usually the whole answer
-    /// when an operator writes that something is not running.
+    /// What each motor's run command and its confirmation input did. This is the difference
+    /// between "the machine was asked to cut" and "the blade was turning", and it is usually the
+    /// whole answer when an operator writes that something is not running.
+    /// <para>
+    /// It says when the confirmation last read 1 and last read 0 whatever the verdict, because
+    /// "it never appears in this file" is an answer to that question too - a short export taken
+    /// after the motor stopped carries no change at all, and staying silent there reads as
+    /// nothing being wrong.
+    /// </para>
     /// </summary>
     private static void AppendMotorConfirm(StringBuilder text, KnowledgeFindings knowledge)
     {
         var findings = knowledge.MotorConfirm;
         if (!findings.Any) return;
 
-        text.AppendLine();
-        text.AppendLine("*** A MOTOR WAS TOLD TO RUN AND DID NOT REPORT BACK ***");
+        var failures = findings.Failures.ToList();
 
-        foreach (var failure in findings.Failures.Take(5))
+        text.AppendLine();
+        text.AppendLine(failures.Count > 0
+            ? "*** A MOTOR WAS TOLD TO RUN AND DID NOT REPORT BACK ***"
+            : "MOTORS TOLD TO RUN - DID THEY REPORT BACK?");
+
+        foreach (var status in findings.Statuses.Take(6))
         {
             text.AppendLine();
-            text.AppendLine($"  {ReportText.Wrap(failure.Summary, 2)}");
-            text.AppendLine($"      output {failure.OutputTag} on, {failure.ConfirmTag} not on");
+            text.AppendLine($"  {ReportText.Wrap(status.Summary, 2)}");
+            text.AppendLine($"      {ReportText.Wrap(status.ConfirmSentence, 6)}");
 
-            if (failure.MachineWaitedFor is { } waited)
+            if (status.MachineWaitedFor is { } waited)
             {
                 text.AppendLine($"      the machine's own words: \"{waited}\"");
             }
         }
+
+        if (failures.Count == 0) return;
 
         text.AppendLine();
         text.AppendLine("  The command went out and the confirmation did not come back, so the motor was");
         text.AppendLine("  not turning. Check the contactor, its auxiliary contact, the overload and the");
         text.AppendLine("  confirmation wiring before anything further down the process.");
 
-        if (findings.Healthy.Count > 0)
+        var healthy = findings.Healthy.Select(h => h.Motor).ToList();
+        if (healthy.Count > 0)
         {
-            text.AppendLine($"  For comparison, {string.Join(" and ", findings.Healthy)} confirmed normally "
-                            + "in this same log.");
+            text.AppendLine($"  For comparison, {string.Join(" and ", healthy)} confirmed normally in this "
+                            + "same log.");
         }
     }
 
@@ -503,11 +516,12 @@ public static class SpidaReportFormatter
         // A motor that never reported itself running is as concrete as it gets, and it is
         // normally the exact thing the operator wrote down.
         foreach (var failure in knowledge?.MotorConfirm.Failures.Take(2)
-                                ?? Enumerable.Empty<MotorConfirmFailure>())
+                                ?? Enumerable.Empty<MotorConfirmStatus>())
         {
-            leads.Add($"{failure.Motor} was commanded on at {failure.CommandedOn:hh\\:mm\\:ss}"
-                      + $"{Age(failure.CommandedOn)} and {failure.ConfirmTag} never came on. Check the "
-                      + "contactor, its auxiliary contact, the overload and the confirmation wiring.");
+            leads.Add($"{failure.Motor} was commanded on at {failure.LastCommandedOn:hh\\:mm\\:ss}"
+                      + $"{Age(failure.LastCommandedOn)} and {failure.ConfirmTag} did not come on. "
+                      + $"{failure.ConfirmSentence} Check the contactor, its auxiliary contact, the "
+                      + "overload and the confirmation wiring.");
         }
 
         // A drive fault outranks everything else: the machine has named the failed part, so a

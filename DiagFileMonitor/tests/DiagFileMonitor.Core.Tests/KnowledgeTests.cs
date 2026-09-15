@@ -1124,26 +1124,67 @@ public class MotorConfirmCheckTests
 
         var failure = Assert.Single(findings.Failures);
         Assert.Equal("SawMotor", failure.Motor);
-        Assert.Equal("IO-SawMotor", failure.OutputTag);
-        Assert.Equal("SawMotorConfirm", failure.ConfirmTag);
+        Assert.Equal(MotorConfirmVerdict.NotConfirmed, failure.Verdict);
         Assert.Equal("Step Condition, Waiting for Saw Blade Running", failure.MachineWaitedFor);
         Assert.Equal(5.5, failure.GaveUpAfter!.Value.TotalSeconds, 1);
     }
 
     [Fact]
-    public void AMotorThatConfirmsIsNotReported()
+    public void ItSaysWhenTheConfirmationLastReadOneAndLastReadZero()
     {
-        var findings = MotorConfirmCheck.Check(Log(
-            "10:00:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
-            "10:00:01.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 1",
-            "10:05:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set Off"));
+        var status = MotorConfirmCheck.Check(Log(
+            "12:00:00.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 1",
+            "12:30:00.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 0",
+            "13:08:19.0000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "13:08:23.0000000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running")).Statuses.Single();
 
-        Assert.Empty(findings.Failures);
-        Assert.Contains("SawMotor", findings.Healthy);
+        Assert.Equal(new TimeSpan(12, 0, 0), status.ConfirmLastOn);
+        Assert.Equal(new TimeSpan(12, 30, 0), status.ConfirmLastOff);
+        Assert.Contains("last read 1 - running - at 12:00:00", status.ConfirmSentence);
+        Assert.Contains("last read 0 - not running - at 12:30:00", status.ConfirmSentence);
     }
 
     [Fact]
-    public void AMotorAlreadyConfirmingIsNotReported()
+    public void AShortExportWithNoConfirmationLineStillAnswersTheQuestion()
+    {
+        // The 6-14-02 M20421 export covers four minutes after the motor had already stopped, so
+        // SawMotorConfirm never changes inside it. Saying nothing there reads as nothing wrong.
+        var findings = MotorConfirmCheck.Check(Log(
+            "13:13:24.3100000,  Other, Tornado,  Step = 1018",
+            "13:13:24.4000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "13:13:24.6940000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running"));
+
+        var failure = Assert.Single(findings.Failures);
+        Assert.False(failure.ConfirmSeenInLog);
+        Assert.Null(failure.ConfirmLastOn);
+        Assert.Contains("does not appear anywhere in this file", failure.ConfirmSentence);
+        Assert.Equal(MotorConfirmVerdict.NotConfirmed, failure.Verdict);
+    }
+
+    [Fact]
+    public void TheMachineSayingItIsWaitingSettlesItWithoutAnyInputAtAll()
+    {
+        var findings = MotorConfirmCheck.Check(Log(
+            "13:13:24.4000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "13:13:24.6940000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running"));
+
+        Assert.Equal(MotorConfirmVerdict.NotConfirmed, Assert.Single(findings.Statuses).Verdict);
+    }
+
+    [Fact]
+    public void AMotorThatConfirmsIsReportedAsConfirmed()
+    {
+        var status = MotorConfirmCheck.Check(Log(
+            "10:00:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "10:00:01.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 1",
+            "10:05:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set Off")).Statuses.Single();
+
+        Assert.Equal(MotorConfirmVerdict.Confirmed, status.Verdict);
+        Assert.Contains("confirmed running", status.Summary);
+    }
+
+    [Fact]
+    public void AMotorAlreadyConfirmingIsNotReportedAsFailed()
     {
         // The log records changes only, so a confirmation already at 1 logs nothing.
         var findings = MotorConfirmCheck.Check(Log(
@@ -1158,47 +1199,49 @@ public class MotorConfirmCheckTests
     {
         // When one motor fails the machine drops every output at once. The nog conveyor on
         // M20421 was withdrawn 5.5s after being asked, never having had a chance to spin up.
-        var findings = MotorConfirmCheck.Check(Log(
+        var status = MotorConfirmCheck.Check(Log(
             "09:00:00.0000000,  InputChange, NogConveyorConfirm,  Input (z) Changed to 0",
             "13:08:19.4642423,  OutputChange, IO-NogConveyor,  Output (a) Set On",
-            "13:08:24.9892524,  OutputChange, IO-NogConveyor,  Output (a) Set Off"));
+            "13:08:24.9892524,  OutputChange, IO-NogConveyor,  Output (a) Set Off")).Statuses.Single();
 
-        Assert.Empty(findings.Failures);
+        Assert.Equal(MotorConfirmVerdict.AbortedBeforeItCould, status.Verdict);
+        Assert.Contains("the step being aborted, not the motor failing", status.Summary);
     }
 
     [Fact]
     public void AWaitLineBelongingToAnotherMotorIsNotBorrowed()
     {
         // "Waiting for Saw Blade Running" is the saw's, not whatever else switched on beside it.
-        var findings = MotorConfirmCheck.Check(Log(
+        var status = MotorConfirmCheck.Check(Log(
             "09:00:00.0000000,  InputChange, NogConveyorConfirm,  Input (z) Changed to 0",
             "13:08:19.0000000,  OutputChange, IO-NogConveyor,  Output (a) Set On",
-            "13:08:23.0000000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running"));
+            "13:08:23.0000000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running"))
+            .Statuses.Single();
 
-        var failure = Assert.Single(findings.Failures);
-        Assert.Null(failure.MachineWaitedFor);
+        Assert.Null(status.MachineWaitedFor);
     }
 
     [Fact]
-    public void ConfirmationsArePairedWithMoreSpecificOutputs()
+    public void ADirectionSuffixedOutputIsTheSameMotorNotAnExtraOne()
     {
-        // WasteMotorConfirm answers IO-WasteMotorFwd and IO-WasteMotorRev.
+        // IO-WasteMotorFwd and IO-WasteMotorRev are one motor answered by one WasteMotorConfirm.
         var findings = MotorConfirmCheck.Check(Log(
             "10:00:00.0000000,  OutputChange, IO-WasteMotorFwd,  Output (x) Set On",
-            "10:00:01.0000000,  InputChange, WasteMotorConfirm,  Input (y) Changed to 1"));
+            "10:00:01.0000000,  InputChange, WasteMotorConfirm,  Input (y) Changed to 1",
+            "10:00:05.0000000,  OutputChange, IO-WasteMotorRev,  Output (x) Set On"));
 
-        Assert.Contains("WasteMotor", findings.MotorsChecked);
-        Assert.Empty(findings.Failures);
+        Assert.Equal("WasteMotor", Assert.Single(findings.Statuses).Motor);
     }
 
     [Fact]
-    public void AMotorWithNoConfirmationInputIsNotChecked()
+    public void AMotorWithNoConfirmationWiredIsNotReportedEitherWay()
     {
+        // An extractor fan with no feedback is not a finding in either direction.
         var findings = MotorConfirmCheck.Check(Log(
-            "10:00:00.0000000,  OutputChange, IO-SomeMotor,  Output (x) Set On"));
+            "10:00:00.0000000,  OutputChange, IO-ExtractorMotor,  Output (x) Set On",
+            "10:00:05.0000000,  OutputChange, IO-ExtractorMotor,  Output (x) Set Off"));
 
-        Assert.Empty(findings.MotorsChecked);
-        Assert.False(findings.Any);
+        Assert.Empty(findings.Statuses);
     }
 
     [Fact]
@@ -1221,7 +1264,7 @@ public class MotorConfirmCheckTests
 
         Assert.Contains("A MOTOR WAS TOLD TO RUN AND DID NOT REPORT BACK", text);
         Assert.Contains("A MOTOR IS NOT RUNNING", text);
-        Assert.Contains("SawMotorConfirm never came on", text);
+        Assert.Contains("SawMotorConfirm", text);
 
         // Ahead of the units, and ahead of whatever repeats loudest further down.
         Assert.True(text.IndexOf("SawMotorConfirm", StringComparison.Ordinal)

@@ -3,68 +3,116 @@ using DiagFileMonitor.Core.SpidaLogs;
 
 namespace DiagFileMonitor.Core.Knowledge;
 
-/// <summary>One time a motor was told to run and did not report back that it was running.</summary>
-public class MotorConfirmFailure
+public enum MotorConfirmVerdict
 {
-    /// <summary>The motor's plain name, e.g. SawMotor.</summary>
-    public string Motor { get; init; } = string.Empty;
+    /// <summary>The motor reported itself running after it was told to.</summary>
+    Confirmed,
 
+    /// <summary>It was told to run and the confirmation did not come.</summary>
+    NotConfirmed,
+
+    /// <summary>The command was withdrawn before the motor had a chance - an aborted step.</summary>
+    AbortedBeforeItCould,
+
+    /// <summary>Nothing in this file says either way.</summary>
+    Unknown
+}
+
+/// <summary>What a motor's run command and its confirmation input did in this log.</summary>
+public class MotorConfirmStatus
+{
+    public string Motor { get; init; } = string.Empty;
     public string OutputTag { get; init; } = string.Empty;
     public string ConfirmTag { get; init; } = string.Empty;
 
-    public TimeSpan CommandedOn { get; init; }
+    public TimeSpan? LastCommandedOn { get; init; }
+    public TimeSpan? LastCommandedOff { get; init; }
 
-    /// <summary>When the confirmation was last seen reading 0, where it was seen at all.</summary>
-    public TimeSpan? ConfirmDroppedAt { get; init; }
+    /// <summary>The last time the confirmation was seen reading 1 - the motor running.</summary>
+    public TimeSpan? ConfirmLastOn { get; init; }
 
-    /// <summary>When the command was dropped again - the machine giving up.</summary>
-    public TimeSpan? OutputDroppedAt { get; init; }
+    /// <summary>The last time the confirmation was seen reading 0 - the motor not running.</summary>
+    public TimeSpan? ConfirmLastOff { get; init; }
+
+    /// <summary>False where the confirmation never changed in this file, so its state is unknown.</summary>
+    public bool ConfirmSeenInLog { get; init; }
 
     /// <summary>A step condition the machine logged while it waited, in its own words.</summary>
     public string? MachineWaitedFor { get; init; }
 
-    public TimeSpan? GaveUpAfter => OutputDroppedAt is { } off ? off - CommandedOn : null;
+    public MotorConfirmVerdict Verdict { get; init; }
 
-    public string Summary
+    public TimeSpan? GaveUpAfter => LastCommandedOn is { } on && LastCommandedOff is { } off && off > on
+        ? off - on
+        : null;
+
+    /// <summary>The plain answer to "did the confirmation come on?".</summary>
+    public string ConfirmSentence
     {
         get
         {
-            var text = $"{Motor} was told to run at {CommandedOn:hh\\:mm\\:ss} and {ConfirmTag} never "
-                       + "came on to say it was running";
+            if (!ConfirmSeenInLog)
+            {
+                return $"{ConfirmTag} does not appear anywhere in this file. The log records changes "
+                       + "only, so either it never moved or it was never made in the first place.";
+            }
 
-            if (ConfirmDroppedAt is { } dropped) text += $" - it read 0 from {dropped:hh\\:mm\\:ss}";
-            if (GaveUpAfter is { } gave) text += $", and the command was dropped again {gave.TotalSeconds:0.#}s later";
+            var parts = new List<string>();
 
-            return text + ".";
+            parts.Add(ConfirmLastOn is { } on
+                ? $"{ConfirmTag} last read 1 - running - at {on:hh\\:mm\\:ss}"
+                : $"{ConfirmTag} was never seen reading 1 in this file");
+
+            parts.Add(ConfirmLastOff is { } off
+                ? $"and last read 0 - not running - at {off:hh\\:mm\\:ss}"
+                : "and was never seen reading 0");
+
+            return string.Join(" ", parts) + ".";
         }
     }
+
+    public string Summary => Verdict switch
+    {
+        MotorConfirmVerdict.NotConfirmed =>
+            $"{Motor} was told to run at {LastCommandedOn:hh\\:mm\\:ss} and did not report back that "
+            + "it was running"
+            + (GaveUpAfter is { } gave ? $" - the command was dropped again {gave.TotalSeconds:0.#}s later" : string.Empty)
+            + ".",
+        MotorConfirmVerdict.Confirmed =>
+            $"{Motor} was told to run at {LastCommandedOn:hh\\:mm\\:ss} and confirmed running.",
+        MotorConfirmVerdict.AbortedBeforeItCould =>
+            $"{Motor} was told to run at {LastCommandedOn:hh\\:mm\\:ss} and the command was withdrawn "
+            + $"{GaveUpAfter?.TotalSeconds ?? 0:0.#}s later, before it had a chance to report back. "
+            + "That is the step being aborted, not the motor failing.",
+        _ =>
+            $"{Motor} was told to run at {LastCommandedOn:hh\\:mm\\:ss} and this file does not say "
+            + "whether it ran."
+    };
 }
 
 public class MotorConfirmFindings
 {
-    public IReadOnlyList<MotorConfirmFailure> Failures { get; init; } = Array.Empty<MotorConfirmFailure>();
+    /// <summary>Every motor that was commanded on, whatever its confirmation did.</summary>
+    public IReadOnlyList<MotorConfirmStatus> Statuses { get; init; } = Array.Empty<MotorConfirmStatus>();
 
-    /// <summary>Motors that have a confirmation input, whether or not they misbehaved.</summary>
-    public IReadOnlyList<string> MotorsChecked { get; init; } = Array.Empty<string>();
+    public IEnumerable<MotorConfirmStatus> Failures =>
+        Statuses.Where(s => s.Verdict == MotorConfirmVerdict.NotConfirmed);
 
-    /// <summary>Motors whose confirmation followed the command every time, for comparison.</summary>
-    public IReadOnlyList<string> Healthy { get; init; } = Array.Empty<string>();
+    public IEnumerable<MotorConfirmStatus> Healthy =>
+        Statuses.Where(s => s.Verdict == MotorConfirmVerdict.Confirmed);
 
-    public bool Any => Failures.Count > 0;
+    public bool Any => Statuses.Count > 0;
+    public bool AnyFailed => Failures.Any();
 }
 
 /// <summary>
-/// Checks that a motor told to run actually reported back that it was running.
+/// Checks that a motor told to run actually reported back that it was running, and says what its
+/// confirmation input did either way.
 /// <para>
 /// Spida names these by convention: an output <c>IO-SawMotor</c> is answered by an input
-/// <c>SawMotorConfirm</c>. The pairs are discovered from the log rather than listed here, so a
-/// machine with motors we have never seen is still checked.
-/// </para>
-/// <para>
-/// This is the difference between "the machine was asked to cut" and "the blade was turning".
-/// On M20421 the saw output came on, the confirmation sat at 0, the machine logged "Waiting for
-/// Saw Blade Running" and dropped the command 5.5 seconds later - which is exactly what the
-/// operator wrote in the support file.
+/// <c>SawMotorConfirm</c>. Motors are found from the outputs, so one whose confirmation never
+/// changes in a short export is still reported - "it does not appear in this file" is the answer
+/// to the question, not a reason to say nothing.
 /// </para>
 /// </summary>
 public static class MotorConfirmCheck
@@ -72,7 +120,10 @@ public static class MotorConfirmCheck
     /// <summary>How long to give a motor to report itself running before calling it a failure.</summary>
     private static readonly TimeSpan ConfirmWindow = TimeSpan.FromSeconds(10);
 
-    private static readonly Regex ConfirmTag = new(@"^(?<motor>.+)Confirm$",
+    private static readonly Regex MotorOutput = new(@"^IO-(?<motor>.*Motor.*|.*Conveyor.*)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ConfirmInput = new(@"^(?<motor>.+)Confirm$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex InputValue = new(@"Changed\s*to\s*(?<value>\d+)",
@@ -80,128 +131,135 @@ public static class MotorConfirmCheck
 
     public static MotorConfirmFindings Check(IReadOnlyList<MachineLogEntry> machineLog)
     {
-        var confirms = machineLog
-            .Where(e => e.Category == MachineLogCategory.InputChange)
-            .Select(e => (Entry: e, Match: ConfirmTag.Match(e.Tag)))
-            .Where(pair => pair.Match.Success)
-            .GroupBy(pair => pair.Match.Groups["motor"].Value, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var motors = FindMotors(machineLog);
+        if (motors.Count == 0) return new MotorConfirmFindings();
 
-        if (confirms.Count == 0) return new MotorConfirmFindings();
+        var statuses = new List<MotorConfirmStatus>();
 
-        var failures = new List<MotorConfirmFailure>();
-        var checkedMotors = new List<string>();
-        var healthy = new List<string>();
-
-        foreach (var motor in confirms)
+        foreach (var motor in motors)
         {
-            var confirmTag = motor.First().Entry.Tag;
-            var changes = motor
-                .Select(p => (p.Entry.Time, Value: ReadValue(p.Entry.Description)))
+            var commands = machineLog
+                .Where(e => e.Category == MachineLogCategory.OutputChange)
+                .Where(e => e.Tag.Equals(motor, StringComparison.OrdinalIgnoreCase)
+                            || e.Tag.StartsWith($"IO-{motor}", StringComparison.OrdinalIgnoreCase))
+                .Select(e => (e.Time, e.Tag, On: e.Description.Contains("Set On", StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(c => c.Time)
+                .ToList();
+
+            var lastOn = commands.LastOrDefault(c => c.On);
+            if (!commands.Any(c => c.On)) continue;
+
+            var changes = machineLog
+                .Where(e => e.Category == MachineLogCategory.InputChange)
+                .Where(e => e.Tag.Equals($"{motor}Confirm", StringComparison.OrdinalIgnoreCase))
+                .Select(e => (e.Time, Value: ReadValue(e.Description)))
                 .Where(c => c.Value is not null)
                 .Select(c => (c.Time, Value: c.Value!.Value))
                 .OrderBy(c => c.Time)
                 .ToList();
 
-            var commands = FindCommands(machineLog, motor.Key).ToList();
-            if (commands.Count == 0) continue;
+            var waited = FindWaitLine(machineLog, motor, lastOn.Time);
 
-            checkedMotors.Add(motor.Key);
-            var motorFailures = new List<MotorConfirmFailure>();
+            // Without a confirmation input or the machine saying it is waiting, there is nothing
+            // to report either way - an extractor fan with no feedback wired is not a finding.
+            if (changes.Count == 0 && waited is null) continue;
+            var droppedAfter = commands
+                .Where(c => !c.On && c.Time > lastOn.Time)
+                .Select(c => (TimeSpan?)c.Time)
+                .FirstOrDefault();
 
-            foreach (var command in commands.Where(c => c.On))
+            statuses.Add(new MotorConfirmStatus
             {
-                var time = command.Time;
-                if (Confirmed(changes, time)) continue;
-
-                var droppedAt = changes
-                    .Where(c => c.Value == 0 && c.Time >= time && c.Time <= time + ConfirmWindow)
-                    .Select(c => (TimeSpan?)c.Time)
-                    .FirstOrDefault();
-
-                var outputDropped = commands
-                    .Where(c => !c.On && c.Time > time)
-                    .Select(c => (TimeSpan?)c.Time)
-                    .FirstOrDefault();
-
-                var waited = FindWaitLine(machineLog, motor.Key, time);
-
-                // Positive evidence only. When one motor fails the machine aborts the whole step
-                // and withdraws every output at once, so its companions look unconfirmed too -
-                // the nog conveyor on M20421 was dropped 5.5s after being asked, never having had
-                // a chance to spin up. That is the abort, not a second broken motor.
-                var withdrawnEarly = outputDropped is { } off && off - time < ConfirmWindow;
-                var positiveEvidence = droppedAt is not null || waited is not null || !withdrawnEarly;
-
-                if (!positiveEvidence) continue;
-
-                motorFailures.Add(new MotorConfirmFailure
-                {
-                    Motor = motor.Key,
-                    OutputTag = command.Tag,
-                    ConfirmTag = confirmTag,
-                    CommandedOn = time,
-                    ConfirmDroppedAt = droppedAt,
-                    OutputDroppedAt = outputDropped,
-                    MachineWaitedFor = waited
-                });
-            }
-
-            if (motorFailures.Count == 0) healthy.Add(motor.Key);
-            else failures.AddRange(motorFailures);
+                Motor = motor,
+                OutputTag = lastOn.Tag,
+                ConfirmTag = $"{motor}Confirm",
+                LastCommandedOn = lastOn.Time,
+                LastCommandedOff = droppedAfter,
+                ConfirmSeenInLog = changes.Count > 0,
+                ConfirmLastOn = changes.LastOrDefault(c => c.Value == 1) is { Value: 1 } on ? on.Time : null,
+                ConfirmLastOff = changes.LastOrDefault(c => c.Value == 0) is { Value: 0 } off ? off.Time : null,
+                MachineWaitedFor = waited,
+                Verdict = Judge(changes, lastOn.Time, droppedAfter, waited)
+            });
         }
 
         return new MotorConfirmFindings
         {
-            // Most recent first: the file is taken minutes after the problem.
-            Failures = failures.OrderByDescending(f => f.CommandedOn).ToList(),
-            MotorsChecked = checkedMotors,
-            Healthy = healthy
+            // Most recent command first: the file is taken minutes after the problem.
+            Statuses = statuses.OrderByDescending(s => s.Verdict == MotorConfirmVerdict.NotConfirmed)
+                .ThenByDescending(s => s.LastCommandedOn)
+                .ToList()
         };
     }
 
     /// <summary>
-    /// Output changes for a motor. The output carries an IO- prefix and can be more specific than
-    /// the confirmation - WasteMotorConfirm answers IO-WasteMotorFwd and IO-WasteMotorRev.
+    /// Motors are found from their outputs rather than from their confirmations, so a motor whose
+    /// confirmation never changes in a short export is still checked. A confirmation input with no
+    /// matching output is picked up too, in case the output is named differently.
     /// </summary>
-    private static IEnumerable<(TimeSpan Time, string Tag, bool On)> FindCommands(
-        IReadOnlyList<MachineLogEntry> machineLog, string motor)
+    private static List<string> FindMotors(IReadOnlyList<MachineLogEntry> machineLog)
     {
-        return machineLog
+        var fromOutputs = machineLog
             .Where(e => e.Category == MachineLogCategory.OutputChange)
-            .Where(e => e.Tag.Equals(motor, StringComparison.OrdinalIgnoreCase)
-                        || e.Tag.StartsWith($"IO-{motor}", StringComparison.OrdinalIgnoreCase))
-            .Select(e => (
-                e.Time,
-                e.Tag,
-                On: e.Description.Contains("Set On", StringComparison.OrdinalIgnoreCase)))
-            .OrderBy(c => c.Time);
+            .Select(e => MotorOutput.Match(e.Tag))
+            .Where(m => m.Success)
+            .Select(m => m.Groups["motor"].Value);
+
+        var fromConfirms = machineLog
+            .Where(e => e.Category == MachineLogCategory.InputChange)
+            .Select(e => ConfirmInput.Match(e.Tag))
+            .Where(m => m.Success)
+            .Select(m => m.Groups["motor"].Value);
+
+        var confirmed = fromConfirms.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return fromOutputs
+            .Concat(confirmed)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            // IO-WasteMotorFwd and IO-WasteMotorRev are one motor with a direction, answered by a
+            // single WasteMotorConfirm. Without this the same motor is reported three times, twice
+            // of them looking for a confirmation that was never going to exist.
+            .Where(motor => !confirmed.Any(c =>
+                c.Length < motor.Length && motor.StartsWith(c, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(m => m, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>
-    /// Whether the motor was reporting itself running at any point in the window. The log records
-    /// changes only, so a confirmation already reading 1 and not changing counts as confirmed -
-    /// which is why the last state before the command matters as much as what follows it.
+    /// The log records changes only, so a confirmation already reading 1 and not changing counts
+    /// as confirmed - the state before the command matters as much as what follows it.
     /// </summary>
-    private static bool Confirmed(IReadOnlyList<(TimeSpan Time, int Value)> changes, TimeSpan commandedOn)
+    private static MotorConfirmVerdict Judge(
+        IReadOnlyList<(TimeSpan Time, int Value)> changes,
+        TimeSpan commandedOn,
+        TimeSpan? droppedAfter,
+        string? waited)
     {
-        var before = changes.LastOrDefault(c => c.Time <= commandedOn);
-        var hadBefore = changes.Any(c => c.Time <= commandedOn);
+        var within = changes.Where(c => c.Time > commandedOn && c.Time <= commandedOn + ConfirmWindow).ToList();
+        var before = changes.Where(c => c.Time <= commandedOn).ToList();
 
-        var within = changes
-            .Where(c => c.Time > commandedOn && c.Time <= commandedOn + ConfirmWindow)
-            .ToList();
+        if (within.Any(c => c.Value == 1)) return MotorConfirmVerdict.Confirmed;
+        if (before.Count > 0 && before[^1].Value == 1 && within.All(c => c.Value != 0))
+        {
+            return MotorConfirmVerdict.Confirmed;
+        }
 
-        // It came on inside the window.
-        if (within.Any(c => c.Value == 1)) return true;
+        // The machine saying it is waiting for this motor to run settles it on its own.
+        if (waited is not null) return MotorConfirmVerdict.NotConfirmed;
+        if (within.Any(c => c.Value == 0)) return MotorConfirmVerdict.NotConfirmed;
+        if (before.Count > 0 && before[^1].Value == 0 && droppedAfter is null)
+        {
+            return MotorConfirmVerdict.NotConfirmed;
+        }
 
-        // It was already on and nothing dropped it.
-        if (hadBefore && before.Value == 1 && within.All(c => c.Value != 0)) return true;
+        // When one motor fails the machine aborts the step and drops every output at once, so its
+        // companions look unconfirmed too. That is the abort, not a second broken motor.
+        if (droppedAfter is { } off && off - commandedOn < ConfirmWindow)
+        {
+            return MotorConfirmVerdict.AbortedBeforeItCould;
+        }
 
-        // Never logged either side of the command: no evidence of a problem, so say nothing.
-        if (!hadBefore && within.Count == 0) return true;
-
-        return false;
+        return changes.Count == 0 ? MotorConfirmVerdict.Unknown : MotorConfirmVerdict.NotConfirmed;
     }
 
     /// <summary>
