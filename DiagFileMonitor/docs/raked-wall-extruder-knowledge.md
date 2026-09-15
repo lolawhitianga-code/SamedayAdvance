@@ -190,6 +190,23 @@ Two consequences for support:
 Both the analysis report and the benchmark comparison flag this automatically. Only an all-zero
 version triggers it — `V0.1.0.0` and `V2.0.0.0` are real versions and are left alone.
 
+## Reading order
+
+**A support bundle is normally exported within a few minutes of the problem**, so the end of
+`MachineLog.txt` is usually the problem itself. Read backwards from the last entry.
+
+The report opens with a **HOW IT ENDED** section that does this: the last thing the machine
+actually did (ignoring the input and output chatter that keeps ticking over after it has
+stopped), how long the log ran on afterwards, and the last twelve lines verbatim.
+
+A long quiet tail is itself a finding — it means the machine stopped and sat there until the
+operator took the file, so whatever caused it is *above* that point in the log, not below. On
+M20616 the log ended at 13:40:57 but the last real event was at 13:30:04: nearly eleven minutes
+of silence with the machine dead.
+
+Drive fault codes are ordered most recent first for the same reason — a code raised once at the
+end matters more than one raised three times earlier in the shift.
+
 ## Still to confirm / gaps
 
 - Whether the Node0–Node3 mapping from the standard Wall Extruder playbook lines up exactly with this machine's own axis names, or whether raked units log them differently.

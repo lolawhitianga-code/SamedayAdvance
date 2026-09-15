@@ -35,6 +35,7 @@ public static class SpidaReportFormatter
 
         AppendOperatorText(text, file);
         if (complaint is not null) AppendComplaint(text, complaint);
+        AppendHowItEnded(text, analysis);
         if (knowledge is not null) AppendDriveFaults(text, knowledge);
         AppendUnits(text, analysis);
         AppendRepeats(text, analysis);
@@ -118,6 +119,48 @@ public static class SpidaReportFormatter
         foreach (var change in match.RelatedChanges)
         {
             text.AppendLine($"        {change.Display}");
+        }
+    }
+
+    /// <summary>
+    /// The end of the log, first. A bundle is normally exported within a few minutes of the
+    /// problem, so the last thing the machine did is usually the thing being reported - and a
+    /// long quiet tail says it stopped and sat there rather than carrying on.
+    /// </summary>
+    private static void AppendHowItEnded(StringBuilder text, SpidaLogAnalysis analysis)
+    {
+        if (analysis.FinalEntries.Count == 0) return;
+
+        text.AppendLine();
+        text.AppendLine("HOW IT ENDED - read this first");
+        text.AppendLine($"  The file is normally exported within minutes of the problem, so the end of");
+        text.AppendLine($"  MachineLog.txt is usually the problem itself.");
+        text.AppendLine();
+
+        if (analysis.LogEnd is { } end)
+        {
+            text.AppendLine($"  The log ends at {end:hh\\:mm\\:ss}.");
+        }
+
+        if (analysis.LastNotableEvent is { } last && analysis.SilenceBeforeEnd is { } silence)
+        {
+            text.AppendLine($"  The last thing the machine actually did was at {last.Time:hh\\:mm\\:ss}:");
+            text.AppendLine($"      {last.Display}");
+
+            if (silence >= TimeSpan.FromSeconds(30))
+            {
+                text.AppendLine();
+                text.AppendLine($"  {ReportText.Wrap($"Nothing of note happened for the last {MachineCycle.Describe(silence)}. "
+                    + "The machine was sitting there when the file was taken, so whatever stopped it is "
+                    + "above, not below.", 2)}");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine($"  The last {analysis.FinalEntries.Count} lines:");
+        foreach (var entry in analysis.FinalEntries)
+        {
+            text.AppendLine($"      {entry.Display}");
         }
     }
 
@@ -400,13 +443,28 @@ public static class SpidaReportFormatter
 
         var leads = new List<string>();
 
-        // A drive fault outranks everything: the machine has named the failed part, so a
-        // generic "check the sensor and cable" is worse than useless beside it.
+        // How long before the end of the log something happened, since the file is taken within
+        // minutes of the problem and the end of the log is where the problem is.
+        string Age(TimeSpan? when) =>
+            when is { } t && analysis.LogEnd is { } end && end > t
+                ? $", {MachineCycle.Describe(end - t)} before the log ends"
+                : string.Empty;
+
+        // The last thing the machine did comes first, whatever else is in the log.
+        if (analysis.LastNotableEvent is { } lastEvent)
+        {
+            leads.Add($"The machine's last act was {lastEvent.Tag} \"{lastEvent.Description}\" at "
+                      + $"{lastEvent.Time:hh\\:mm\\:ss}{Age(lastEvent.Time)}. Start at the end of the log "
+                      + "and work back.");
+        }
+
+        // A drive fault outranks everything else: the machine has named the failed part, so a
+        // generic "check the sensor and cable" is worse than useless beside it. Most recent first.
         foreach (var fault in knowledge?.DriveFaults.Where(f => f.Code.IsFault).Take(2)
                               ?? Enumerable.Empty<MotionControllerSighting>())
         {
-            leads.Add($"{fault.Code.Code} {fault.Code.ShortMeaning}{fault.Where} (x{fault.Occurrences}) - "
-                      + fault.Code.WhatToCheck);
+            leads.Add($"{fault.Code.Code} {fault.Code.ShortMeaning}{fault.Where} (x{fault.Occurrences}"
+                      + $"{Age(fault.LastSeen)}) - {fault.Code.WhatToCheck}");
         }
 
         // Something physically stopping the machine homing outranks everything else - nothing
@@ -434,8 +492,9 @@ public static class SpidaReportFormatter
         foreach (var glitch in knowledge?.PlatePresentEvents.Where(e => e.Verdict == PlatePresentVerdict.SensorGlitch).Take(1)
                                ?? Enumerable.Empty<PlatePresentEvent>())
         {
-            leads.Add($"A plate present sensor glitched at {glitch.Time:hh\\:mm\\:ss} on the {glitch.Side.ToLowerInvariant()} "
-                      + "side with nothing physically moving - check that sensor and its cable.");
+            leads.Add($"A plate present sensor glitched at {glitch.Time:hh\\:mm\\:ss}{Age(glitch.Time)} on the "
+                      + $"{glitch.Side.ToLowerInvariant()} side with nothing physically moving - check that "
+                      + "sensor and its cable.");
         }
 
         foreach (var repeat in analysis.RepeatedFaults.Take(2))

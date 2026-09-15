@@ -71,6 +71,24 @@ public class SpidaLogAnalysis
 
     /// <summary>The session date the changes are measured against, for reporting how long ago.</summary>
     public DateTime SessionDateUtc { get; init; }
+
+    /// <summary>
+    /// The tail of the log. A bundle is normally exported within minutes of the problem, so the
+    /// last thing the machine did is usually the thing being reported.
+    /// </summary>
+    public IReadOnlyList<MachineLogEntry> FinalEntries { get; init; } = Array.Empty<MachineLogEntry>();
+
+    /// <summary>
+    /// The last entry that says something about what the machine was doing, ignoring the input
+    /// and output chatter that keeps ticking over after it has stopped.
+    /// </summary>
+    public MachineLogEntry? LastNotableEvent { get; init; }
+
+    /// <summary>
+    /// How long the log ran on after that last notable event. A long quiet tail means the machine
+    /// was sitting there doing nothing when the operator took the file.
+    /// </summary>
+    public TimeSpan? SilenceBeforeEnd { get; init; }
     public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
 }
 
@@ -90,6 +108,9 @@ public class SpidaLogAnalyserOptions
 
     /// <summary>An error seen at least this many times is background noise rather than this fault.</summary>
     public int RepeatingErrorThreshold { get; set; } = 5;
+
+    /// <summary>How many lines of the tail of the log to quote.</summary>
+    public int FinalEntriesShown { get; set; } = 12;
 }
 
 /// <summary>
@@ -152,6 +173,9 @@ public class SpidaLogAnalyser
 
         var (real, cosmetic, outside, backgroundNoise) = ClassifyErrors(errLog, changeLog, logStart, logEnd, sessionDateUtc, notes);
 
+        var lastNotable = machineLog
+            .LastOrDefault(e => e.Category is MachineLogCategory.Other or MachineLogCategory.MotionEvent);
+
         return new SpidaLogAnalysis
         {
             MachineModelFromLog = MachineLogFile.FindMachineModel(machineLog),
@@ -167,6 +191,11 @@ public class SpidaLogAnalyser
             ErrorsOutsideLogWindow = outside,
             RepeatingBackgroundErrors = backgroundNoise,
             RecentSettingChanges = RecentChanges(changeLog, sessionDateUtc),
+            FinalEntries = machineLog.TakeLast(_options.FinalEntriesShown).ToList(),
+            LastNotableEvent = lastNotable,
+            SilenceBeforeEnd = lastNotable is not null && logEnd is { } end
+                ? end - lastNotable.Time
+                : null,
             LatestSettingChanges = changeLog
                 .OrderByDescending(c => c.Timestamp)
                 .Take(_options.AlwaysShowLatestChanges)
