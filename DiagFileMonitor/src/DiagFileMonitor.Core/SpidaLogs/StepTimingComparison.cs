@@ -21,26 +21,63 @@ public class StepDifference
 
     public bool IsNoteworthy => Verdict != StepVerdict.Same;
 
+    /// <summary>
+    /// How much faster or slower the compared machine is, as a multiple.
+    /// <para>
+    /// This used to print <see cref="PercentOfMaster"/> - the compared time as a percentage OF
+    /// the master's - directly beside the words "faster" or "slower", so a step taking 17% of
+    /// the benchmark's time read as "17% faster" when it is nearly six times faster. A multiple
+    /// is how people say it out loud, and it cannot be read the wrong way round.
+    /// </para>
+    /// </summary>
+    public string? Multiple
+    {
+        get
+        {
+            // From the durations, not from PercentOfMaster: that is rounded to a whole percent,
+            // and at 9% a single percent is worth about half a turn of the multiple.
+            if (MasterMedian is not { } master || ComparedMedian is not { } compared) return null;
+            if (master <= TimeSpan.Zero || compared <= TimeSpan.Zero) return null;
+
+            return Describe(master.TotalMilliseconds, compared.TotalMilliseconds);
+        }
+    }
+
     public string Display
     {
         get
         {
             var master = MasterMedian is { } m ? Describe(m) : "-";
             var compared = ComparedMedian is { } c ? Describe(c) : "-";
-            var percent = PercentOfMaster is { } p ? $"{p,6:0}%" : "     -";
+
+            var change = Verdict switch
+            {
+                StepVerdict.MissingFromCompared => "never reached",
+                StepVerdict.NotInMaster => "not in master",
+                _ => Multiple ?? "-"
+            };
+
             var note = Verdict switch
             {
-                StepVerdict.MissingFromCompared => "  never reached",
-                StepVerdict.NotInMaster => "  not in master",
                 StepVerdict.MuchSlower => "  <-- much slower",
                 StepVerdict.Slower => "  <-- slower",
                 StepVerdict.SlightlySlower => "  <-- slightly slower",
-                StepVerdict.Faster => "  faster",
                 _ => string.Empty
             };
 
-            return $"  step {Step,-6} master {master,-9} compared {compared,-9} {percent}{note}";
+            // "1.0x slower" reads oddly for a step that simply matches the benchmark.
+            if (Verdict == StepVerdict.Same && Multiple is not null) change = "same";
+
+            return $"  step {Step,-6} master {master,-9} compared {compared,-9} {change,-13}{note}".TrimEnd();
         }
+    }
+
+    /// <summary>How many times slower or faster the compared time is than the master time.</summary>
+    internal static string Describe(double masterMs, double comparedMs)
+    {
+        var ratio = comparedMs / masterMs;
+
+        return ratio >= 1 ? $"{ratio:0.0}x slower" : $"{1 / ratio:0.0}x faster";
     }
 
     internal static string Describe(TimeSpan span) =>

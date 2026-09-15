@@ -1,3 +1,4 @@
+using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.SpidaLogs;
 
 namespace DiagFileMonitor.Core.Tests;
@@ -216,5 +217,94 @@ public class SettingsComparisonTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+}
+
+public class StepDifferenceWordingTests
+{
+    private static StepDifference Difference(double masterMs, double comparedMs) =>
+        StepTimingComparison.Compare(
+            Profile(masterMs), Profile(comparedMs)).Differences.Single();
+
+    private static StepProfile Profile(double milliseconds) => new()
+    {
+        Samples = new[] { new StepSample(0, TimeSpan.FromMilliseconds(milliseconds), 1) },
+        Sequence = new[] { 0 },
+        MedianDuration = new Dictionary<int, TimeSpan> { [0] = TimeSpan.FromMilliseconds(milliseconds) },
+        Occurrences = new Dictionary<int, int> { [0] = 1 },
+        CycleCount = 1,
+        MedianCycleDuration = TimeSpan.FromMilliseconds(milliseconds)
+    };
+
+    [Fact]
+    public void AStepTakingAFractionOfTheBenchmarkReadsAsTimesFasterNotPercentFaster()
+    {
+        // Reported from a real comparison: master 404 ms, compared 69 ms showed "17% faster".
+        // 69ms is 17% OF 404ms, which is close to six times faster - the opposite of a 17% gain.
+        var difference = Difference(masterMs: 404, comparedMs: 69);
+
+        Assert.Equal(17, difference.PercentOfMaster);
+        Assert.Equal("5.9x faster", difference.Multiple);
+
+        Assert.Contains("5.9x faster", difference.Display);
+        Assert.DoesNotContain("17%", difference.Display);
+    }
+
+    [Fact]
+    public void ASlowerStepReadsAsTimesSlower()
+    {
+        // Also from that comparison: master 38 ms, compared 1.04 s showed "2749%".
+        var difference = Difference(masterMs: 38, comparedMs: 1040);
+
+        Assert.Equal("27.4x slower", difference.Multiple);
+        Assert.Contains("27.4x slower", difference.Display);
+        Assert.Contains("much slower", difference.Display);
+    }
+
+    [Theory]
+    [InlineData(100, 50, "2.0x faster")]
+    [InlineData(100, 200, "2.0x slower")]
+    [InlineData(100, 151, "1.5x slower")]
+    [InlineData(404, 69, "5.9x faster")]
+    public void TheMultipleIsTheRatioEitherWayRound(double master, double compared, string expected)
+    {
+        Assert.Equal(expected, Difference(master, compared).Multiple);
+    }
+
+    [Fact]
+    public void AStepMatchingTheBenchmarkSaysSameRatherThanOneTimesSlower()
+    {
+        var difference = Difference(masterMs: 100, comparedMs: 100);
+
+        Assert.Equal(StepVerdict.Same, difference.Verdict);
+        Assert.Contains("same", difference.Display);
+        Assert.DoesNotContain("1.0x", difference.Display);
+    }
+
+    [Fact]
+    public void StepsPresentInOnlyOneFileSaySoInsteadOfAMultiple()
+    {
+        var masterOnly = StepTimingComparison.Compare(Profile(100), new StepProfile()).Differences.Single();
+        var comparedOnly = StepTimingComparison.Compare(new StepProfile(), Profile(100)).Differences.Single();
+
+        Assert.Contains("never reached", masterOnly.Display);
+        Assert.Null(masterOnly.Multiple);
+
+        Assert.Contains("not in master", comparedOnly.Display);
+        Assert.Null(comparedOnly.Multiple);
+    }
+
+    [Fact]
+    public void TheOverallCycleLineAlsoReadsAsAMultiple()
+    {
+        var steps = StepTimingComparison.Compare(Profile(12720), Profile(1110));
+        var text = CompareReportFormatter.Format(
+            new DiagnosticFileSummary { OriginalFileName = "master.szip" },
+            new DiagnosticFileSummary { OriginalFileName = "compared.szip" },
+            steps, new SettingsComparison(), Array.Empty<string>());
+
+        // 1.11 s against 12.72 s was printed as "(9% of master) faster than the benchmark".
+        Assert.Contains("11.5x faster", text);
+        Assert.DoesNotContain("9% of master", text);
     }
 }
