@@ -556,3 +556,184 @@ public class SoftwareVersionTests
         Assert.DoesNotContain("The benchmark is on", text);
     }
 }
+
+public class MotionControllerFaultTests
+{
+    /// <summary>The real lines from the M20616 WallExtruderDG export.</summary>
+    private static IReadOnlyList<MachineLogEntry> RealLog() => MachineLogFile.Parse(new[]
+    {
+        "13:12:07.2470000,  MotionEvent, Axis-FixedSidePusher,  F02 Encoder Wiring Fault",
+        "13:12:07.3270000,  MotionEvent, Control,  Fixed Side Trolley Tripped and stopped FloatingSide Trolley",
+        "13:16:58.2950000,  MotionEvent, Axis-FixedSidePusher,  F02 Encoder Wiring Fault",
+        "13:30:04.0600000,  MotionEvent, Axis-FloatingSidePusher,  Node Not Found on Network",
+        "13:30:04.3400000,  MotionEvent, Axis-FloatingSidePusher,  F14 Comms Fail",
+        "13:30:04.3400000,  MotionEvent, Axis-FixedSidePusher,  F14 Comms Fail",
+        "13:30:04.4890000,  MotionEvent, Axis-FixedSidePusher,  F02 Encoder Wiring Fault"
+    });
+
+    [Fact]
+    public void FindsTheCodesAndTheAxisEachWasRaisedOn()
+    {
+        var found = MotionControllerFaults.Find(RealLog());
+
+        var f02 = found.Single(f => f.Code.Code == "F02");
+        Assert.Equal(3, f02.Occurrences);
+        Assert.Equal("Axis-FixedSidePusher", Assert.Single(f02.Axes));
+        Assert.Equal("Encoder wiring fault", f02.Code.ShortMeaning);
+        Assert.Contains("encoder wiring", f02.Code.WhatToCheck, StringComparison.OrdinalIgnoreCase);
+
+        var f14 = found.Single(f => f.Code.Code == "F14");
+        Assert.Equal(2, f14.Occurrences);
+        Assert.Equal(2, f14.Axes.Count);
+    }
+
+    [Fact]
+    public void RecordsWhenTheCodeFirstAndLastAppeared()
+    {
+        var f02 = MotionControllerFaults.Find(RealLog()).Single(f => f.Code.Code == "F02");
+
+        Assert.Equal(new TimeSpan(0, 13, 12, 7, 247), f02.FirstSeen);
+        Assert.Equal(new TimeSpan(0, 13, 30, 4, 489), f02.LastSeen);
+        Assert.Contains("on Axis-FixedSidePusher", f02.Where);
+    }
+
+    [Fact]
+    public void OnlyCodesTheManualDefinesAreMatched()
+    {
+        // F17 and F42 are not MC2 codes; a bare "F02" inside a word is not one either.
+        var log = MachineLogFile.Parse(new[]
+        {
+            "10:00:00.0000000,  MotionEvent, Axis-A,  F17 something invented",
+            "10:00:01.0000000,  MotionEvent, Axis-A,  F42 also invented",
+            "10:00:02.0000000,  Other, FileReader,  Opening XF02Y.MPS"
+        });
+
+        Assert.Empty(MotionControllerFaults.Find(log));
+    }
+
+    [Fact]
+    public void AVersionNumberIsNotReadAsADriveFault()
+    {
+        var log = MachineLogFile.Parse(new[]
+        {
+            "10:00:00.0000000,  Other, Machine Model,  WallExtruderDG F02.1 build"
+        });
+
+        // F02.1 is not the code F02 on a word boundary followed by nothing.
+        Assert.Empty(MotionControllerFaults.Find(log));
+    }
+
+    [Fact]
+    public void LimitStatesAreReportedButNotAsFaults()
+    {
+        var log = MachineLogFile.Parse(new[]
+        {
+            "10:00:00.0000000,  MotionEvent, Axis-A,  SLL Software Low Limit"
+        });
+
+        var found = Assert.Single(MotionControllerFaults.Find(log));
+        Assert.False(found.Code.IsFault);
+    }
+
+    [Fact]
+    public void TheInternalFaultsSayToCallCyberLogix()
+    {
+        foreach (var code in new[] { "F11", "F12", "F13", "F99" })
+        {
+            Assert.True(MotionControllerFaults.Lookup(code)!.CallCyberLogix, code);
+        }
+
+        Assert.False(MotionControllerFaults.Lookup("F02")!.CallCyberLogix);
+    }
+
+    [Fact]
+    public void DriveFaultsAreFoundOnAMachineWeHaveNoNotesFor()
+    {
+        // WallExtruderDG has no knowledge entry, but the codes come from the drive not the model.
+        var log = RealLog();
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+        var findings = KnowledgeAnnotator.Annotate(analysis, log, "WallExtruderDG", "M20616");
+
+        Assert.Null(findings.Knowledge);
+        Assert.Equal(2, findings.DriveFaults.Count);
+        Assert.True(findings.HasAnything);
+    }
+
+    [Fact]
+    public void TheReportLeadsWithTheCodeRatherThanAGenericSensorCheck()
+    {
+        var log = RealLog();
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+        var text = SpidaReportFormatter.Format(
+            new DiagnosticFileSummary { MachineType = "WallExtruderDG", SerialNumber = "M20616" },
+            analysis,
+            KnowledgeAnnotator.Annotate(analysis, log, "WallExtruderDG", "M20616"));
+
+        Assert.Contains("DRIVE FAULT CODES", text);
+
+        // The code must come before the units, not be buried in quoted context below them.
+        Assert.True(text.IndexOf("F02", StringComparison.Ordinal) < text.IndexOf("UNITS ATTEMPTED", StringComparison.Ordinal));
+
+        var leads = text[text.IndexOf("WHERE TO START LOOKING", StringComparison.Ordinal)..];
+        Assert.Contains("F02 Encoder wiring fault on Axis-FixedSidePusher", leads);
+    }
+}
+
+public class AxisHardwareTests
+{
+    [Theory]
+    [InlineData("CIPNet", ElectronicsFamily.Omron)]
+    [InlineData("CLXMCNet", ElectronicsFamily.Clx)]
+    [InlineData("CLXMCNetAxis", ElectronicsFamily.Clx)]
+    [InlineData("CLXMCNetInput", ElectronicsFamily.Clx)]
+    [InlineData("Simulation", ElectronicsFamily.Simulated)]
+    [InlineData("SomethingNew", ElectronicsFamily.Unknown)]
+    [InlineData("", ElectronicsFamily.Unknown)]
+    public void ClassifiesTheHardwareTypesTheConfigUses(string raw, ElectronicsFamily expected)
+    {
+        Assert.Equal(expected, AxisHardware.Classify(raw));
+    }
+
+    [Fact]
+    public void ReadsAxesFromAUtf16MachineConfig()
+    {
+        // The real machine config files are UTF-16 with a byte order mark.
+        var path = Path.Combine(Path.GetTempPath(), $"axes-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(path, """
+            <?xml version="1.0" encoding="utf-16"?>
+            <WallExtruder>
+              <FixedSide>
+                <Trolley><InUse>true</InUse><AxisHardwareType>CIPNet</AxisHardwareType></Trolley>
+                <ServoGuns><ServoGun><InUse>true</InUse><AxisHardwareType>CLXMCNet</AxisHardwareType></ServoGun></ServoGuns>
+                <YAxis><InUse>false</InUse><AxisHardwareType>CLXMCNet</AxisHardwareType></YAxis>
+              </FixedSide>
+            </WallExtruder>
+            """, System.Text.Encoding.Unicode);
+
+        try
+        {
+            var map = AxisHardware.Read(path);
+
+            Assert.Equal(3, map.Axes.Count);
+            Assert.Equal(2, map.InUse.Count());
+            Assert.True(map.IsMixed);
+            Assert.Equal("WallExtruder/FixedSide/ServoGuns/ServoGun",
+                map.Axes.Single(a => a.Name == "ServoGun").Path);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AMissingOrUnreadableConfigIsReportedAsNothingKnown()
+    {
+        Assert.False(AxisHardware.Read("").Any);
+        Assert.False(AxisHardware.Read("/no/such/file.xml").Any);
+    }
+}

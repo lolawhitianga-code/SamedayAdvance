@@ -227,3 +227,57 @@ Two support files from M20716 were read through the analyser. What that settled:
   `IO-PlatePresentBypass`. The glitch-vs-real check is implemented and tested, but has still
   only ever been seen on a Spida Saw, not on this machine.
 
+
+---
+
+## Electronics and drive fault codes
+
+Spida machines run two families of electronics, and a single machine can use both:
+
+| Family | Comms | Appears in the config as |
+|---|---|---|
+| CyberLogix **CLX** | CLX MCNet | `CLXMCNet`, `CLXMCNetAxis`, `CLXMCNetInput`, `CLXMCNetOutput` |
+| **Omron** | CIPNet | `CIPNet` |
+
+These are recorded per axis (`<AxisHardwareType>`) and per IO point (`<HardwareType>`) in the
+machine's own config file — `RakingWallExtruderV3DG.xml`, `WallExtruder.xml`, `TornadoM450.xml`,
+`SprintM600.xml` — **not** in the generic `Machine.xml`. Those files are **UTF-16**, so plain
+`grep` finds nothing in them unless you convert first.
+
+On the M20716 raked extruder the split is **mixed**: trolleys, ejectors, the floating Y axis and
+`TrolleyHeight` are Omron; the gun servos, adjustable gun servos and height servos are CLX.
+
+### Drive fault codes (CyberLogix MC2, firmware 12)
+
+The MC2 flashes a three-character code on its status LED — it scrolls in a circle when all is
+well. **These are CLX codes only**; an Omron axis does not produce them.
+
+| Code | Meaning |
+|---|---|
+| F01 | Invalid hall state — hall wiring, motor hall sensors, brush/brushless mode |
+| **F02** | **Encoder wiring fault — encoder wiring, or the encoder on the motor** |
+| F03 | Encoder power fault — auto-reset fuse tripped on the encoder supply |
+| F04 | Position error limit exceeded — jam, motor not free, driven too fast, under voltage |
+| F05 | Motor over current — faulty wiring, faulty motor, overloaded axis |
+| F06 | Motor power fault — supply voltage too high or too low |
+| F07 | Temperature fault — drive overheating |
+| F08 | Amp disabled — massive over current; short circuit, or output hard stopped suddenly |
+| F09 | Enable lost — lost its enable (E-Stop) input while enabled |
+| F10 | Motor stalled — not moving with full power applied; check as per F04 |
+| F11–F13 | Internal — call CyberLogix |
+| F14 | Comms fail — host comms timed out (drive expects comms every 3 s) |
+| F15 | Drive not set up — send the setup message, normally the reset button in software |
+| F16 | No address — not configured by the host; check cables and host device |
+| F99 | CPU not running — flash update mode or CPU failed; call CyberLogix |
+
+Status (not faults): `SLL` / `SHL` software low/high limit, `HLL` / `HHL` hardware low/high limit.
+
+The log writes both the code and its meaning under the axis tag, e.g.
+`MotionEvent, Axis-FixedSidePusher, F02 Encoder Wiring Fault`. The report pulls these out into
+their own section near the top — the drive has already named the failed part, so a generic
+"check the sensor and cable" beside it is worse than useless.
+
+**Worth knowing:** on M20616 (WallExtruderDG) a repeating `F02` on `Axis-FixedSidePusher` was the
+cause, while the message the report had been leading with — "Fixed Side Trolley Tripped and
+stopped FloatingSide Trolley" — was the consequence. `Node Not Found on Network` immediately
+before an `F14` on both pushers points at the network rather than at either drive.

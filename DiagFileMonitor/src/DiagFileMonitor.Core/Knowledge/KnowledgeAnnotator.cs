@@ -56,11 +56,23 @@ public class KnowledgeFindings
     /// <summary>Whether anything was stopping the machine homing.</summary>
     public HomeInterlockFindings HomeInterlock { get; init; } = new();
 
+    /// <summary>
+    /// Drive fault codes found in the log. Read for every machine, not only ones we have notes
+    /// for - the codes come from the CLX drive, not from the machine model.
+    /// </summary>
+    public IReadOnlyList<MotionControllerSighting> DriveFaults { get; init; } = Array.Empty<MotionControllerSighting>();
+
+    /// <summary>Which electronics family each axis runs on, where the machine config was readable.</summary>
+    public AxisHardwareMap AxisHardware { get; init; } = new();
+
     public bool HasAnything =>
-        Knowledge is not null
-        && (MatchedFaults.Count > 0 || IssuesSeenInThisLog.Count > 0 || IssueHistoryForSerial.Count > 0
-            || Axes.Count > 0 || PlatePresentEvents.Count > 0 || UnknownFaults.Count > 0
-            || HomeInterlock.Any);
+        // Drive faults stand on their own: they come from the drive, not the machine model, so
+        // there is something to report even for a machine we have no notes for.
+        DriveFaults.Count > 0
+        || (Knowledge is not null
+            && (MatchedFaults.Count > 0 || IssuesSeenInThisLog.Count > 0 || IssueHistoryForSerial.Count > 0
+                || Axes.Count > 0 || PlatePresentEvents.Count > 0 || UnknownFaults.Count > 0
+                || HomeInterlock.Any));
 }
 
 /// <summary>
@@ -74,16 +86,25 @@ public static class KnowledgeAnnotator
         SpidaLogAnalysis analysis,
         IReadOnlyList<MachineLogEntry> machineLog,
         string? machineModel,
-        string? serialNumber)
+        string? serialNumber,
+        string? machineConfigXmlPath = null)
     {
         var knowledge = MachineKnowledgeBase.Find(machineModel ?? analysis.MachineModelFromLog);
+
+        // Drive faults are read whatever the machine is: an F-code comes from the CLX drive
+        // rather than from anything model specific, and a machine we have no notes for still
+        // raises them.
+        var driveFaults = MotionControllerFaults.Find(machineLog);
+        var axisHardware = AxisHardware.Read(machineConfigXmlPath ?? string.Empty);
 
         if (knowledge is null)
         {
             return new KnowledgeFindings
             {
                 Model = machineModel ?? analysis.MachineModelFromLog,
-                SerialNumber = serialNumber
+                SerialNumber = serialNumber,
+                DriveFaults = driveFaults,
+                AxisHardware = axisHardware
             };
         }
 
@@ -138,7 +159,9 @@ public static class KnowledgeAnnotator
                 .ToList(),
             Axes = FindAxes(knowledge, machineLog),
             PlatePresentEvents = PlatePresentCheck.Find(machineLog),
-            HomeInterlock = HomeInterlockCheck.Check(machineLog)
+            HomeInterlock = HomeInterlockCheck.Check(machineLog),
+            DriveFaults = driveFaults,
+            AxisHardware = axisHardware
         };
     }
 

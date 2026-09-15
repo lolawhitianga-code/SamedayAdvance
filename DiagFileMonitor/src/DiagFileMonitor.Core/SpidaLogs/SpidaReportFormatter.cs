@@ -35,6 +35,7 @@ public static class SpidaReportFormatter
 
         AppendOperatorText(text, file);
         if (complaint is not null) AppendComplaint(text, complaint);
+        if (knowledge is not null) AppendDriveFaults(text, knowledge);
         AppendUnits(text, analysis);
         AppendRepeats(text, analysis);
         AppendErrors(text, analysis);
@@ -117,6 +118,80 @@ public static class SpidaReportFormatter
         foreach (var change in match.RelatedChanges)
         {
             text.AppendLine($"        {change.Display}");
+        }
+    }
+
+    /// <summary>
+    /// Drive fault codes, high up and on their own. The drive says exactly what is wrong and on
+    /// which axis - "F02 Encoder Wiring Fault on Axis-FixedSidePusher" - but buried in a block of
+    /// quoted context it reads as just more log noise, and the report ends up advising a generic
+    /// sensor check when the machine has already named the part.
+    /// </summary>
+    private static void AppendDriveFaults(StringBuilder text, KnowledgeFindings knowledge)
+    {
+        if (knowledge.DriveFaults.Count == 0) return;
+
+        var faults = knowledge.DriveFaults.Where(f => f.Code.IsFault).ToList();
+        var states = knowledge.DriveFaults.Where(f => !f.Code.IsFault).ToList();
+
+        text.AppendLine();
+        text.AppendLine("*** DRIVE FAULT CODES - THE MACHINE HAS NAMED THE PROBLEM ***");
+
+        foreach (var sighting in faults)
+        {
+            text.AppendLine();
+            text.AppendLine($"  {sighting.Code.Code}  {ReportText.Wrap(sighting.Code.Meaning, 7)}");
+            text.AppendLine($"      x{sighting.Occurrences}{sighting.Where}"
+                            + Window(sighting) + ".");
+            text.AppendLine($"      Check: {ReportText.Wrap(sighting.Code.WhatToCheck, 13)}");
+
+            if (sighting.Code.CallCyberLogix)
+            {
+                text.AppendLine("      This one is not fixable on site - CyberLogix need to see it.");
+            }
+        }
+
+        foreach (var sighting in states)
+        {
+            text.AppendLine();
+            text.AppendLine($"  {sighting.Code.Code}  {ReportText.Wrap(sighting.Code.Meaning, 6)}");
+            text.AppendLine($"      x{sighting.Occurrences}{sighting.Where}{Window(sighting)}. "
+                            + "Not a failure in itself.");
+        }
+
+        AppendElectronics(text, knowledge);
+    }
+
+    private static string Window(MotionControllerSighting sighting)
+    {
+        if (sighting.FirstSeen is not { } first || sighting.LastSeen is not { } last) return string.Empty;
+
+        return first == last
+            ? $", at {first:hh\\:mm\\:ss}"
+            : $", from {first:hh\\:mm\\:ss} to {last:hh\\:mm\\:ss}";
+    }
+
+    /// <summary>
+    /// Which electronics the axes run on. F-codes come from the CLX drives, so on a machine that
+    /// mixes CLX and Omron it is worth knowing which family the faulting axis belongs to.
+    /// </summary>
+    private static void AppendElectronics(StringBuilder text, KnowledgeFindings knowledge)
+    {
+        var hardware = knowledge.AxisHardware;
+
+        text.AppendLine();
+        text.AppendLine("  These are CyberLogix CLX drive codes, read off the drive's status display.");
+
+        if (!hardware.Any) return;
+
+        text.AppendLine($"  This machine's axes: {hardware.Summary}.");
+
+        if (!hardware.IsMixed) return;
+
+        text.AppendLine("  It runs both families, so check the faulting axis is a CLX one:");
+        foreach (var axis in hardware.InUse.OrderBy(a => a.Family))
+        {
+            text.AppendLine($"    {axis.Name,-20} {AxisHardwareMap.Describe(axis.Family)}");
         }
     }
 
@@ -299,6 +374,15 @@ public static class SpidaReportFormatter
         text.AppendLine("WHERE TO START LOOKING");
 
         var leads = new List<string>();
+
+        // A drive fault outranks everything: the machine has named the failed part, so a
+        // generic "check the sensor and cable" is worse than useless beside it.
+        foreach (var fault in knowledge?.DriveFaults.Where(f => f.Code.IsFault).Take(2)
+                              ?? Enumerable.Empty<MotionControllerSighting>())
+        {
+            leads.Add($"{fault.Code.Code} {fault.Code.ShortMeaning}{fault.Where} (x{fault.Occurrences}) - "
+                      + fault.Code.WhatToCheck);
+        }
 
         // Something physically stopping the machine homing outranks everything else - nothing
         // else can happen until it is cleared.
