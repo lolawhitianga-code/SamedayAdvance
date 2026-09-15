@@ -1,3 +1,4 @@
+using DiagFileMonitor.Core.Knowledge;
 using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.SpidaLogs;
 
@@ -588,5 +589,107 @@ public class LatestSettingChangeTests
         Assert.Single(analysis.RecentSettingChanges);
         Assert.DoesNotContain("whenever they happened", text);
         Assert.Equal(1, text.Split("OnTheDay").Length - 1);
+    }
+}
+
+public class EndOfLogTests
+{
+    private static SpidaLogAnalysis Analyse(params string[] lines)
+    {
+        var log = MachineLogFile.Parse(lines);
+        return new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+    }
+
+    [Fact]
+    public void TheLastNotableEventIgnoresTheIoChatterThatTicksOnAfterwards()
+    {
+        // The machine stopped at 13:30:04 and a hand button was pressed 10 minutes later. The
+        // button is not what the operator is reporting.
+        var analysis = Analyse(
+            "13:30:04.4890000,  MotionEvent, Axis-FixedSidePusher,  F02 Encoder Wiring Fault",
+            "13:40:57.0000000,  InputChange, THNTD,  Input (TCP192.168.50.2-1.12) Changed to 0");
+
+        Assert.Equal("Axis-FixedSidePusher", analysis.LastNotableEvent!.Tag);
+        Assert.Contains("F02", analysis.LastNotableEvent.Description);
+    }
+
+    [Fact]
+    public void ALongQuietTailIsMeasuredSoItCanBeReported()
+    {
+        var analysis = Analyse(
+            "13:30:04.0000000,  MotionEvent, Axis-A,  F14 Comms Fail",
+            "13:40:04.0000000,  InputChange, THNTD,  Input (x) Changed to 0");
+
+        Assert.Equal(TimeSpan.FromMinutes(10), analysis.SilenceBeforeEnd);
+    }
+
+    [Fact]
+    public void AMachineStillRunningAtTheEndHasNoQuietTail()
+    {
+        var analysis = Analyse(
+            "13:30:00.0000000,  MotionEvent, Axis-A,  Axis Enabled",
+            "13:30:01.0000000,  Other, WallExtruderStep,  Step = 10");
+
+        Assert.Equal(TimeSpan.FromSeconds(0), analysis.SilenceBeforeEnd);
+    }
+
+    [Fact]
+    public void TheTailOfTheLogIsKeptForQuoting()
+    {
+        var lines = Enumerable.Range(0, 30)
+            .Select(i => $"10:00:{i:00}.0000000,  Other, Step,  Step = {i}")
+            .ToArray();
+
+        var analysis = Analyse(lines);
+
+        Assert.Equal(12, analysis.FinalEntries.Count);
+        Assert.Equal("Step = 29", analysis.FinalEntries[^1].Description);
+    }
+
+    [Fact]
+    public void TheReportLeadsWithHowItEndedBeforeTheUnits()
+    {
+        var analysis = Analyse(
+            "13:12:07.0000000,  MotionEvent, Axis-A,  F02 Encoder Wiring Fault",
+            "13:30:04.0000000,  MotionEvent, Axis-B,  F14 Comms Fail",
+            "13:40:57.0000000,  InputChange, THNTD,  Input (x) Changed to 0");
+
+        var text = SpidaReportFormatter.Format(new DiagnosticFileSummary(), analysis);
+
+        Assert.True(text.IndexOf("HOW IT ENDED", StringComparison.Ordinal)
+                    < text.IndexOf("UNITS ATTEMPTED", StringComparison.Ordinal));
+        Assert.Contains("The machine was sitting", text);
+        Assert.Contains("10.9 min", text);
+    }
+
+    [Fact]
+    public void TheMostRecentDriveCodeIsReportedBeforeAnOlderOneRaisedMoreOften()
+    {
+        // F02 three times early, F14 once at the end. The file was taken minutes after the
+        // problem, so F14 is the one being reported however often F02 fired earlier.
+        var log = MachineLogFile.Parse(new[]
+        {
+            "13:00:00.0000000,  MotionEvent, Axis-A,  F02 Encoder Wiring Fault",
+            "13:01:00.0000000,  MotionEvent, Axis-A,  F02 Encoder Wiring Fault",
+            "13:02:00.0000000,  MotionEvent, Axis-A,  F02 Encoder Wiring Fault",
+            "13:30:00.0000000,  MotionEvent, Axis-B,  F14 Comms Fail"
+        });
+
+        var found = MotionControllerFaults.Find(log);
+
+        Assert.Equal("F14", found[0].Code.Code);
+        Assert.Equal("F02", found[1].Code.Code);
+    }
+
+    [Fact]
+    public void AnEmptyLogProducesNoEndSection()
+    {
+        var analysis = Analyse();
+
+        Assert.Empty(analysis.FinalEntries);
+        Assert.Null(analysis.LastNotableEvent);
+        Assert.Null(analysis.SilenceBeforeEnd);
+        Assert.DoesNotContain("HOW IT ENDED", SpidaReportFormatter.Format(new DiagnosticFileSummary(), analysis));
     }
 }

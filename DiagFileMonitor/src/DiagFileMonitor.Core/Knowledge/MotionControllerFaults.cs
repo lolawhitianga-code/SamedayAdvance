@@ -249,8 +249,11 @@ public static class MotionControllerFaults
                 LastSeen = pair.Value.Max(e => e.Time),
                 Lines = pair.Value.Take(5).Select(e => e.Display).ToList()
             })
+            // Most recent first within the faults. The bundle is exported within minutes of the
+            // problem, so the code raised last is the one being reported - not the one raised most
+            // often earlier in the shift.
             .OrderByDescending(s => s.Code.IsFault)
-            .ThenByDescending(s => s.Occurrences)
+            .ThenByDescending(s => s.LastSeen)
             .ToList();
     }
 
