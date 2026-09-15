@@ -2,15 +2,15 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Spida Machinery palette, read off the logo. If there is a brand guide with exact
-        hex values, change them here and the whole app follows - nothing else hardcodes a
-        brand colour.
+        Spida Machinery palette, sampled from the logo artwork in Assets/logo.png - those two
+        colours are 97% of its pixels. If there is a brand guide with different hex values,
+        change them here and the whole app follows; nothing else hardcodes a brand colour.
     -->
-    <Color x:Key="BrandBlueColor">#00A3DD</Color>
-    <Color x:Key="BrandNavyColor">#3C4A56</Color>
+    <Color x:Key="BrandBlueColor">#00A5E3</Color>
+    <Color x:Key="BrandNavyColor">#415968</Color>
 
     <SolidColorBrush x:Key="BrandBlue" Color="{StaticResource BrandBlueColor}" />
-    <SolidColorBrush x:Key="BrandBlueDark" Color="#0081B4" />
+    <SolidColorBrush x:Key="BrandBlueDark" Color="#0084B6" />
     <SolidColorBrush x:Key="BrandBlueTint" Color="#E6F5FC" />
     <SolidColorBrush x:Key="BrandNavy" Color="{StaticResource BrandNavyColor}" />
     <SolidColorBrush x:Key="BrandGrey" Color="#8B98A3" />

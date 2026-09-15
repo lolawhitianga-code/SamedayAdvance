@@ -6,9 +6,9 @@ using DiagFileMonitor.Core.Services;
 namespace DiagFileMonitor.App.Services;
 
 /// <summary>
-/// Finds the company logo at runtime rather than baking it into the build, so it can be
-/// dropped in or swapped without recompiling. Looks next to the exe first, then in the
-/// app data folder. Falls back to a text wordmark when no file is found.
+/// Finds the company logo. The artwork ships inside the exe, so a fresh build looks right with
+/// nothing to copy, but a file on disk still wins - drop a logo.png beside the exe or in the app
+/// data folder to change it without rebuilding.
 /// </summary>
 public static class BrandLogo
 {
@@ -38,7 +38,29 @@ public static class BrandLogo
             }
         }
 
-        return null;
+        return LoadEmbedded();
+    }
+
+    /// <summary>The artwork built into the exe, used when no file on disk overrides it.</summary>
+    private static ImageSource? LoadEmbedded()
+    {
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri("pack://application:,,,/Assets/logo.png", UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            return bitmap;
+        }
+        catch (Exception ex)
+        {
+            // The text wordmark in MainWindow covers this, so a missing resource is not fatal.
+            SimpleLogger.Error("Could not load the built-in logo", ex);
+            return null;
+        }
     }
 
     public static IEnumerable<string> CandidatePaths()
