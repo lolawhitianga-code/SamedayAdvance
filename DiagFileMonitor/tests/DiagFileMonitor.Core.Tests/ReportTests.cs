@@ -445,18 +445,51 @@ public class MachineInventoryTests
     [InlineData("M21642-1")]
     [InlineData("21642")]
     [InlineData("m21642")]
-    public void SerialsMatchOnTheDigitsSoALineSuffixStillFinds(string serial)
+    public void ALineSuffixOrBareDigitsStillFindTheMachine(string serial)
     {
         Assert.Equal("Grandeur Housing Limited", _inventory.Find(serial)?.Site);
     }
 
     [Fact]
-    public void ADisputedMachineNeverOverridesTheLog()
+    public void DigitsSharedByTwoMachinesIdentifyNeither()
     {
-        var note = _inventory.Disagreement("M21036", "SpidaSaw");
+        // "1694" is AOR1694's digits. If a second machine ever shares them the digits stop
+        // identifying either one, and guessing is worse than saying nothing.
+        var ambiguous = new MachineInventory(new[]
+        {
+            new InventoryEntry { SerialNumber = "AOR1694", Site = "Carters Auckland Line 3" },
+            new InventoryEntry { SerialNumber = "M1694", Site = "Somewhere Else" }
+        });
 
-        Assert.NotNull(note);
-        Assert.Contains("The log is what this report uses.", note);
+        Assert.Null(ambiguous.Find("1694"));
+        Assert.Equal("Carters Auckland Line 3", ambiguous.Find("AOR1694")?.Site);
+        Assert.Equal("Somewhere Else", ambiguous.Find("M1694")?.Site);
+    }
+
+    [Fact]
+    public void CartersAucklandLineThreeIsTwoMachinesNotOneWithTwoSerials()
+    {
+        // AOR1613 and AOR1694 were recorded as a serial number conflict. They are not - the
+        // nailer feeds the extruder, and both sit on the same line.
+        var nailer = _inventory.Find("AOR1613");
+        var extruder = _inventory.Find("AOR1694");
+
+        Assert.Equal("Component Nailer", nailer?.AssetName);
+        Assert.Equal("Raking Wall Extruder V1", extruder?.AssetName);
+        Assert.Equal("AOR1694", nailer?.FeedsInto);
+        Assert.Equal(extruder?.Site, nailer?.Site);
+    }
+
+    [Theory]
+    [InlineData("AOR1613", true)]
+    [InlineData("AOR4156", true)]
+    [InlineData("M20716", false)]
+    [InlineData("DGM20771", false)]
+    [InlineData(null, false)]
+    public void TheRetiredSerialStyleIsRecognised(string? serial, bool retired)
+    {
+        // AOR serials were dropped around 2021, so one means an older build on older electronics.
+        Assert.Equal(retired, MachineInventory.IsRetiredSerialStyle(serial));
     }
 
     [Fact]
@@ -469,9 +502,19 @@ public class MachineInventoryTests
     }
 
     [Fact]
+    public void ADisputedMachineNeverOverridesTheLog()
+    {
+        var note = _inventory.Disagreement("M18644", "SomethingElse");
+
+        Assert.NotNull(note);
+        Assert.Contains("The log is what this report uses.", note);
+    }
+
+    [Fact]
     public void AMatchingTypeRaisesNothing()
     {
         Assert.Null(_inventory.Disagreement("M20716", "RakingWallExtruderV3DG"));
+        Assert.Null(_inventory.Disagreement("M21036", "RakingWallExtruderV3DG"));
     }
 }
 

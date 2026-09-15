@@ -16,6 +16,12 @@ public class InventoryEntry
     /// <summary>The machine type the inventory believes this is, used only to cross-check the log.</summary>
     public string ExpectedType { get; init; } = string.Empty;
 
+    /// <summary>
+    /// The machine this one feeds, where they sit on the same line. Worth knowing when reading a
+    /// report: a stoppage on one shows up as starvation on the next one down the line.
+    /// </summary>
+    public string FeedsInto { get; init; } = string.Empty;
+
     /// <summary>Set where the supplied documents disagree with each other about this machine.</summary>
     public string Disputed { get; init; } = string.Empty;
 }
@@ -48,9 +54,13 @@ public class MachineInventory
             .GroupBy(e => Exact(e.SerialNumber), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
+        // A digits-only lookup is a convenience for someone typing "21642" into the scope box.
+        // Where two machines share those digits - AOR1694 and a hypothetical M1694 - the digits
+        // do not identify either of them, so the key is dropped rather than resolved to whichever
+        // was listed first.
         _byDigits = list
             .GroupBy(e => Digits(e.SerialNumber), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Key.Length > 0)
+            .Where(g => g.Key.Length > 0 && g.Count() == 1)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     }
 
@@ -58,7 +68,11 @@ public class MachineInventory
     {
         if (string.IsNullOrWhiteSpace(serialNumber)) return null;
 
+        // The whole serial, then the same one with a line suffix removed - M21642-1 is the same
+        // machine as M21642 - then the digits on their own.
         if (_exact.TryGetValue(Exact(serialNumber), out var exact)) return exact;
+        if (_exact.TryGetValue(WithoutLineSuffix(serialNumber), out var withoutSuffix)) return withoutSuffix;
+
         return _byDigits.TryGetValue(Digits(serialNumber), out var entry) ? entry : null;
     }
 
@@ -100,6 +114,17 @@ public class MachineInventory
     private static string Exact(string serial) =>
         new string(serial.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
 
+    /// <summary>The serial with a trailing line number dropped, so M21642-1 finds M21642.</summary>
+    private static string WithoutLineSuffix(string serial)
+    {
+        var trimmed = serial.Trim();
+        var dash = trimmed.LastIndexOf('-');
+
+        return dash > 0 && trimmed[(dash + 1)..].All(char.IsDigit)
+            ? Exact(trimmed[..dash])
+            : Exact(trimmed);
+    }
+
     /// <summary>
     /// The first run of digits. Serials are written with and without a prefix and with a line
     /// suffix - M21642-1 is the same machine as M21642 - so the leading digits are what identifies
@@ -132,14 +157,25 @@ public class MachineInventory
         new InventoryEntry { SerialNumber = "M20921", Site = "ITM Nelson", AssetName = "Component Nailer, dual-gun" },
         new InventoryEntry { SerialNumber = "M20716", Site = "Carters Cambridge", AssetName = "6.0M Raked Extruder", ExpectedType = "RakingWallExtruderV3DG" },
         new InventoryEntry { SerialNumber = "M17311", Site = "Carters Wellington Upper Hutt", AssetName = "Tornado M500 automated saw", ExpectedType = "TornadoM500" },
+        new InventoryEntry { SerialNumber = "M18121", Site = "Carters Auckland", AssetName = "Component Nailer" },
+        new InventoryEntry { SerialNumber = "M21036", Site = "Waihi Mitre 10", AssetName = "Raking Wall Extruder V3", ExpectedType = "RakingWallExtruderV3DG" },
+
+        // Carters Auckland Line 3 is two machines, not one machine with two serial numbers.
+        // The nailer feeds the extruder, which is why both turned up in the same notes.
+        new InventoryEntry { SerialNumber = "AOR1613", Site = "Carters Auckland Line 3", AssetName = "Component Nailer", FeedsInto = "AOR1694" },
+        new InventoryEntry { SerialNumber = "AOR1694", Site = "Carters Auckland Line 3", AssetName = "Raking Wall Extruder V1" },
 
         // From real exports this app has read, which the supplied inventory did not list.
         new InventoryEntry { SerialNumber = "M20421", Site = "Engineered Truss Systems", AssetName = "Spida Saw", ExpectedType = "TornadoM500" },
-        new InventoryEntry { SerialNumber = "M21642", Site = "Grandeur Housing Limited", AssetName = "Apollo", ExpectedType = "Apollo" },
-
-        // Unresolved. Both are recorded so a report never silently picks one.
-        new InventoryEntry { SerialNumber = "M18121", Site = "Carters Auckland", Disputed = "one document calls this a saw, the other a single-gun Component Nailer." },
-        new InventoryEntry { SerialNumber = "M21036", Site = "Waihi Mitre 10", Disputed = "the reporting documents call this a Raked Wall Extruder, the earlier machine notes call it a Spida Saw." },
-        new InventoryEntry { SerialNumber = "AOR1694", Site = "Carters Auckland Line 3", AssetName = "Raked Wall Extruder", Disputed = "AOR1694 and AOR1613 have both been used for this machine; the log header decides it." }
+        new InventoryEntry { SerialNumber = "M21642", Site = "Grandeur Housing Limited", AssetName = "Apollo", ExpectedType = "Apollo" }
     });
+
+    /// <summary>
+    /// True for the AOR serial style, dropped around 2021. It says nothing about the machine other
+    /// than its age, but that is worth knowing: a pre-2021 build is on older electronics, so a
+    /// fault code table or a wiring assumption taken from a current machine may not apply.
+    /// </summary>
+    public static bool IsRetiredSerialStyle(string? serialNumber) =>
+        serialNumber is not null
+        && serialNumber.TrimStart().StartsWith("AOR", StringComparison.OrdinalIgnoreCase);
 }

@@ -47,10 +47,11 @@ comma inside the customer name cannot shift the model field.
 Reasons, in order of weight:
 
 1. The parse reads what the machine itself reported. The table is a hand-kept list.
-2. The table is already wrong or unresolved in several rows *by its own admission* —
-   AOR1694 vs AOR1613 is flagged unresolved in the spec but asserted as settled in the
-   context doc (§"Site & machine identities"). A source that contradicts itself cannot
-   be the identity source.
+2. The table is already wrong or unresolved in several rows *by its own admission*, and on
+   M18121 the two documents flatly contradict each other about what kind of machine it is
+   (§2.2). A source that contradicts itself cannot be the identity source. The AOR1694 /
+   AOR1613 row it flags as unresolved turned out not to be a serial conflict at all — it is
+   two machines on one line — which the table had no way of showing.
 3. The table is missing machines we hold real exports for:
    - **M20421**, TornadoM500 at **Engineered Truss Systems** — the spec lists M20421 only
      under "not yet mapped to confirmed sites", and lists Tornado M500 as M17311 at
@@ -71,19 +72,30 @@ no machine nickname. So:
 That last part matters — a silent disagreement is how a wrong serial gets quoted to a
 customer. Print it.
 
-### 2.2 Serial number conflicts to settle before the table ships
+### 2.2 Serial number conflicts — settled
 
-| Serial | Spec doc | Context doc | Our evidence | Action |
-|---|---|---|---|---|
-| M18121 | "**Saw, not a nailer**" | "Component Nailer M18121 (single-gun)" at Carters Auckland | none | Ask. Two uploaded docs disagree in the same sentence pair. |
-| M21036 | Raked Wall Extruder, Waihi Mitre 10 | Raked Wall Extruder | Your earlier raked-extruder knowledge doc called M21036 a **Spida Saw** at Waihi Mitre 10 | Ask. Site agrees, machine type doesn't. |
-| AOR1694 / AOR1613 | unresolved, "confirm against the machine's log header" | AOR1694 asserted as settled | none | Ask, or send me a `.szip` from that machine and the log header settles it. |
-| M20421 | listed as unmapped | not listed | **TornadoM500, Engineered Truss Systems** (real export) | Use ours. |
-| M21642-1 | absent | absent | **Apollo, Grandeur Housing Limited** (real `Machine.xml`) | Add. |
-| M20716 | Carters Cambridge, 6.0M Raked Extruder | Carters Cambridge | **Carters, RakingWallExtruderV3DG** (real bundle) | Agrees. Use the table for "Cambridge" and "6.0M". |
+All three were put to Lola and answered. Recorded here because the reasoning matters more than
+the answers: two of the three were the supplied documents being wrong, and the third was not a
+conflict at all.
 
-None of these block the feature. They block the *table*, which is why the table is an
-enrichment layer and not the identity source.
+| Serial | What the documents said | What it actually is |
+|---|---|---|
+| M18121 | Spec: "**Saw, not a nailer**". Context doc: Component Nailer | **Component Nailer**, Carters Auckland. The context doc was right; the spec's own data-quality flag was the error. |
+| M21036 | Both docs: Raked Wall Extruder. Earlier machine notes: Spida Saw | **Raking Wall Extruder V3**, Waihi Mitre 10. The documents were right. |
+| AOR1694 / AOR1613 | "two different serials used for the same machine" | **Two different machines.** AOR1613 is the Component Nailer on Carters Auckland Line 3 and it *feeds* AOR1694, the Raking Wall Extruder V1. There was never a serial conflict — the line has two machines and the notes ran them together. |
+| M20421 | listed as unmapped | **TornadoM500, Engineered Truss Systems** (real export). |
+| M21642-1 | absent | **Apollo, Grandeur Housing Limited** (real `Machine.xml`). |
+| M20716 | Carters Cambridge, 6.0M Raked Extruder | Agrees. The log says only "Carters", so the table earns its keep here. |
+
+Two things worth keeping from this:
+
+- **AOR is a retired serial style**, dropped around 2021. It says nothing about the machine except
+  its age — but that matters, because a pre-2021 build runs older electronics and a fault code
+  table taken from a current machine may not apply. `MachineInventory.IsRetiredSerialStyle` reads it.
+- **AOR1694 is a V1 extruder**, not a V3. The two are not interchangeable for diagnostics.
+
+The one entry still marked disputed is **M18644** (Akarana Hamilton), which the supplied inventory
+itself flags as provisional.
 
 ### 2.3 "Raked Extruder log entries are double-written" — not true of MachineLog.txt
 
@@ -339,16 +351,18 @@ marked rather than picked between. The conflicts in §2.2 are still open questio
 
 ---
 
-## 6. What I need from you
+## 6. Still open
 
-1. **Brand blue** — `#009CDE` (docs) or `#00A5E3` (the actual logo)? Currently the app uses
-   the logo's.
-2. **M18121** — saw or Component Nailer? The two docs disagree.
-3. **M21036** — Raked Wall Extruder (both docs) or Spida Saw (your earlier knowledge doc)?
-4. **AOR1694 or AOR1613?** A `.szip` from that machine settles it without anyone guessing.
-5. **The six sample HTML builds** (`1-sales-snapshot.html` … `6-design-team-case.html`) and
-   `data-collection-checklist.md` are referenced in the spec but weren't uploaded. Send #5
-   and #6 and I'll match the layout exactly.
-6. **Confirm #5 and #6 is the right scope**, or tell me the customer-facing ones matter more —
-   in which case the honest answer is that they belong in the Python pipeline until this app
-   reads ProdLogV2.
+Answered since this was written: M18121 is a Component Nailer, M21036 is a Raking Wall Extruder V3,
+and AOR1613/AOR1694 are two machines on one line rather than one machine with two serials (§2.2).
+The sample HTML builds arrived and the two in scope are now the templates the generator matches.
+
+Left to settle:
+
+1. **Brand blue** — `#009CDE` (the written standard) or `#00A5E3` (the actual logo artwork)?
+   The app and its reports currently use the logo's. One line either way.
+2. **The richer reports** Lola mentioned holding — worth seeing before any more block types get
+   built, in case they need something the current set does not cover.
+3. **#1–#4** stay blocked on ProdLogV2 ingest. If those four matter more than #5 and #6, the
+   honest answer is still that they belong in the existing Python pipeline until this app reads
+   production data.

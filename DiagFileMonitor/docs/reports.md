@@ -62,9 +62,15 @@ holds the written values; switching is one line.
 
 **Machine identity comes from `Machine.xml`, not the inventory table.** The table adds the site
 detail the log has no way of knowing - "Carters Cambridge" rather than "Carters", the line number,
-the contact. Where the two disagree on model or customer, the machine is believed and the report
-prints the disagreement in its "About this data" section. Reasoning in
-`report-generation-plan.md` section 2.1.
+the contact, and which machine feeds which. Where the two disagree on model or customer, the
+machine is believed and the report prints the disagreement in its "About this data" section.
+Reasoning in `report-generation-plan.md` section 2.1.
+
+Serials are matched on the whole serial first, then with a line suffix dropped (M21642-1 finds
+M21642), then on the digits alone. Digits shared by two machines identify neither, so the lookup
+returns nothing rather than guessing. `IsRetiredSerialStyle` recognises the AOR style, dropped
+around 2021 - a pre-2021 build runs older electronics, so a fault code table from a current
+machine may not apply to it.
 
 **Faults are deduplicated across overlapping bundles.** Every export carries the machine's recent
 history, not just the moment it was raised. Two bundles taken seconds apart carry the same ErrLog
