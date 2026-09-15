@@ -17,6 +17,12 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // Up before anything slow happens, so the first thing seen is the brand rather than a
+        // blank taskbar entry while the database opens.
+        var splashModel = new SplashViewModel();
+        var splash = new SplashWindow { DataContext = splashModel };
+        splash.Show();
+
         var settingsService = new SettingsService();
         var settings = settingsService.Load();
 
@@ -56,9 +62,8 @@ public partial class App : System.Windows.Application
             cleanupService, resetService, analysisService, comparisonService, alertService);
 
         var mainWindow = new MainWindow { DataContext = viewModel };
-        mainWindow.Show();
 
-        _ = InitialiseAsync(viewModel);
+        _ = InitialiseAsync(viewModel, splashModel, splash, mainWindow);
     }
 
     /// <summary>Only wires up alerting when it is switched on, so an unconfigured app does no outbound work.</summary>
@@ -79,10 +84,30 @@ public partial class App : System.Windows.Application
             email);
     }
 
-    private static async Task InitialiseAsync(MainViewModel viewModel)
+    /// <summary>
+    /// Loads behind the splash, then swaps to the dashboard. The splash closes in a finally so a
+    /// failure during startup cannot leave it on screen with no way to dismiss it.
+    /// </summary>
+    private static async Task InitialiseAsync(
+        MainViewModel viewModel, SplashViewModel splashModel, Window splash, Window mainWindow)
     {
-        await viewModel.LoadCommand.ExecuteAsync(null);
-        await viewModel.RunCleanupAsync(announceWhenNothingToDo: false);
+        try
+        {
+            splashModel.StatusMessage = "Reading stored diagnostics...";
+            await viewModel.LoadCommand.ExecuteAsync(null);
+
+            splashModel.StatusMessage = "Tidying up unpacked files...";
+            await viewModel.RunCleanupAsync(announceWhenNothingToDo: false);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.Error("Something failed while starting up", ex);
+        }
+        finally
+        {
+            mainWindow.Show();
+            splash.Close();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
