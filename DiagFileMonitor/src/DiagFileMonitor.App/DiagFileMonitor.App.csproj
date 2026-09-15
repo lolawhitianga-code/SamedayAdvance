@@ -20,4 +20,12 @@
     <ProjectReference Include="..\DiagFileMonitor.Core\DiagFileMonitor.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      The logo ships inside the exe so a fresh build looks right with nothing to copy.
+      A logo.png beside the exe still wins over it - see BrandLogo.
+    -->
+    <Resource Include="Assets\logo.png" />
+  </ItemGroup>
+
 </Project>

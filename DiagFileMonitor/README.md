@@ -186,6 +186,8 @@ odd layout detail that only shows up on screen.
 
 Two further gaps worth knowing about:
 
+- **The logo ships inside the program.** To use a different one, put a `logo.png` next to
+  `DiagFileMonitor.exe` and restart - a file on disk always wins over the built-in one.
 - **The Zoho calls have never run against a real Zoho account.** They are written to the
   documented Desk API shape and tested against a fake HTTP layer (URLs, headers, OAuth
   refresh, token expiry, error handling), but the first real call may still need adjusting.
