@@ -12,8 +12,17 @@ public partial class MainWindow : Window
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.OldValue is ViewModels.MainViewModel previous) previous.AnalysisReady -= OnAnalysisReady;
-        if (e.NewValue is ViewModels.MainViewModel current) current.AnalysisReady += OnAnalysisReady;
+        if (e.OldValue is ViewModels.MainViewModel previous)
+        {
+            previous.AnalysisReady -= OnAnalysisReady;
+            previous.FeedbackRequested -= OnFeedbackRequested;
+        }
+
+        if (e.NewValue is ViewModels.MainViewModel current)
+        {
+            current.AnalysisReady += OnAnalysisReady;
+            current.FeedbackRequested += OnFeedbackRequested;
+        }
     }
 
     private void OnAnalysisReady(object? sender, ViewModels.MainViewModel.AnalysisResult result)
@@ -22,6 +31,18 @@ public partial class MainWindow : Window
         {
             Owner = this,
             DataContext = new ViewModels.AnalysisViewModel(result.Heading, result.ReportText)
+        }.Show();
+    }
+
+    private void OnFeedbackRequested(object? sender, ViewModels.MainViewModel.FeedbackRequest request)
+    {
+        if (DataContext is not ViewModels.MainViewModel viewModel) return;
+
+        new FeedbackWindow
+        {
+            Owner = this,
+            DataContext = new ViewModels.FeedbackViewModel(
+                viewModel.FeedbackPackageService, request.File, request.ReportText, request.OutputFolder)
         }.Show();
     }
 
