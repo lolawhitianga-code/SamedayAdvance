@@ -64,7 +64,7 @@ public class DiagnosticAnalysisService
             analysis, machineLog, bundle.MachineType, bundle.SerialNumber, MachineConfigPath(bundle));
 
         // What the operator wrote in SupportInfo.txt decides where the report points first.
-        var complaint = ComplaintRouter.Route(bundle.SupportIssue, changeLog, machineLog);
+        var complaint = ComplaintRouter.Route(bundle.SupportIssue, changeLog, machineLog, bundle.MachineType);
 
         return SpidaReportFormatter.Format(summary, analysis, knowledge, complaint);
     }

@@ -8,7 +8,8 @@ public static class MachineKnowledgeBase
 {
     private static readonly Lazy<IReadOnlyList<MachineKnowledge>> Entries = new(() => new[]
     {
-        RakedWallExtruderKnowledge.Build()
+        RakedWallExtruderKnowledge.Build(),
+        TornadoKnowledge.Build()
     });
 
     public static IReadOnlyList<MachineKnowledge> All => Entries.Value;
