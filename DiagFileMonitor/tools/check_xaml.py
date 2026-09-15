@@ -65,12 +65,23 @@ def main():
     for type_name, names in props.items():
         known.update(names)
 
+    problems_at_start = []
     problems = []
     checked = 0
 
     all_keys = set()
     for xaml_file in APP.rglob("*.xaml"):
-        all_keys.update(re.findall(r"x:Key=\"([^\"]+)\"", xaml_file.read_text()))
+        # A repeated x:Key inside one dictionary is not a build error - WPF throws when it
+        # parses the file, so the app dies on startup with no warning beforehand.
+        keys_here = re.findall(r"x:Key=\"([^\"]+)\"", xaml_file.read_text())
+        seen = set()
+        for key in keys_here:
+            if key in seen:
+                problems_at_start.append(f"{xaml_file.name}: x:Key '{key}' is defined twice")
+            seen.add(key)
+        all_keys.update(keys_here)
+
+    problems.extend(problems_at_start)
 
     for xaml_file in sorted(APP.rglob("*.xaml")):
         text = xaml_file.read_text()

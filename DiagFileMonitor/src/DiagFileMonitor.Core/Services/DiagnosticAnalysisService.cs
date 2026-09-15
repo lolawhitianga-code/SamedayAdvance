@@ -53,40 +53,23 @@ public class DiagnosticAnalysisService
                    + "read. Clear the database and re-process the original .szip to analyse it.\n";
         }
 
-        var machineLog = MachineLogFile.ParseFile(PathOf(bundle, LogFileKind.MachineLog));
-        var errLog = ErrLogFile.ParseFile(PathOf(bundle, LogFileKind.ErrorLog));
-        var changeLog = ChangeLogFile.ParseFile(PathOf(bundle, LogFileKind.ChangeLog));
+        var logs = BundleLogs.Read(bundle);
 
-        var analysis = _analyser.Analyse(machineLog, errLog, changeLog, bundle.ArrivedAtUtc);
+        var analysis = _analyser.Analyse(logs.MachineLog, logs.ErrLog, logs.ChangeLog, bundle.ArrivedAtUtc);
 
         // Machine.xml is the better source for the model; fall back to what the PLC reported.
         var knowledge = KnowledgeAnnotator.Annotate(
-            analysis, machineLog, bundle.MachineType, bundle.SerialNumber, MachineConfigPath(bundle));
+            analysis, logs.MachineLog, bundle.MachineType, bundle.SerialNumber, logs.MachineConfigPath);
 
         // What the operator wrote in SupportInfo.txt decides where the report points first.
-        var complaint = ComplaintRouter.Route(bundle.SupportIssue, changeLog, machineLog, bundle.MachineType);
+        var complaint = ComplaintRouter.Route(bundle.SupportIssue, logs.ChangeLog, logs.MachineLog, bundle.MachineType);
 
-        return SpidaReportFormatter.Format(summary, analysis, knowledge, complaint);
+        var report = SpidaReportFormatter.Format(summary, analysis, knowledge, complaint);
+
+        // A bundle carrying two files of the same name had a choice made for it. Say which.
+        return logs.SelectionNotes.Count == 0
+            ? report
+            : report + "\n" + string.Join("\n", logs.SelectionNotes.Select(n => "Note: " + n)) + "\n";
     }
 
-    private static string PathOf(DiagnosticFile bundle, LogFileKind kind) =>
-        bundle.LogFiles.FirstOrDefault(l => l.Kind == kind)?.FullPath ?? string.Empty;
-
-    /// <summary>
-    /// The machine's own configuration file, named after the model - RakingWallExtruderV3DG.xml,
-    /// TornadoM450.xml and so on - rather than the generic Machine.xml. It says which electronics
-    /// each axis runs on. A bundle can carry several, including an empty one beside a .xmlTmp, so
-    /// the model's own name is matched first and the largest readable file wins.
-    /// </summary>
-    private static string MachineConfigPath(DiagnosticFile bundle)
-    {
-        if (string.IsNullOrWhiteSpace(bundle.MachineType)) return string.Empty;
-
-        return bundle.LogFiles
-            .Where(l => l.SizeBytes > 0)
-            .Where(l => l.FileName.StartsWith(bundle.MachineType, StringComparison.OrdinalIgnoreCase)
-                        && l.FileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(l => l.SizeBytes)
-            .FirstOrDefault()?.FullPath ?? string.Empty;
-    }
 }

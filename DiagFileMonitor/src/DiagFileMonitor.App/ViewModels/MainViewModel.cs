@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DiagFileMonitor.App.Services;
 using DiagFileMonitor.Core.Models;
+using DiagFileMonitor.Core.Reports;
 using DiagFileMonitor.Core.Services;
 
 namespace DiagFileMonitor.App.ViewModels;
@@ -28,6 +29,9 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Exposed so the window can build the feedback view model without a container.</summary>
     public FeedbackPackageService FeedbackPackageService { get; }
+
+    /// <summary>Builds the HTML reports. Held here so the view can hand it to the report window.</summary>
+    public ReportService ReportService { get; }
     private readonly int _repeatWindowDays;
 
     /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
@@ -230,10 +234,28 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Raised when a report is ready; the view opens the window so the ViewModel stays free of it.</summary>
     public event EventHandler<AnalysisResult>? AnalysisReady;
     public event EventHandler<FeedbackRequest>? FeedbackRequested;
+    public event EventHandler<ReportRequestArgs>? ReportRequested;
 
     public record AnalysisResult(string Heading, string ReportText);
 
     public record FeedbackRequest(DiagnosticFileSummary File, string ReportText, string OutputFolder);
+
+    public record ReportRequestArgs(string OutputFolder);
+
+    /// <summary>
+    /// Opens the report builder. It reads the stored bundles rather than the current selection,
+    /// so it does not need one - scope is chosen in the window.
+    /// </summary>
+    [RelayCommand]
+    private void BuildReport()
+    {
+        ReportRequested?.Invoke(this, new ReportRequestArgs(ReportsFolder));
+        StatusMessage = "Choose what the report should cover, then build it.";
+    }
+
+    private string ReportsFolder => System.IO.Path.Combine(
+        System.IO.Path.GetDirectoryName(_settingsService.Load().DatabasePath) ?? AppContext.BaseDirectory,
+        "Reports");
 
     private bool CanSendFeedback() => !IsAnalysing && SelectedFile is not null;
 
@@ -483,6 +505,7 @@ public partial class MainViewModel : ObservableObject
         _analysisService = analysisService;
         _comparisonService = comparisonService;
         FeedbackPackageService = new FeedbackPackageService(repository, analysisService);
+        ReportService = new ReportService(repository);
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());

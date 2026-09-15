@@ -1,0 +1,111 @@
+<Window x:Class="DiagFileMonitor.App.ReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Build a report" Height="700" Width="900"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource AppBackground}">
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Text="Build a report" Style="{StaticResource WordmarkPrimary}"
+                   Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}"
+                   Margin="0,0,0,10"
+                   Text="Reads the bundles already stored and writes one self-contained HTML file. It opens on any PC with no internet needed." />
+
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Panel}" Margin="0,10,0,0">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Close" Width="90" Margin="8,0,0,0"
+                        Click="Close_Click" />
+                <Button DockPanel.Dock="Right" Content="Show me the file" Width="130"
+                        Command="{Binding ShowFolderCommand}" />
+                <Button DockPanel.Dock="Right" Content="Open it" Width="90" Margin="0,0,8,0"
+                        Command="{Binding OpenReportCommand}" />
+                <Button DockPanel.Dock="Right" Content="Build report" Width="130" Margin="0,0,8,0"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding BuildCommand}" />
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource Panel}">
+                    <StackPanel>
+                        <TextBlock Text="What sort of report" Style="{StaticResource SectionHeading}" />
+                        <ComboBox ItemsSource="{Binding KindOptions}" SelectedIndex="{Binding KindIndex}"
+                                  Margin="0,0,0,10" />
+
+                        <TextBlock Text="What it is about (goes in the title)" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Subject, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,10" />
+
+                        <TextBlock Text="Period" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding PeriodOptions}" SelectedIndex="{Binding PeriodIndex}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Panel}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Which machines" Style="{StaticResource SectionHeading}" />
+                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}"
+                                   Margin="0,0,0,8"
+                                   Text="Leave both empty for every machine with a stored bundle. Separate several with commas." />
+
+                        <TextBlock Text="Serial numbers" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Serials, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,10" />
+
+                        <TextBlock Text="Machine types" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding MachineTypes, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Panel}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="What to count" Style="{StaticResource SectionHeading}" />
+                        <CheckBox Content="Plate sensor drop-outs" IsChecked="{Binding IncludePlateSensor}" />
+                        <CheckBox Content="Drive and motion controller faults"
+                                  IsChecked="{Binding IncludeDriveFaults}" />
+                        <CheckBox Content="Motors that never confirmed they were running"
+                                  IsChecked="{Binding IncludeMotorConfirm}" />
+                        <CheckBox Content="Faults the machine notes recognise"
+                                  IsChecked="{Binding IncludeKnownFaults}" />
+                        <CheckBox Content="Software errors from ErrLog.txt"
+                                  IsChecked="{Binding IncludeSoftwareErrors}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Panel}" Margin="0,10,0,0"
+                        Visibility="{Binding IsChangeCase, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="The change case" Style="{StaticResource SectionHeading}" />
+                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource BrandGrey}"
+                                   Margin="0,0,0,8"
+                                   Text="The logs say the fault happened, not what it cost. Leave the seconds blank and the report says the downtime is not known rather than making one up." />
+
+                        <TextBlock Text="Seconds lost each time it happens" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding SecondsPerEvent, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,10" />
+
+                        <TextBlock Text="Where that number came from" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding SecondsPerEventSource, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,10" />
+
+                        <TextBlock Text="Proposed change, one step per line" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding ProposedChange, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="80"
+                                 VerticalScrollBarVisibility="Auto" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Photos or records still to gather" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding StillNeeded, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+                                 VerticalScrollBarVisibility="Auto" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Cost that cannot be measured" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding SoftCost, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="60"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

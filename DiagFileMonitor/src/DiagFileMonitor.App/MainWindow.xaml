@@ -176,8 +176,10 @@
                         ToolTip="Read the logs in the selected bundle(s) and report what went wrong." />
                 <Button Content="Send to Claude" Command="{Binding SendFeedbackCommand}" Width="115" Margin="0,0,8,0"
                         ToolTip="Tell Claude what this bundle really was, so the analysis gets better at cases like it." />
-                <Button Content="Compare" Command="{Binding CompareWithMasterCommand}" Width="80" Margin="0,0,12,0"
+                <Button Content="Compare" Command="{Binding CompareWithMasterCommand}" Width="80" Margin="0,0,6,0"
                         ToolTip="Measure the selected bundle against the benchmark master: step process, speed and settings." />
+                <Button Content="Report" Command="{Binding BuildReportCommand}" Width="80" Margin="0,0,12,0"
+                        ToolTip="Build an HTML report from the stored bundles: every fault occurrence across the fleet, or the case for a design change." />
                 <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
                         IsEnabled="{Binding SelectedFile.HasExtractedFolder, FallbackValue=False}" />
                 <Button Content="errorlog.txt" Command="{Binding OpenErrorLogCommand}" Width="100" Margin="0,0,6,0"

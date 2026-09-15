@@ -1,6 +1,7 @@
 # Report Generation — Plan
 
-Status: **plan only, nothing built yet.** Written in response to the two uploaded
+Status: **phases 0-2 built.** See `reports.md` for what shipped. The conflict analysis below is
+what the build was decided on, and the questions in section 6 are still open. Written in response to the two uploaded
 documents, `diagnostic-analyser-report-spec.md` and `spida-report-generation-context.md`.
 
 The brief was to plan a report feature using those documents, and to check for
@@ -316,25 +317,25 @@ a silent stall; "Clamps Air supply pressure is low" only at startup/E-stop reset
 
 ## 5. Order of work
 
-**Phase 0 — fix first (small, independent of reports)**
-- log file selection when a bundle has duplicates (§2.8)
-- "Homing complete" axis lag flag (§4.4.1)
+**Phase 0 — fix first (small, independent of reports)** — done
+- log file selection when a bundle has duplicates (§2.8) → `Services/BundleLogs.cs`, which prefers
+  the support folder, then the deeper path, then the larger file, and prints the choice it made
+- mixed-case filename matching, found while running the real bundles through on Linux: the export
+  writes `Machine.xml` and `SupportInfo.txt`, and a filename glob matches case-insensitively on
+  Windows but not elsewhere
+- a duplicate `x:Key` in `Theme.xaml` that would have thrown on startup, found the same way;
+  `tools/check_xaml.py` now catches it
 
-**Phase 1 — report #5, fault benchmarking**
-- `ReportModel`, `FaultOccurrence`, `FaultBenchmarkBuilder`
-- `HtmlReportRenderer` with embedded CSS, logo and fonts, inline SVG charts
-- `ReportWindow` to pick scope and save
-- tests against the stored bundles
+**Phase 1 — report #5, fault benchmarking** — done
 
-**Phase 2 — report #6, mechanical change case**
-- `ChangeCaseBuilder`, reusing Phase 1's occurrences
-- downtime cost as an operator input, clearly marked as an estimate
+**Phase 2 — report #6, mechanical change case** — done
 
-**Phase 3 — inventory enrichment**
-- `MachineInventory` from the spec's table, with the conflicts in §2.2 settled first
-- log-vs-table disagreement printed, never silently resolved
+**Phase 3 — inventory enrichment** — done as an enrichment lookup only, with disputed rows
+marked rather than picked between. The conflicts in §2.2 are still open questions.
 
-**Not planned: #1–#4.** They need ProdLogV2 ingest. Separate piece of work, separate plan.
+**Still to do**
+- "Homing complete" axis lag flag (§4.4.1) and the other three findings in §4.4
+- **#1–#4.** They need ProdLogV2 ingest. Separate piece of work, separate plan.
 
 ---
 

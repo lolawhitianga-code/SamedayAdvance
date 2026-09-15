@@ -68,9 +68,7 @@ public class DiagFileProcessor
             ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
             diagFile.ExtractedPath = extractDir;
 
-            var machineXmlPath = Directory
-                .EnumerateFiles(extractDir, "machine.xml", SearchOption.AllDirectories)
-                .FirstOrDefault();
+            var machineXmlPath = FindByName(extractDir, "machine.xml");
 
             if (machineXmlPath is not null)
             {
@@ -88,9 +86,7 @@ public class DiagFileProcessor
                 SimpleLogger.Info($"No machine.xml found in '{zipPath}'.");
             }
 
-            var supportInfoPath = Directory
-                .EnumerateFiles(extractDir, "supportinfo.txt", SearchOption.AllDirectories)
-                .FirstOrDefault();
+            var supportInfoPath = FindByName(extractDir, "supportinfo.txt");
 
             if (supportInfoPath is not null)
             {
@@ -138,6 +134,19 @@ public class DiagFileProcessor
         await _repository.AddAsync(diagFile);
         return diagFile;
     }
+
+    /// <summary>
+    /// Finds one file by name anywhere under the extract folder, ignoring case.
+    /// <para>
+    /// The export writes Machine.xml and SupportInfo.txt in mixed case. A filename pattern passed
+    /// to <see cref="Directory.EnumerateFiles(string,string,SearchOption)"/> matches case
+    /// insensitively on Windows but not on Linux, so matching here rather than in the glob keeps
+    /// the behaviour the same wherever it runs - including the Linux test box.
+    /// </para>
+    /// </summary>
+    private static string? FindByName(string root, string fileName) =>
+        Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .FirstOrDefault(p => Path.GetFileName(p).Equals(fileName, StringComparison.OrdinalIgnoreCase));
 
     private string CreateUniqueExtractDir(string zipFileName)
     {

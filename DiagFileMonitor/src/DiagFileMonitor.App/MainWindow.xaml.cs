@@ -16,12 +16,14 @@ public partial class MainWindow : Window
         {
             previous.AnalysisReady -= OnAnalysisReady;
             previous.FeedbackRequested -= OnFeedbackRequested;
+            previous.ReportRequested -= OnReportRequested;
         }
 
         if (e.NewValue is ViewModels.MainViewModel current)
         {
             current.AnalysisReady += OnAnalysisReady;
             current.FeedbackRequested += OnFeedbackRequested;
+            current.ReportRequested += OnReportRequested;
         }
     }
 
@@ -31,6 +33,17 @@ public partial class MainWindow : Window
         {
             Owner = this,
             DataContext = new ViewModels.AnalysisViewModel(result.Heading, result.ReportText)
+        }.Show();
+    }
+
+    private void OnReportRequested(object? sender, ViewModels.MainViewModel.ReportRequestArgs request)
+    {
+        if (DataContext is not ViewModels.MainViewModel viewModel) return;
+
+        new ReportWindow
+        {
+            Owner = this,
+            DataContext = new ViewModels.ReportViewModel(viewModel.ReportService, request.OutputFolder)
         }.Show();
     }
 

@@ -16,6 +16,8 @@
     <SolidColorBrush x:Key="BrandGrey" Color="#8B98A3" />
 
     <SolidColorBrush x:Key="AppBackground" Color="#F4F7F9" />
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
     <SolidColorBrush x:Key="BorderSoft" Color="#D9E1E8" />
 
@@ -143,11 +145,6 @@
 
     <Style x:Key="FieldLabel" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
-    </Style>
-
-    <Style x:Key="SectionHeading" TargetType="TextBlock">
-        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
     </Style>
 
