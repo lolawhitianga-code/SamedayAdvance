@@ -149,7 +149,15 @@ normally all session. `SawMotorConfirm` changed **once** in 100,000 lines — to
 convention — discovered from the log, so a machine with motors we have never seen is still
 checked — and reports any command that went out without a confirmation coming back.
 
-Two things keep it honest:
+It always states what the confirmation did — when it last read 1 and when it last read 0 —
+whatever the verdict. On a short export taken after the motor had already stopped,
+`SawMotorConfirm` never changes inside the window at all, and the honest answer is *"it does not
+appear anywhere in this file"* rather than silence, which reads as nothing being wrong.
+
+The machine logging *"Waiting for Saw Blade Running"* settles it on its own, with or without any
+input line.
+
+Three things keep it honest:
 
 - **Positive evidence only.** When one motor fails the machine aborts the step and drops every
   output at once, so its companions look unconfirmed too. The nog conveyor was withdrawn 5.5 s
@@ -158,3 +166,6 @@ Two things keep it honest:
   a matching wait, or the command genuinely stayed on for the full window.
 - **A wait line must name its own motor.** *"Waiting for Saw Blade Running"* belongs to the saw,
   not to whatever else switched on in the same millisecond.
+- **A direction suffix is not a second motor.** `IO-WasteMotorFwd` and `IO-WasteMotorRev` are one
+  motor answered by one `WasteMotorConfirm`; and a motor with no confirmation wired at all — the
+  extractor fan — is not reported in either direction, because there is nothing to say.
