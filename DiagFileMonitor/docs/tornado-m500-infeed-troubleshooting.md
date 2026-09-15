@@ -118,3 +118,43 @@ regardless of wording.
   `YAxis`, `ZAxis`, `RAxis`) where the M500 is described as having seven. No M500 log read yet.
 - Whether a "Board not expected size" error ever comes from the clamp sensor drifting rather
   than from genuinely undersized timber.
+
+---
+
+## Fault #4 — Saw motor commanded on but never running (M20421, 10 Sep 2026)
+
+**Operator wrote:** *"saw motor not running"*
+
+**What the log shows**, at the very end of a 100,000-line file:
+
+```
+13:08:19.259  OutputChange  IO-SawMotor      Set On                 ← commanded
+13:08:19.715  InputChange   SawMotorConfirm  Changed to 0           ← confirm not made
+13:08:23.261  Other  ControlYZRPLC  Step Condition, Waiting for Saw Blade Running
+13:08:24.797  OutputChange  IO-SawMotor      Set Off                ← gave up after 5.5 s
+```
+
+Then nothing for 50 seconds until the file was exported. *"Waiting for Saw Blade Running"* appears
+**once** in the whole log — right there.
+
+**Root cause:** the command went out and the motor did not turn. Check the contactor, its
+auxiliary contact, the thermal overload, and the confirmation wiring back to the input card.
+
+**What made it certain:** `WasteMotorConfirm` (73 changes) and `NogConveyorConfirm` (19) toggled
+normally all session. `SawMotorConfirm` changed **once** in 100,000 lines — to 0, and never back.
+
+### Now checked automatically
+
+`Knowledge/MotorConfirmCheck.cs` pairs every `XConfirm` input with its `IO-X` output by naming
+convention — discovered from the log, so a machine with motors we have never seen is still
+checked — and reports any command that went out without a confirmation coming back.
+
+Two things keep it honest:
+
+- **Positive evidence only.** When one motor fails the machine aborts the step and drops every
+  output at once, so its companions look unconfirmed too. The nog conveyor was withdrawn 5.5 s
+  after being asked, never having had a chance to start — that is the abort, not a second broken
+  motor. A failure is only reported where the confirmation was seen reading 0, the machine logged
+  a matching wait, or the command genuinely stayed on for the full window.
+- **A wait line must name its own motor.** *"Waiting for Saw Blade Running"* belongs to the saw,
+  not to whatever else switched on in the same millisecond.

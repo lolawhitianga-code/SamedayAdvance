@@ -75,6 +75,29 @@ public static class ComplaintTopics
         },
         new()
         {
+            // No Models list: any machine can have a motor that will not start.
+            Name = "A motor is not running",
+            Keywords = new[]
+            {
+                "motor not running", "not running", "motor wont", "motor won't", "motor doesnt",
+                "motor does not", "saw not", "blade not", "not spinning", "not turning",
+                "no saw", "motor is off", "wont spin", "won't spin", "not starting"
+            },
+            LogTags = new[] { "Motor", "Confirm" },
+            SettingWords = Array.Empty<string>(),
+            LookAt = new[]
+            {
+                "Whether the motor was commanded on and confirmed running - see the motor "
+                    + "confirmation section. An output going on with no confirmation coming back "
+                    + "means the command went out and the motor did not turn.",
+                "If the confirmation never came: the contactor, its auxiliary contact, the thermal "
+                    + "overload, and the confirmation wiring back to the input card.",
+                "If the confirmation did come and the machine still complained, the fault is "
+                    + "downstream of the motor rather than in it."
+            }
+        },
+        new()
+        {
             Name = "Machine will not move or start",
             Keywords = new[]
             {
