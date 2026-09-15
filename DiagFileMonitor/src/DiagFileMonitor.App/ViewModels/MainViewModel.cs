@@ -22,6 +22,9 @@ public partial class MainViewModel : ObservableObject
     private readonly DatabaseResetService _resetService;
     private readonly DiagnosticAnalysisService _analysisService;
     private readonly DiagnosticComparisonService _comparisonService;
+
+    /// <summary>Exposed so the window can build the feedback view model without a container.</summary>
+    public FeedbackPackageService FeedbackPackageService { get; }
     private readonly int _repeatWindowDays;
 
     /// <summary>Company logo, if one was dropped next to the exe. Null shows the text wordmark instead.</summary>
@@ -223,8 +226,51 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Raised when a report is ready; the view opens the window so the ViewModel stays free of it.</summary>
     public event EventHandler<AnalysisResult>? AnalysisReady;
+    public event EventHandler<FeedbackRequest>? FeedbackRequested;
 
     public record AnalysisResult(string Heading, string ReportText);
+
+    public record FeedbackRequest(DiagnosticFileSummary File, string ReportText, string OutputFolder);
+
+    private bool CanSendFeedback() => !IsAnalysing && SelectedFile is not null;
+
+    /// <summary>
+    /// Packages a real case up for Claude: the diagnostic files, the report, and what the support
+    /// person knows that the report did not. Analysing first means the notes are written against
+    /// the same output that goes in the package.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSendFeedback))]
+    private async Task SendFeedbackAsync()
+    {
+        if (SelectedFile is null) return;
+
+        IsAnalysing = true;
+        SendFeedbackCommand.NotifyCanExecuteChanged();
+        StatusMessage = "Analysing so the feedback can be written against the report...";
+
+        try
+        {
+            var report = await _analysisService.AnalyseAsync(new[] { SelectedFile.Id });
+
+            FeedbackRequested?.Invoke(this, new FeedbackRequest(SelectedFile, report, FeedbackFolder));
+            StatusMessage = "Write what this bundle really was, then create the package.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not prepare the feedback: {ex.Message}";
+            SimpleLogger.Error("Could not prepare feedback", ex);
+        }
+        finally
+        {
+            IsAnalysing = false;
+            SendFeedbackCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Where feedback packages are written, beside the database and the logs.</summary>
+    private string FeedbackFolder => System.IO.Path.Combine(
+        System.IO.Path.GetDirectoryName(_settingsService.Load().DatabasePath) ?? AppContext.BaseDirectory,
+        "Feedback");
 
     [ObservableProperty]
     private DashboardStats _stats = DashboardStats.Empty;
@@ -433,6 +479,7 @@ public partial class MainViewModel : ObservableObject
         _resetService = resetService;
         _analysisService = analysisService;
         _comparisonService = comparisonService;
+        FeedbackPackageService = new FeedbackPackageService(repository, analysisService);
 
         FilesView = CollectionViewSource.GetDefaultView(Files);
         FilesView.Filter = o => o is DiagnosticFileSummary row && DiagnosticFileFilter.Matches(row, CurrentCriteria());

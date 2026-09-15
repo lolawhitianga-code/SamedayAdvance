@@ -166,6 +166,8 @@
                 <Button Content="Analyse" Command="{Binding AnalyseSelectedCommand}" Width="80" Margin="0,0,6,0"
                         Style="{StaticResource PrimaryButton}"
                         ToolTip="Read the logs in the selected bundle(s) and report what went wrong." />
+                <Button Content="Send to Claude" Command="{Binding SendFeedbackCommand}" Width="115" Margin="0,0,8,0"
+                        ToolTip="Tell Claude what this bundle really was, so the analysis gets better at cases like it." />
                 <Button Content="Compare" Command="{Binding CompareWithMasterCommand}" Width="80" Margin="0,0,12,0"
                         ToolTip="Measure the selected bundle against the benchmark master: step process, speed and settings." />
                 <Button Content="Open folder" Command="{Binding OpenExtractedFolderCommand}" Width="100" Margin="0,0,6,0"
@@ -256,6 +258,9 @@
                                 <MenuItem Header="Set as benchmark _master"
                                           Command="{Binding PlacementTarget.Tag.SetMasterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                           CommandParameter="{Binding}" />
+                                <MenuItem Header="Send _feedback to Claude"
+                                          Command="{Binding PlacementTarget.Tag.SendFeedbackCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Separator />
                                 <MenuItem Header="Compare _with benchmark"
                                           Command="{Binding PlacementTarget.Tag.CompareWithMasterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 <Separator />
