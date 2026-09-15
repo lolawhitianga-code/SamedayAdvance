@@ -3,10 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Send feedback to Claude" Height="720" Width="1040"
         WindowStartupLocation="CenterOwner" Background="{StaticResource AppBackground}">
-    <Window.Resources>
-        <ResourceDictionary Source="Theme.xaml" />
-    </Window.Resources>
-
     <DockPanel Margin="12">
         <TextBlock DockPanel.Dock="Top" Text="{Binding Heading}" Style="{StaticResource WordmarkPrimary}"
                    Margin="0,0,0,4" />

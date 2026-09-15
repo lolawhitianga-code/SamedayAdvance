@@ -98,7 +98,8 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="8,5" />
         <Setter Property="BorderBrush" Value="#4E5C68" />
-        <Setter Property="BorderThickness" Value="0,0,1,0" />
+        <!-- Navy keeps white text legible; the blue underline is where the brand shows. -->
+        <Setter Property="BorderThickness" Value="0,0,1,2" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
 
@@ -128,10 +129,11 @@
         <Setter Property="BorderBrush" Value="{StaticResource BrandBlue}" />
     </Style>
 
+    <!-- The hero numbers carry the brand colour; the failed count overrides it with red. -->
     <Style x:Key="StatValue" TargetType="TextBlock">
         <Setter Property="FontSize" Value="19" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource BrandNavy}" />
+        <Setter Property="Foreground" Value="{StaticResource BrandBlue}" />
     </Style>
 
     <Style x:Key="StatLabel" TargetType="TextBlock">
@@ -163,6 +165,24 @@
 
     <Style x:Key="WordmarkSecondary" TargetType="TextBlock">
         <Setter Property="FontSize" Value="10" />
+        <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
+    </Style>
+
+    <!-- A section heading with the brand colour, for panel titles. -->
+    <Style x:Key="SectionHeading" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource BrandBlueDark}" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <!-- The strip across the top of a window. -->
+    <Style x:Key="BrandStrip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrandBlue}" />
+        <Setter Property="Height" Value="4" />
+    </Style>
+
+    <Style x:Key="VersionText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="Foreground" Value="{StaticResource BrandGrey}" />
     </Style>
 

@@ -23,6 +23,9 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagnosticAnalysisService _analysisService;
     private readonly DiagnosticComparisonService _comparisonService;
 
+    /// <summary>Shown beside the logo, so a screenshot says which build produced it.</summary>
+    public string AppVersion => Services.AppVersion.Display;
+
     /// <summary>Exposed so the window can build the feedback view model without a container.</summary>
     public FeedbackPackageService FeedbackPackageService { get; }
     private readonly int _repeatWindowDays;

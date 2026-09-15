@@ -31,22 +31,30 @@
         </Style>
     </Window.Resources>
 
-    <DockPanel Margin="10">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Style="{StaticResource BrandStrip}" />
+
+        <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
             <DockPanel Margin="0,0,0,10">
-                <Border DockPanel.Dock="Right" Style="{StaticResource Panel}" Width="250" Height="74"
-                        Padding="12,8" VerticalAlignment="Top">
-                    <Grid>
-                        <Image Source="{Binding LogoImage}" Stretch="Uniform"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibility}}" />
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                    Visibility="{Binding HasLogo, Converter={StaticResource InverseBoolToVisibility}}">
-                            <TextBlock Text="SPIDA" Style="{StaticResource WordmarkPrimary}" HorizontalAlignment="Center" />
-                            <TextBlock Text="M A C H I N E R Y" Style="{StaticResource WordmarkSecondary}"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Grid>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Panel}" Width="500" Height="148"
+                        Padding="16,10" VerticalAlignment="Top">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding AppVersion}"
+                                   Style="{StaticResource VersionText}" HorizontalAlignment="Right" />
+                        <Grid>
+                            <Image Source="{Binding LogoImage}" Stretch="Uniform"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding HasLogo, Converter={StaticResource BoolToVisibility}}" />
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding HasLogo, Converter={StaticResource InverseBoolToVisibility}}">
+                                <TextBlock Text="SPIDA" Style="{StaticResource WordmarkPrimary}" FontSize="48"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="M A C H I N E R Y" Style="{StaticResource WordmarkSecondary}"
+                                           FontSize="14" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </DockPanel>
                 </Border>
 
                 <StackPanel Orientation="Horizontal">
@@ -326,5 +334,6 @@
                 <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>
+        </DockPanel>
     </DockPanel>
 </Window>

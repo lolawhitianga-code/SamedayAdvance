@@ -186,6 +186,9 @@ odd layout detail that only shows up on screen.
 
 Two further gaps worth knowing about:
 
+- **The version number** shows on the splash screen and beside the logo, so a screenshot says
+  which build produced it. Bump `<Version>` in `src/DiagFileMonitor.App/DiagFileMonitor.App.csproj`
+  when you cut a build for the floor.
 - **The logo ships inside the program.** To use a different one, put a `logo.png` next to
   `DiagFileMonitor.exe` and restart - a file on disk always wins over the built-in one.
 - **The Zoho calls have never run against a real Zoho account.** They are written to the
