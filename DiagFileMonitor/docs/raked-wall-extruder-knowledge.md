@@ -175,6 +175,21 @@ A fault that repeats identically across 2+ restart attempts at the same step num
 
 ---
 
+## Software versions
+
+`V0.0.0.0` in `Machine.xml`'s `<Title>` is **not a parsing failure** — the machine really reports
+it. It is a dev build that went out without its real version stamped in. Confirmed with Spida;
+as at September 2026 these builds were around **V2.6.1**.
+
+Two consequences for support:
+
+- The version field cannot be trusted on those machines. Ask which build it actually is.
+- Two machines both reporting `V0.0.0.0` are **not necessarily on the same build**, so a
+  settings or timing difference between them may just be two different versions.
+
+Both the analysis report and the benchmark comparison flag this automatically. Only an all-zero
+version triggers it — `V0.1.0.0` and `V2.0.0.0` are real versions and are left alone.
+
 ## Still to confirm / gaps
 
 - Whether the Node0–Node3 mapping from the standard Wall Extruder playbook lines up exactly with this machine's own axis names, or whether raked units log them differently.
