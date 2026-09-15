@@ -80,9 +80,13 @@ public class SpidaLogAnalysis
 
     /// <summary>
     /// The last entry that says something about what the machine was doing, ignoring the input
-    /// and output chatter that keeps ticking over after it has stopped.
+    /// and output chatter that keeps ticking over after it has stopped, and the heartbeat lines
+    /// that repeat thousands of times.
     /// </summary>
     public MachineLogEntry? LastNotableEvent { get; init; }
+
+    /// <summary>How many distinct lines were treated as heartbeat and left out of the tail.</summary>
+    public int ChatterSkipped { get; init; }
 
     /// <summary>
     /// How long the log ran on after that last notable event. A long quiet tail means the machine
@@ -173,8 +177,15 @@ public class SpidaLogAnalyser
 
         var (real, cosmetic, outside, backgroundNoise) = ClassifyErrors(errLog, changeLog, logStart, logEnd, sessionDateUtc, notes);
 
-        var lastNotable = machineLog
-            .LastOrDefault(e => e.Category is MachineLogCategory.Other or MachineLogCategory.MotionEvent);
+        var chatter = FindChatter(machineLog);
+
+        var notable = machineLog
+            .Where(e => e.Category is MachineLogCategory.Other or MachineLogCategory.MotionEvent)
+            .Where(e => !chatter.Contains($"{e.Tag}|{e.Description}"))
+            .Where(e => !Housekeeping.IsMatch($"{e.Tag} {e.Description}"))
+            .ToList();
+
+        var lastNotable = notable.LastOrDefault();
 
         return new SpidaLogAnalysis
         {
@@ -191,7 +202,8 @@ public class SpidaLogAnalyser
             ErrorsOutsideLogWindow = outside,
             RepeatingBackgroundErrors = backgroundNoise,
             RecentSettingChanges = RecentChanges(changeLog, sessionDateUtc),
-            FinalEntries = machineLog.TakeLast(_options.FinalEntriesShown).ToList(),
+            FinalEntries = notable.TakeLast(_options.FinalEntriesShown).ToList(),
+            ChatterSkipped = chatter.Count,
             LastNotableEvent = lastNotable,
             SilenceBeforeEnd = lastNotable is not null && logEnd is { } end
                 ? end - lastNotable.Time
@@ -412,6 +424,29 @@ public class SpidaLogAnalyser
             .Where(c => c.Timestamp >= from && c.Timestamp <= sessionLocal.Date.AddDays(1))
             .OrderBy(c => c.Timestamp)
             .ToList();
+    }
+
+    /// <summary>
+    /// Reporting and upload lines. They are written by the export itself rather than by the
+    /// machine, so the last one is always the moment the file was taken - never the problem.
+    /// </summary>
+    private static readonly Regex Housekeeping = new(
+        @"\b(sharepoint|cloudreport|upload|telemetry)\w*\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Lines that repeat so often they are a heartbeat rather than an event. On a real Tornado
+    /// export "Other, CIP, a" is 23,550 of 100,000 lines - nearly a quarter of the file - and
+    /// taking it as the machine's last act points the whole report at nothing.
+    /// </summary>
+    private static HashSet<string> FindChatter(IReadOnlyList<MachineLogEntry> entries)
+    {
+        var threshold = Math.Max(25, entries.Count / 50);
+
+        return entries
+            .GroupBy(e => $"{e.Tag}|{e.Description}")
+            .Where(g => g.Count() > threshold)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static int? ReadStep(MachineLogEntry entry)

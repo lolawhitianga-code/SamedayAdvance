@@ -36,6 +36,7 @@ public static class SpidaReportFormatter
         AppendOperatorText(text, file);
         if (complaint is not null) AppendComplaint(text, complaint);
         AppendHowItEnded(text, analysis);
+        if (knowledge is not null) AppendMotorConfirm(text, knowledge);
         if (knowledge is not null) AppendDriveFaults(text, knowledge);
         AppendUnits(text, analysis);
         AppendRepeats(text, analysis);
@@ -157,10 +158,51 @@ public static class SpidaReportFormatter
         }
 
         text.AppendLine();
-        text.AppendLine($"  The last {analysis.FinalEntries.Count} lines:");
+        var skipped = analysis.ChatterSkipped > 0
+            ? $" (heartbeat lines left out - {analysis.ChatterSkipped} of them repeat too often to mean anything)"
+            : string.Empty;
+
+        text.AppendLine($"  The last {analysis.FinalEntries.Count} lines that say something{skipped}:");
         foreach (var entry in analysis.FinalEntries)
         {
             text.AppendLine($"      {entry.Display}");
+        }
+    }
+
+    /// <summary>
+    /// Motors told to run that never said they were running. This is the difference between "the
+    /// machine was asked to cut" and "the blade was turning", and it is usually the whole answer
+    /// when an operator writes that something is not running.
+    /// </summary>
+    private static void AppendMotorConfirm(StringBuilder text, KnowledgeFindings knowledge)
+    {
+        var findings = knowledge.MotorConfirm;
+        if (!findings.Any) return;
+
+        text.AppendLine();
+        text.AppendLine("*** A MOTOR WAS TOLD TO RUN AND DID NOT REPORT BACK ***");
+
+        foreach (var failure in findings.Failures.Take(5))
+        {
+            text.AppendLine();
+            text.AppendLine($"  {ReportText.Wrap(failure.Summary, 2)}");
+            text.AppendLine($"      output {failure.OutputTag} on, {failure.ConfirmTag} not on");
+
+            if (failure.MachineWaitedFor is { } waited)
+            {
+                text.AppendLine($"      the machine's own words: \"{waited}\"");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine("  The command went out and the confirmation did not come back, so the motor was");
+        text.AppendLine("  not turning. Check the contactor, its auxiliary contact, the overload and the");
+        text.AppendLine("  confirmation wiring before anything further down the process.");
+
+        if (findings.Healthy.Count > 0)
+        {
+            text.AppendLine($"  For comparison, {string.Join(" and ", findings.Healthy)} confirmed normally "
+                            + "in this same log.");
         }
     }
 
@@ -456,6 +498,16 @@ public static class SpidaReportFormatter
             leads.Add($"The machine's last act was {lastEvent.Tag} \"{lastEvent.Description}\" at "
                       + $"{lastEvent.Time:hh\\:mm\\:ss}{Age(lastEvent.Time)}. Start at the end of the log "
                       + "and work back.");
+        }
+
+        // A motor that never reported itself running is as concrete as it gets, and it is
+        // normally the exact thing the operator wrote down.
+        foreach (var failure in knowledge?.MotorConfirm.Failures.Take(2)
+                                ?? Enumerable.Empty<MotorConfirmFailure>())
+        {
+            leads.Add($"{failure.Motor} was commanded on at {failure.CommandedOn:hh\\:mm\\:ss}"
+                      + $"{Age(failure.CommandedOn)} and {failure.ConfirmTag} never came on. Check the "
+                      + "contactor, its auxiliary contact, the overload and the confirmation wiring.");
         }
 
         // A drive fault outranks everything else: the machine has named the failed part, so a

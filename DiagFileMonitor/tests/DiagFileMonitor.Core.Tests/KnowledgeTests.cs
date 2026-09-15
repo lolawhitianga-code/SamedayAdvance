@@ -1068,3 +1068,176 @@ public class MatchedFaultWordingTests
         Assert.Contains(analysis.Cycles.SelectMany(c => c.Faults), f => f.Text.Contains("not expected length"));
     }
 }
+
+public class MotorConfirmCheckTests
+{
+    private static IReadOnlyList<MachineLogEntry> Log(params string[] lines) => MachineLogFile.Parse(lines);
+
+    [Fact]
+    public void AMotorCommandedOnWithNoConfirmationIsReported()
+    {
+        // The real M20421 sequence: output on, confirm reads 0, machine waits, command dropped.
+        var findings = MotorConfirmCheck.Check(Log(
+            "13:08:19.2592419,  OutputChange, IO-SawMotor,  Output (192.168.250.1-0.0) Set On",
+            "13:08:19.7152427,  InputChange, SawMotorConfirm,  Input (192.168.250.1-0.14) Changed to 0",
+            "13:08:23.2612492,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running",
+            "13:08:24.7972519,  OutputChange, IO-SawMotor,  Output (192.168.250.1-0.0) Set Off"));
+
+        var failure = Assert.Single(findings.Failures);
+        Assert.Equal("SawMotor", failure.Motor);
+        Assert.Equal("IO-SawMotor", failure.OutputTag);
+        Assert.Equal("SawMotorConfirm", failure.ConfirmTag);
+        Assert.Equal("Step Condition, Waiting for Saw Blade Running", failure.MachineWaitedFor);
+        Assert.Equal(5.5, failure.GaveUpAfter!.Value.TotalSeconds, 1);
+    }
+
+    [Fact]
+    public void AMotorThatConfirmsIsNotReported()
+    {
+        var findings = MotorConfirmCheck.Check(Log(
+            "10:00:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "10:00:01.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 1",
+            "10:05:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set Off"));
+
+        Assert.Empty(findings.Failures);
+        Assert.Contains("SawMotor", findings.Healthy);
+    }
+
+    [Fact]
+    public void AMotorAlreadyConfirmingIsNotReported()
+    {
+        // The log records changes only, so a confirmation already at 1 logs nothing.
+        var findings = MotorConfirmCheck.Check(Log(
+            "09:00:00.0000000,  InputChange, SawMotorConfirm,  Input (y) Changed to 1",
+            "10:00:00.0000000,  OutputChange, IO-SawMotor,  Output (x) Set On"));
+
+        Assert.Empty(findings.Failures);
+    }
+
+    [Fact]
+    public void AnAbortedStartIsNotReportedAsABrokenMotor()
+    {
+        // When one motor fails the machine drops every output at once. The nog conveyor on
+        // M20421 was withdrawn 5.5s after being asked, never having had a chance to spin up.
+        var findings = MotorConfirmCheck.Check(Log(
+            "09:00:00.0000000,  InputChange, NogConveyorConfirm,  Input (z) Changed to 0",
+            "13:08:19.4642423,  OutputChange, IO-NogConveyor,  Output (a) Set On",
+            "13:08:24.9892524,  OutputChange, IO-NogConveyor,  Output (a) Set Off"));
+
+        Assert.Empty(findings.Failures);
+    }
+
+    [Fact]
+    public void AWaitLineBelongingToAnotherMotorIsNotBorrowed()
+    {
+        // "Waiting for Saw Blade Running" is the saw's, not whatever else switched on beside it.
+        var findings = MotorConfirmCheck.Check(Log(
+            "09:00:00.0000000,  InputChange, NogConveyorConfirm,  Input (z) Changed to 0",
+            "13:08:19.0000000,  OutputChange, IO-NogConveyor,  Output (a) Set On",
+            "13:08:23.0000000,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running"));
+
+        var failure = Assert.Single(findings.Failures);
+        Assert.Null(failure.MachineWaitedFor);
+    }
+
+    [Fact]
+    public void ConfirmationsArePairedWithMoreSpecificOutputs()
+    {
+        // WasteMotorConfirm answers IO-WasteMotorFwd and IO-WasteMotorRev.
+        var findings = MotorConfirmCheck.Check(Log(
+            "10:00:00.0000000,  OutputChange, IO-WasteMotorFwd,  Output (x) Set On",
+            "10:00:01.0000000,  InputChange, WasteMotorConfirm,  Input (y) Changed to 1"));
+
+        Assert.Contains("WasteMotor", findings.MotorsChecked);
+        Assert.Empty(findings.Failures);
+    }
+
+    [Fact]
+    public void AMotorWithNoConfirmationInputIsNotChecked()
+    {
+        var findings = MotorConfirmCheck.Check(Log(
+            "10:00:00.0000000,  OutputChange, IO-SomeMotor,  Output (x) Set On"));
+
+        Assert.Empty(findings.MotorsChecked);
+        Assert.False(findings.Any);
+    }
+
+    [Fact]
+    public void TheFailureLeadsTheReportAndTheOperatorsWordsRouteToIt()
+    {
+        var log = Log(
+            "13:08:19.2592419,  OutputChange, IO-SawMotor,  Output (x) Set On",
+            "13:08:19.7152427,  InputChange, SawMotorConfirm,  Input (y) Changed to 0",
+            "13:08:23.2612492,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running",
+            "13:08:24.7972519,  OutputChange, IO-SawMotor,  Output (x) Set Off");
+
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 11));
+
+        var text = SpidaReportFormatter.Format(
+            new DiagnosticFileSummary { MachineType = "TornadoM500", SupportIssue = "saw motor not running" },
+            analysis,
+            KnowledgeAnnotator.Annotate(analysis, log, "TornadoM500", "M20421"),
+            ComplaintRouter.Route("saw motor not running", Array.Empty<ChangeLogEntry>(), log, "TornadoM500"));
+
+        Assert.Contains("A MOTOR WAS TOLD TO RUN AND DID NOT REPORT BACK", text);
+        Assert.Contains("A MOTOR IS NOT RUNNING", text);
+        Assert.Contains("SawMotorConfirm never came on", text);
+
+        // Ahead of the units, and ahead of whatever repeats loudest further down.
+        Assert.True(text.IndexOf("SawMotorConfirm", StringComparison.Ordinal)
+                    < text.IndexOf("UNITS ATTEMPTED", StringComparison.Ordinal));
+    }
+}
+
+public class LogChatterTests
+{
+    [Fact]
+    public void AHeartbeatLineIsNotTheMachinesLastAct()
+    {
+        // "Other, CIP, a" is 23,550 of 100,000 lines on a real Tornado export.
+        var lines = Enumerable.Range(0, 200).Select(i => $"10:00:{i % 60:00}.{i:000}0000,  Other, CIP,  a")
+            .Append("10:05:00.0000000,  Other, TornadoPLC,  Something real happened")
+            .Concat(Enumerable.Range(0, 200).Select(i => $"10:06:{i % 60:00}.{i:000}0000,  Other, CIP,  a"))
+            .ToArray();
+
+        var analysis = new SpidaLogAnalyser().Analyse(
+            MachineLogFile.Parse(lines), Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(),
+            new DateTime(2026, 9, 11));
+
+        Assert.Equal("TornadoPLC", analysis.LastNotableEvent!.Tag);
+        Assert.Equal(1, analysis.ChatterSkipped);
+    }
+
+    [Fact]
+    public void TheExportsOwnUploadLineIsNotTheMachinesLastAct()
+    {
+        // SharepointReporting writes as the file is taken, so it is always last and never useful.
+        var analysis = new SpidaLogAnalyser().Analyse(
+            MachineLogFile.Parse(new[]
+            {
+                "13:08:23.2612492,  Other, ControlYZRPLC,  Step Condition, Waiting for Saw Blade Running",
+                "13:09:13.3130000,  Other, SharepointReporting,  Upload succeeded"
+            }),
+            Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 11));
+
+        Assert.Equal("ControlYZRPLC", analysis.LastNotableEvent!.Tag);
+        Assert.Equal(50.1, analysis.SilenceBeforeEnd!.Value.TotalSeconds, 1);
+    }
+
+    [Fact]
+    public void ASmallLogHasNothingFilteredOut()
+    {
+        var analysis = new SpidaLogAnalyser().Analyse(
+            MachineLogFile.Parse(new[]
+            {
+                "10:00:00.0000000,  Other, A,  one",
+                "10:00:01.0000000,  Other, A,  one",
+                "10:00:02.0000000,  Other, B,  two"
+            }),
+            Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 11));
+
+        Assert.Equal(0, analysis.ChatterSkipped);
+        Assert.Equal(3, analysis.FinalEntries.Count);
+    }
+}

@@ -65,10 +65,14 @@ public class KnowledgeFindings
     /// <summary>Which electronics family each axis runs on, where the machine config was readable.</summary>
     public AxisHardwareMap AxisHardware { get; init; } = new();
 
+    /// <summary>Motors told to run that never reported back that they were running.</summary>
+    public MotorConfirmFindings MotorConfirm { get; init; } = new();
+
     public bool HasAnything =>
         // Drive faults stand on their own: they come from the drive, not the machine model, so
         // there is something to report even for a machine we have no notes for.
         DriveFaults.Count > 0
+        || MotorConfirm.Any
         || (Knowledge is not null
             && (MatchedFaults.Count > 0 || IssuesSeenInThisLog.Count > 0 || IssueHistoryForSerial.Count > 0
                 || Axes.Count > 0 || PlatePresentEvents.Count > 0 || UnknownFaults.Count > 0
@@ -96,6 +100,7 @@ public static class KnowledgeAnnotator
         // raises them.
         var driveFaults = MotionControllerFaults.Find(machineLog);
         var axisHardware = AxisHardware.Read(machineConfigXmlPath ?? string.Empty);
+        var motorConfirm = MotorConfirmCheck.Check(machineLog);
 
         if (knowledge is null)
         {
@@ -104,7 +109,8 @@ public static class KnowledgeAnnotator
                 Model = machineModel ?? analysis.MachineModelFromLog,
                 SerialNumber = serialNumber,
                 DriveFaults = driveFaults,
-                AxisHardware = axisHardware
+                AxisHardware = axisHardware,
+                MotorConfirm = motorConfirm
             };
         }
 
@@ -166,7 +172,8 @@ public static class KnowledgeAnnotator
             PlatePresentEvents = PlatePresentCheck.Find(machineLog),
             HomeInterlock = HomeInterlockCheck.Check(machineLog),
             DriveFaults = driveFaults,
-            AxisHardware = axisHardware
+            AxisHardware = axisHardware,
+            MotorConfirm = motorConfirm
         };
     }
 
