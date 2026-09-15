@@ -124,7 +124,11 @@ public class SpidaLogAnalyser
 
     /// <summary>Descriptive Other-category text that reads like a fault rather than a counter.</summary>
     private static readonly Regex FaultWording = new(
-        @"\b(cannot|can't|unable|not set ?up|failed|failure|fault|error|stopped|stop\b|lost|jam|check|press|estop|e-stop|revert|retry|try again|timeout|missing|invalid)\b",
+        @"\b(cannot|can't|unable|not set ?up|failed|failure|fault|error|stopped|stop\b|lost|jam|check|press|estop|e-stop|revert|retry|try again|timeout|missing|invalid"
+        // The Tornado rejects a board with "Board not expected length" and "Board not expected
+        // size", which carry none of the words above, so its real faults were being read as
+        // ordinary chatter and dropped.
+        + @"|not expected|unexpected|out of tolerance|reject)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public SpidaLogAnalysis Analyse(

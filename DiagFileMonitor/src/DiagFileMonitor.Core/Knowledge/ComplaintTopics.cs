@@ -18,10 +18,26 @@ public class ComplaintTopic
 
     /// <summary>What to check, in the order to check it.</summary>
     public IReadOnlyList<string> LookAt { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Machine models this applies to, matched as a prefix. Empty means every machine. It keeps
+    /// a saw's infeed topics off a wall extruder report, where the same words mean something else.
+    /// </summary>
+    public IReadOnlyList<string> Models { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// An unknown model matches everything rather than nothing. A bundle whose machine.xml did
+    /// not parse should still get the full set of suggestions - showing too many beats showing
+    /// none at all.
+    /// </summary>
+    public bool AppliesTo(string? model) =>
+        Models.Count == 0
+        || string.IsNullOrWhiteSpace(model)
+        || Models.Any(m => model.StartsWith(m, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>
-/// The complaints that come in on the wall extruder family, and what each one means you should
+/// The complaints that come in, and what each one means you should
 /// go and look at. The operator's own words are the best steer available: "nail gun in the wrong
 /// position" means start at gun heights, not at whatever the log happens to shout loudest about.
 /// </summary>
@@ -32,6 +48,7 @@ public static class ComplaintTopics
         new()
         {
             Name = "Nail gun position or height",
+            Models = new[] { "WallExtruder", "RakingWallExtruder", "RakedWallExtruder", "FastFramer" },
             Keywords = new[]
             {
                 "nail gun", "nailgun", "nail-gun", "gun position", "gun height", "gun is", "guns are",
@@ -92,6 +109,7 @@ public static class ComplaintTopics
         new()
         {
             Name = "Ejection",
+            Models = new[] { "WallExtruder", "RakingWallExtruder", "RakedWallExtruder", "FastFramer" },
             Keywords = new[]
             {
                 "eject", "ejection", "ejector", "wont come out", "won't come out", "panel stuck",
@@ -111,6 +129,7 @@ public static class ComplaintTopics
         new()
         {
             Name = "Clamps and plate detection",
+            Models = new[] { "WallExtruder", "RakingWallExtruder", "RakedWallExtruder", "FastFramer" },
             Keywords = new[]
             {
                 "clamp", "plate", "lost product", "not detected", "not detecting", "timber",
@@ -129,6 +148,7 @@ public static class ComplaintTopics
         new()
         {
             Name = "Studs skipped or in the wrong place",
+            Models = new[] { "WallExtruder", "RakingWallExtruder", "RakedWallExtruder", "FastFramer" },
             Keywords = new[]
             {
                 "stud", "studs", "spacing", "missing", "skipped", "not nailed", "no nails",
@@ -149,6 +169,7 @@ public static class ComplaintTopics
         new()
         {
             Name = "Trolley or floating head height",
+            Models = new[] { "WallExtruder", "RakingWallExtruder", "RakedWallExtruder", "FastFramer" },
             Keywords = new[]
             {
                 "trolley", "floating head", "head height", "rake", "raked", "angle", "too high",
@@ -166,6 +187,54 @@ public static class ComplaintTopics
                     + "progression. Wrong heights stud to stud point here rather than at TrolleyHeight.",
                 "The floating head laser scans the travel path before moving. A blockage gives an "
                     + "on-screen warning and needs the THNTD buttons tapped again to retry."
+            }
+        },
+        new()
+        {
+            Name = "Print position on the timber",
+            Models = new[] { "Tornado" },
+            Keywords = new[]
+            {
+                "print", "printer", "printing", "label", "ink", "off the edge", "off edge",
+                "not printing", "wrong place"
+            },
+            LogTags = new[] { "Printer" },
+            SettingWords = new[] { "print" },
+            LookAt = new[]
+            {
+                "The top printer height, which is a physical adjustment - there is no software "
+                    + "setting for it. Print riding off the top edge means lower it; print sitting "
+                    + "too low on the face means raise it.",
+                "What timber is being run. Thickness goes New Zealand (thickest, printer highest), "
+                    + "Australian, American, then Sterling (thinnest, printer lowest), so ask whether "
+                    + "the timber type changed just before this started.",
+                "Whether anyone checked the printer height at the last timber changeover - that is "
+                    + "the step most often missed."
+            }
+        },
+        new()
+        {
+            Name = "Board length or size rejected at infeed",
+            Models = new[] { "Tornado" },
+            Keywords = new[]
+            {
+                "not expected length", "not expected size", "wrong length", "wrong size",
+                "board length", "board size", "undersize", "over length", "overlength",
+                "rejects the board", "wont accept", "won't accept", "measuring"
+            },
+            LogTags = new[] { "Laser", "Clamp", "Gripper", "Infeed" },
+            SettingWords = new[] { "tolerance", "length", "board" },
+            LookAt = new[]
+            {
+                "Which of the two errors it is. \"Board not expected length\" is the post laser and "
+                    + "is usually reflection off the polished deck; \"Board not expected size\" is the "
+                    + "analog clamp sensor and is usually genuinely undersized timber.",
+                "For a length error: does the reported figure look random rather than merely wrong? "
+                    + "A wildly long reading on a short board is the deck reflection, not the sensor. "
+                    + "The gripper eyes and entry sensor reading correctly does not rule it out.",
+                "For a size error: measure the timber. Outside about 10% is a genuine reject; only "
+                    + "slightly out can be run through with Continue.",
+                "Ask whether the infeed deck has been cleaned, polished or had tape removed."
             }
         },
         new()

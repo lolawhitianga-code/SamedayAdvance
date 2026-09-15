@@ -91,7 +91,9 @@ public static class KnowledgeReportFormatter
         {
             var repeats = match.RepeatsAcrossAttempts
                 ? $" - repeated across attempts {string.Join(", ", match.CycleNumbers)}, so treat it as real"
-                : " - seen once";
+                : match.Occurrences > 1
+                    ? " - more than once, but all within one attempt"
+                    : " - seen once";
 
             text.AppendLine();
             text.AppendLine($"  \"{match.SeenAs}\"");

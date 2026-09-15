@@ -121,6 +121,11 @@ public static class KnowledgeAnnotator
                 .Where(f => f.Text.Contains(known.Match, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
+            // A fault we have written down is a fault whatever the generic wording filter made
+            // of it. Falling back to the raw log means a machine whose messages do not read like
+            // failures - the Tornado's "Board not expected length" - is still recognised.
+            if (hits.Count == 0) hits = FindInRawLog(machineLog, analysis, known);
+
             if (hits.Count == 0) continue;
 
             foreach (var hit in hits) accountedFor.Add(hit.Text);
@@ -163,6 +168,22 @@ public static class KnowledgeAnnotator
             DriveFaults = driveFaults,
             AxisHardware = axisHardware
         };
+    }
+
+    /// <summary>
+    /// Looks for a known fault's text anywhere in the log, attributing each hit to the unit it
+    /// falls in so a fault repeating across attempts still reads as repeating.
+    /// </summary>
+    private static List<(int Number, string Text)> FindInRawLog(
+        IReadOnlyList<MachineLogEntry> machineLog, SpidaLogAnalysis analysis, KnownFault known)
+    {
+        return machineLog
+            .Where(e => e.Category == MachineLogCategory.Other)
+            .Where(e => e.Description.Contains(known.Match, StringComparison.OrdinalIgnoreCase))
+            .Select(e => (
+                Number: analysis.Cycles.FirstOrDefault(c => e.Time >= c.Start && e.Time <= c.End)?.Number ?? 0,
+                Text: e.Description.Trim()))
+            .ToList();
     }
 
     /// <summary>

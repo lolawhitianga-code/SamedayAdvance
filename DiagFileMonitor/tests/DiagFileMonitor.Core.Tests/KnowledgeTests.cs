@@ -886,3 +886,185 @@ public class OmronServoDriveTests
         }
     }
 }
+
+public class TornadoKnowledgeTests
+{
+    private static IReadOnlyList<MachineLogEntry> Log(params string[] lines) => MachineLogFile.Parse(lines);
+
+    private static KnowledgeFindings Annotate(string faultText)
+    {
+        var log = Log(
+            "10:00:00.0000000,  Other, TornadoStep,  Step = 0",
+            $"10:00:05.0000000,  Other, TornadoPLC,  {faultText}");
+
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+        return KnowledgeAnnotator.Annotate(analysis, log, "TornadoM500", "M30001");
+    }
+
+    [Theory]
+    [InlineData("TornadoM500")]
+    [InlineData("tornadom500")]
+    [InlineData("Tornado M500")]
+    public void FindsTheTornado(string model)
+    {
+        Assert.Equal("TornadoM500", MachineKnowledgeBase.Find(model)?.Model);
+    }
+
+    [Fact]
+    public void TheTornadoAndTheRakedExtruderAreSeparateEntries()
+    {
+        Assert.Equal("RakingWallExtruderV3DG", MachineKnowledgeBase.Find("RakingWallExtruderV3DG")?.Model);
+        Assert.Equal(2, MachineKnowledgeBase.All.Count);
+    }
+
+    [Fact]
+    public void ALengthErrorPointsAtTheDeckReflectionNotTheSensors()
+    {
+        var match = Assert.Single(Annotate("Board not expected length").MatchedFaults);
+
+        Assert.Contains("reflects off the polished metal infeed deck", match.Known.Meaning);
+        Assert.Contains(match.Known.WhatToCheck, c => c.Contains("looks random"));
+
+        // The sensors reading correctly is the trap - it does not clear the laser.
+        Assert.Contains("sensors are not the problem", match.Known.Meaning);
+    }
+
+    [Fact]
+    public void ASizeErrorSaysContinueIsAValidAnswer()
+    {
+        var match = Assert.Single(Annotate("Board not expected size").MatchedFaults);
+
+        Assert.Contains("10% tolerance", match.Known.Meaning);
+        Assert.Contains(match.Known.WhatToCheck, c => c.Contains("press Continue"));
+    }
+
+    [Fact]
+    public void ThePrinterHeightGuideRunsThickestToThinnest()
+    {
+        var timbers = TornadoKnowledge.PrinterHeights.Select(p => p.Timber).ToList();
+
+        Assert.Equal(new[] { "New Zealand", "Australian", "American", "Sterling" }, timbers);
+        Assert.Equal("higher", TornadoKnowledge.PrinterHeights[0].Printer);
+        Assert.Equal("lowest", TornadoKnowledge.PrinterHeights[^1].Printer);
+    }
+
+    [Fact]
+    public void ThePermanentLaserFixIsRecordedAsStillOpen()
+    {
+        var knowledge = MachineKnowledgeBase.Find("TornadoM500")!;
+
+        Assert.Contains(knowledge.OpenGaps, g => g.Contains("permanent fix", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(knowledge.OpenGaps, g => g.Contains("seven servo axes"));
+    }
+
+    [Fact]
+    public void TheStartupSequenceIsKeptForTellingHowFarAMachineGot()
+    {
+        Assert.Equal(8, TornadoKnowledge.StartupSequence.Count);
+        Assert.Contains(TornadoKnowledge.StartupSequence, s => s.Contains("Home Machine"));
+        Assert.Contains(TornadoKnowledge.StartupSequence, s => s.Contains("Start Board"));
+    }
+}
+
+public class ComplaintTopicModelGatingTests
+{
+    private static ComplaintFindings Route(string issue, string? model) =>
+        ComplaintRouter.Route(issue, Array.Empty<ChangeLogEntry>(), Array.Empty<MachineLogEntry>(), model);
+
+    [Fact]
+    public void APrintComplaintOnATornadoGoesToThePrinterHeight()
+    {
+        var topic = Route("printing is running off the edge of the timber", "TornadoM500").Topics[0];
+
+        Assert.Equal("Print position on the timber", topic.Topic.Name);
+        Assert.Contains("physical adjustment", topic.Topic.LookAt[0]);
+    }
+
+    [Fact]
+    public void ABoardRejectComplaintSeparatesTheTwoErrors()
+    {
+        var topic = Route("machine says board not expected length", "TornadoM500").Topics[0];
+
+        Assert.Equal("Board length or size rejected at infeed", topic.Topic.Name);
+        Assert.Contains("post laser", topic.Topic.LookAt[0]);
+    }
+
+    [Fact]
+    public void TornadoTopicsDoNotFireOnAWallExtruder()
+    {
+        // A wall extruder operator saying "wrong size" means timber, not an infeed laser.
+        var findings = Route("board not expected size", "RakingWallExtruderV3DG");
+
+        Assert.DoesNotContain(findings.Topics, t => t.Topic.Name.StartsWith("Board length"));
+    }
+
+    [Fact]
+    public void WallExtruderTopicsDoNotFireOnATornado()
+    {
+        var findings = Route("studs are being skipped", "TornadoM500");
+
+        Assert.DoesNotContain(findings.Topics, t => t.Topic.Name.StartsWith("Studs skipped"));
+    }
+
+    [Fact]
+    public void AnUnknownModelStillGetsEverySuggestion()
+    {
+        // A bundle whose machine.xml did not parse should not silently lose its routing.
+        Assert.NotEmpty(Route("studs are being skipped", null).Topics);
+        Assert.NotEmpty(Route("printing off the edge", "").Topics);
+    }
+
+    [Fact]
+    public void TopicsWithNoModelListStillApplyEverywhere()
+    {
+        // "Machine will not move or start" is not machine specific.
+        foreach (var model in new[] { "TornadoM500", "RakingWallExtruderV3DG", "SomethingElse" })
+        {
+            Assert.Contains(Route("nothing happens when i hit start", model).Topics,
+                t => t.Topic.Name == "Machine will not move or start");
+        }
+    }
+}
+
+public class MatchedFaultWordingTests
+{
+    [Fact]
+    public void TwoHitsInOneAttemptDoNotReadAsSeenOnce()
+    {
+        var log = MachineLogFile.Parse(new[]
+        {
+            "09:15:00.0000000,  Other, TornadoStep,  Step = 0",
+            "09:15:20.0000000,  Other, TornadoPLC,  Board not expected length",
+            "09:16:30.0000000,  Other, TornadoPLC,  Board not expected length"
+        });
+
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+        var text = SpidaReportFormatter.Format(
+            new DiagnosticFileSummary { MachineType = "TornadoM500" }, analysis,
+            KnowledgeAnnotator.Annotate(analysis, log, "TornadoM500", "M30001"));
+
+        Assert.Contains("x2 - more than once, but all within one attempt", text);
+        Assert.DoesNotContain("x2 - seen once", text);
+    }
+
+    [Fact]
+    public void ATornadoFaultIsFoundEvenThoughItsWordingDoesNotSoundLikeAFailure()
+    {
+        // "Board not expected length" carries none of the usual fault words - no "error",
+        // "fault" or "failed" - so it was being read as ordinary chatter and dropped.
+        var log = MachineLogFile.Parse(new[]
+        {
+            "09:15:00.0000000,  Other, TornadoStep,  Step = 0",
+            "09:15:20.0000000,  Other, TornadoPLC,  Board not expected length"
+        });
+
+        var analysis = new SpidaLogAnalyser().Analyse(
+            log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+        Assert.Contains(analysis.Cycles.SelectMany(c => c.Faults), f => f.Text.Contains("not expected length"));
+    }
+}

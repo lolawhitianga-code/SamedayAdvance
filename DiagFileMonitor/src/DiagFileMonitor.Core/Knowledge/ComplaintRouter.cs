@@ -44,14 +44,15 @@ public static class ComplaintRouter
     public static ComplaintFindings Route(
         string? issue,
         IReadOnlyList<ChangeLogEntry> changeLog,
-        IReadOnlyList<MachineLogEntry> machineLog)
+        IReadOnlyList<MachineLogEntry> machineLog,
+        string? machineModel = null)
     {
         var text = (issue ?? string.Empty).Trim();
         if (text.Length == 0) return new ComplaintFindings();
 
         var matches = new List<MatchedTopic>();
 
-        foreach (var topic in ComplaintTopics.All)
+        foreach (var topic in ComplaintTopics.All.Where(t => t.AppliesTo(machineModel)))
         {
             var hits = topic.Keywords
                 .Where(k => text.Contains(k, StringComparison.OrdinalIgnoreCase))
