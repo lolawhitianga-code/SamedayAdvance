@@ -239,6 +239,10 @@ Spida machines run two families of electronics, and a single machine can use bot
 | CyberLogix **CLX** | CLX MCNet | `CLXMCNet`, `CLXMCNetAxis`, `CLXMCNetInput`, `CLXMCNetOutput` |
 | **Omron** | CIPNet | `CIPNet` |
 
+`HardwareType = CIPNet` means an **Omron drive** — confirmed with Spida. Note that the drives
+themselves link over EtherCAT; CIPNet is how Spida's software names the Omron side, not the
+drive's own network.
+
 These are recorded per axis (`<AxisHardwareType>`) and per IO point (`<HardwareType>`) in the
 machine's own config file — `RakingWallExtruderV3DG.xml`, `WallExtruder.xml`, `TornadoM450.xml`,
 `SprintM600.xml` — **not** in the generic `Machine.xml`. Those files are **UTF-16**, so plain
@@ -281,3 +285,66 @@ their own section near the top — the drive has already named the failed part, 
 cause, while the message the report had been leading with — "Fixed Side Trolley Tripped and
 stopped FloatingSide Trolley" — was the consequence. `Node Not Found on Network` immediately
 before an `F14` on both pushers points at the network rather than at either drive.
+
+---
+
+## Omron servo drives
+
+Spida fits Omron **1S-series** drives: `R88D-1SN□□-ECT`, driving `R88M-1L` / `R88M-1M` motors over
+EtherCAT. A photographed example is `R88D-1SN15F-ECT` labelled *SAW ROTATION*.
+
+**Model decoding** — `R88D-1SN` + capacity + voltage + `-ECT`. Capacity is the output in hundreds
+of watts (`15` → 1.5 kW, `150` → 15 kW); the letter is the supply: `L` 100 V, `H` 200 V, `F` 400 V.
+Checked against the photographed drive, whose own label reads *400V 3PH 1.5kW*.
+
+**Discharge wait before touching anything** (from the instruction manual — a shock hazard, not a
+guideline). A dark display is **not** proof the bus is discharged.
+
+| Wait | Models |
+|---|---|
+| 10 min | all 400 V: `06F` `10F` `15F` `20F` `30F` `55F` `75F` `150F` |
+| 15 min | `01L` `02L` `01H` `02H` `04H` |
+| 20 min | `04L` `08H` `10H` `15H` `20H` `30H` `55H` `75H` `150H` |
+
+**Indicators:** PWR, ERR (normally closed, opens on error and is wired to cut main circuit power),
+ECAT RUN, ECAT ERR, L/A IN (CN10), L/A OUT (CN11), FS, CHARGE.
+**Connectors:** CN1 control I/O, CN2 encoder, CN7 USB, CN10 EtherCAT IN, CN11 EtherCAT OUT,
+CN12 safety I/O.
+
+### 1S alarm codes
+
+The drive shows `Er` then a hex main code and subcode — `Er 16 00` is Overload, `Er 83 03` a
+communications synchronisation error.
+
+> **Source caution.** These meanings came from a third-party summary, **not from Omron**. Confirm
+> against Omron's own 1S User's Manual (**I586**) before quoting one to a customer. G5 drives share
+> some main codes but not the subcodes — G5 `13.1` is an AC supply interruption while 1S `13.01` is
+> main-circuit phase loss. The 1S encoder is batteryless, so the G5 `40.0` battery remedy does not
+> apply at all.
+
+| Code | Meaning |
+|---|---|
+| 12.0 | DC bus overvoltage |
+| 13.0 | Main power supply undervoltage |
+| 13.01 | Main circuit phase loss |
+| **14.0** | **Overcurrent — do not keep resetting; repeated energising can turn a repairable cable fault into a failed power module** |
+| 14.01 | IPM / power module error |
+| 15.0 / 15.01 | Drive overheat / motor overheat |
+| 16.00 | Overload |
+| 18.00 / 18.01 | Regeneration overload / regeneration circuit error |
+| 21.00 / 21.01 | Encoder comms disconnected / encoder comms error |
+| 24.00 / 24.01 | Excessive position deviation / excessive speed deviation |
+| 26.00 | Excessive speed |
+| 34.01 | Software position limit exceeded |
+| 36.00 / 37.00 | Non-volatile memory data / hardware error |
+| 38.00 | Drive prohibition input error |
+| 83.xx | EtherCAT state or synchronisation error |
+| 87.00 | Error stop input active |
+| 90.xx | EtherCAT configuration error |
+| 95.x | Motor non-conformity |
+| 99.99 | Misalignment alert — needs the encoder Communications Error Count cleared in Sysmac Studio before a normal reset |
+| C0.00 | STO detected (information by default) |
+
+The app only reads these where the log writes them in the drive's own `Er xx yy` form. Matching a
+bare `16.00` would turn timestamps and version numbers into alarms. **No Spida log has been seen
+carrying an Omron alarm yet**, so that scan may never fire — send one if you find it.

@@ -737,3 +737,152 @@ public class AxisHardwareTests
         Assert.False(AxisHardware.Read("/no/such/file.xml").Any);
     }
 }
+
+public class OmronServoDriveTests
+{
+    [Fact]
+    public void DecodesTheDriveInThePhotoTheSameWayItsOwnLabelReads()
+    {
+        // The photographed drive is labelled 400V 3PH 1.5kW.
+        var drive = OmronServoDrives.Describe("R88D-1SN15F-ECT")!;
+
+        Assert.Equal(1500, drive.Watts);
+        Assert.Equal(400, drive.Volts);
+        Assert.Equal(10, drive.DischargeWaitMinutes);
+        Assert.Contains("1.5 kW", drive.Description);
+    }
+
+    [Theory]
+    [InlineData("R88D-1SN01L-ECT", 100, 100, 15)]
+    [InlineData("R88D-1SN04H-ECT", 400, 200, 15)]
+    [InlineData("R88D-1SN55H-ECT", 5500, 200, 20)]
+    [InlineData("R88D-1SN150H-ECT", 15000, 200, 20)]
+    [InlineData("R88D-1SN150F-ECT", 15000, 400, 10)]
+    public void DecodesCapacityVoltageAndDischargeTime(string model, int watts, int volts, int minutes)
+    {
+        var drive = OmronServoDrives.Describe(model)!;
+
+        Assert.Equal(watts, drive.Watts);
+        Assert.Equal(volts, drive.Volts);
+        Assert.Equal(minutes, drive.DischargeWaitMinutes);
+    }
+
+    [Theory]
+    [InlineData("R88D-KN10H-ECT")]   // G5, a different family with a different alarm table
+    [InlineData("not a model")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void OnlyOneSDriveModelsAreDecoded(string? model)
+    {
+        Assert.Null(OmronServoDrives.Describe(model));
+    }
+
+    [Fact]
+    public void EveryDischargeTimeIsOneTheManualGives()
+    {
+        // These are a shock hazard, not a guideline - a made-up value here could hurt somebody.
+        foreach (var alarm in new[] { "01L", "02L", "04L", "01H", "02H", "04H", "08H", "10H", "15H",
+                                      "20H", "30H", "55H", "75H", "150H", "06F", "10F", "15F", "20F",
+                                      "30F", "55F", "75F", "150F" })
+        {
+            var drive = OmronServoDrives.Describe($"R88D-1SN{alarm}-ECT")!;
+            Assert.Contains(drive.DischargeWaitMinutes, new[] { 10, 15, 20 });
+        }
+    }
+
+    [Fact]
+    public void LooksUpTheAlarmsSeenMostInTheField()
+    {
+        Assert.Equal("Overload", OmronServoDrives.Lookup("16.00")!.Meaning);
+        Assert.Equal("Overcurrent", OmronServoDrives.Lookup("14.0")!.Meaning);
+        Assert.Contains("phase loss", OmronServoDrives.Lookup("13.01")!.Meaning);
+    }
+
+    [Fact]
+    public void AGroupCodeMatchesAnySubcodeUnderIt()
+    {
+        // 83.xx and 90.xx are families - the subcode narrows them further.
+        Assert.Contains("EtherCAT", OmronServoDrives.Lookup("83.03")!.Meaning);
+        Assert.Contains("EtherCAT", OmronServoDrives.Lookup("83.21")!.Meaning);
+        Assert.Contains("configuration", OmronServoDrives.Lookup("90.05")!.Meaning);
+    }
+
+    [Fact]
+    public void AnOvercurrentIsMarkedAsNotSomethingToKeepResetting()
+    {
+        Assert.True(OmronServoDrives.Lookup("14.0")!.Urgent);
+        Assert.Contains("Do not keep resetting", OmronServoDrives.Lookup("14.0")!.FirstChecks);
+        Assert.False(OmronServoDrives.Lookup("16.00")!.Urgent);
+    }
+
+    [Fact]
+    public void ReadsAlarmsWrittenTheWayTheDriveShowsThem()
+    {
+        var found = OmronServoDrives.Find(new[]
+        {
+            "drive reported Er 16 00 on the saw rotation axis",
+            "and then Er 83 03"
+        });
+
+        Assert.Equal(2, found.Count);
+        Assert.Contains(found, a => a.Meaning == "Overload");
+        Assert.Contains(found, a => a.Code == "83");
+    }
+
+    [Fact]
+    public void ABareNumberIsNotReadAsAnOmronAlarm()
+    {
+        // Without the Er prefix, "16.00" is a timestamp or a version far more often than an alarm.
+        Assert.Empty(OmronServoDrives.Find(new[]
+        {
+            "16.00 something happened",
+            "version 14.01 installed",
+            "13:16:58.295 MotionEvent"
+        }));
+    }
+
+    [Fact]
+    public void TheSourceOfTheAlarmMeaningsIsStated()
+    {
+        // These get quoted to customers, and they did not come from Omron.
+        Assert.Contains("not Omron", OmronServoDrives.AlarmSource);
+        Assert.Contains("I586", OmronServoDrives.AlarmSource);
+    }
+
+    [Fact]
+    public void TheReportTellsYouToReadTheOmronDriveWhenTheMachineHasOmronAxes()
+    {
+        var log = MachineLogFile.Parse(new[]
+        {
+            "13:12:07.2470000,  MotionEvent, Axis-FixedSidePusher,  F02 Encoder Wiring Fault"
+        });
+
+        var config = Path.Combine(Path.GetTempPath(), $"mix-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(config, """
+            <?xml version="1.0" encoding="utf-16"?>
+            <WallExtruder>
+              <Trolley><InUse>true</InUse><AxisHardwareType>CIPNet</AxisHardwareType></Trolley>
+              <ServoGun><InUse>true</InUse><AxisHardwareType>CLXMCNet</AxisHardwareType></ServoGun>
+            </WallExtruder>
+            """, System.Text.Encoding.Unicode);
+
+        try
+        {
+            var analysis = new SpidaLogAnalyser().Analyse(
+                log, Array.Empty<ErrLogEntry>(), Array.Empty<ChangeLogEntry>(), new DateTime(2026, 9, 15));
+
+            var text = SpidaReportFormatter.Format(
+                new DiagnosticFileSummary(), analysis,
+                KnowledgeAnnotator.Annotate(analysis, log, "WallExtruderDG", "M20616", config));
+
+            Assert.Contains("runs both families", text);
+            Assert.Contains("R88D-1SN", text);
+            Assert.Contains("Er 16 00", text);
+            Assert.Contains("CHARGE stays lit", text);
+        }
+        finally
+        {
+            File.Delete(config);
+        }
+    }
+}
