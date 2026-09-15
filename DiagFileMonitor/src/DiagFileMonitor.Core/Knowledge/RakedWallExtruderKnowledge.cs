@@ -44,13 +44,14 @@ public static class RakedWallExtruderKnowledge
             new()
             {
                 LogName = "TrolleyHeight",
-                PlainName = "Trolley height (the axis written down as \"Trolley Heart\")",
+                PlainName = "Trolley height (\"Trolley Heart\" in the op guide)",
                 Role =
                     "Moves the floating side trolley (gripper) across to meet the starting height of "
                     + "the panel. It then holds that position for the whole panel, and only moves "
                     + "again - higher - to let the finished panel eject. How far it moves for the "
                     + "eject depends on panel height. So one move at the start and one at the eject "
-                    + "is normal; moving part way through a panel is not.",
+                    + "is normal; moving part way through a panel is not. The op guide flowchart "
+                    + "lists it as one of the six homed axes under the name Trolley Heart.",
                 Confidence = Confidence.Confirmed
             },
             new()

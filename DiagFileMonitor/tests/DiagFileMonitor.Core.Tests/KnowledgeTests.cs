@@ -956,7 +956,46 @@ public class TornadoKnowledgeTests
         var knowledge = MachineKnowledgeBase.Find("TornadoM500")!;
 
         Assert.Contains(knowledge.OpenGaps, g => g.Contains("permanent fix", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(knowledge.OpenGaps, g => g.Contains("seven servo axes"));
+
+        // The axis count was an open question until the op guide flowchart named all seven and
+        // six were matched to tags in a real export. Only the pusher is still unmatched.
+        Assert.Contains(knowledge.OpenGaps, g => g.Contains("pusher", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(knowledge.OpenGaps, g => g.Contains("seven servo axes"));
+    }
+
+    [Fact]
+    public void TheSevenAxesArePairedWithTheTagsARealExportUses()
+    {
+        var axes = MachineKnowledgeBase.Find("TornadoM500")!.Axes;
+
+        Assert.Equal(7, axes.Count);
+
+        // The geometry axes carry their letter in the log tag, which is what makes them solid.
+        foreach (var tag in new[] { "SawRotation(R)", "SawOffset(Y)", "SawHeight(Z)" })
+        {
+            Assert.Equal(Confidence.Confirmed, axes.Single(a => a.LogName == tag).Confidence);
+        }
+
+        // The pusher is named by the op guide but has never been tied to a tag.
+        var pusher = axes.Single(a => a.PlainName == "Pusher");
+        Assert.Equal(Confidence.Unconfirmed, pusher.Confidence);
+    }
+
+    [Fact]
+    public void NothingLoadingAfterStartBoardPointsAtSawdustOnTheEyeSensors()
+    {
+        var issue = MachineKnowledgeBase.Find("TornadoM500")!
+            .Issues.Single(i => i.Title.Contains("Nothing loads"));
+
+        Assert.Contains("sawdust", issue.Detail);
+        Assert.Contains("run backwards to eject", issue.Detail);
+        Assert.Equal(Confidence.Confirmed, issue.Confidence);
+    }
+
+    [Fact]
+    public void ShortMembersGoToTheWasteConveyorNotTheOutfeed()
+    {
+        Assert.Equal(520, TornadoKnowledge.ShortMemberMillimetres);
     }
 
     [Fact]

@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tornado M500 — Operation Flowchart</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F1F7FA;
+    --panel: #ffffff;
+    --border: #D1D1E6;
+    --accent: #009CDE;
+    --accent2: #E87722;
+    --green: #8A8D4A;
+    --yellow: #B89D18;
+    --red: #E87722;
+    --text: #1a1a1a;
+    --dim: #425563;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+
+  html, body { overflow-x: hidden; max-width: 100vw; width: 100%; }
+
+  body {
+    background: #F1F7FA;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 0 0 60px 0;
+    background-image:
+      linear-gradient(rgba(0,156,222,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,156,222,0.04) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px;
+  }
+
+  /* ── TOPBAR ── */
+  .spida-topbar {
+    display: flex; align-items: center;
+    background: #ffffff; padding: 14px 28px;
+    border-bottom: 4px solid #009CDE;
+    box-shadow: 0 2px 8px rgba(0,156,222,0.1);
+  }
+  .spida-logo-img { height: 46px; width: auto; display: block; }
+
+  /* ── HEADER ── */
+  header { text-align: center; padding: 40px 20px 20px; animation: fadeDown 0.8s ease both; }
+  .header-badge {
+    display: inline-block; font-size: 13px; color: #009CDE;
+    letter-spacing: 4px; border: 1px solid rgba(0,156,222,0.3);
+    padding: 4px 16px; margin-bottom: 16px;
+    background: rgba(0,156,222,0.06); text-transform: uppercase;
+  }
+  h1 { font-size: clamp(26px, 5vw, 48px); font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #425563; line-height: 1.1; }
+  h1 span { color: #009CDE; }
+  .subtitle { font-size: 13px; color: #7a9aaa; margin-top: 10px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ── FLOWCHART ── */
+  .flowchart {
+    max-width: 780px; margin: 0 auto; padding: 0 12px;
+    position: relative; display: flex; flex-direction: column; align-items: center;
+  }
+  .flowchart::before {
+    content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px;
+    background: linear-gradient(to bottom, transparent, #D1D1E6 3%, #D1D1E6 97%, transparent);
+    transform: translateX(-50%); z-index: 0;
+  }
+
+  /* ── TERMINALS ── */
+  .node-terminal {
+    width: 220px; background: #009CDE; color: #fff;
+    font-weight: 700; font-size: 15px; letter-spacing: 3px;
+    text-transform: uppercase; text-align: center; padding: 14px 20px;
+    clip-path: polygon(20px 0%, 100% 0%, calc(100% - 20px) 100%, 0% 100%);
+    position: relative; z-index: 2; animation: fadeDown 0.5s ease both;
+  }
+  .node-terminal.end { background: #8A8D4A; }
+
+  /* ── ARROWS ── */
+  .arrow { display: flex; justify-content: center; align-items: center; height: 30px; position: relative; z-index: 1; width: 100%; }
+
+  /* ── ROWS ── */
+  .row { display: flex; align-items: stretch; width: 100%; position: relative; z-index: 1; }
+  .row .left  { flex: 1; display: flex; justify-content: flex-end; padding-right: 12px; }
+  .row .right { flex: 1; display: flex; justify-content: flex-start; padding-left: 12px; }
+  .row .spine { width: 56px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+  /* ── SPINE DOTS ── */
+  .spine-dot {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: #009CDE; border: 2px solid #F1F7FA;
+    box-shadow: 0 0 8px rgba(0,156,222,0.5);
+    position: relative; z-index: 2;
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  .dot-green  { background: #8A8D4A !important; box-shadow: 0 0 8px rgba(138,141,74,0.5) !important; }
+  .dot-yellow { background: #B89D18 !important; box-shadow: 0 0 8px rgba(184,157,24,0.5) !important; }
+  .dot-orange { background: #E87722 !important; box-shadow: 0 0 8px rgba(232,119,34,0.5) !important; }
+  .dot-purple { background: #425563 !important; box-shadow: 0 0 8px rgba(66,85,99,0.5) !important; }
+  .dot-red    { background: #E87722 !important; box-shadow: 0 0 8px rgba(232,119,34,0.5) !important; }
+
+  /* ── CARDS ── */
+  .card {
+    background: #ffffff; border: 1px solid #D1D1E6;
+    padding: 14px 16px; position: relative;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    width: 100%; max-width: 330px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    animation: slideIn 0.5s ease both;
+  }
+  .card:hover { border-color: #009CDE !important; box-shadow: 0 4px 16px rgba(0,156,222,0.15) !important; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; }
+  .card.process::before  { background: #009CDE; }
+  .card.check::before    { background: #8A8D4A; }
+  .card.decision::before { background: #B89D18; }
+  .card.action::before   { background: #E87722; }
+  .card.operator::before { background: #425563; }
+  .card.auto::before     { background: #009CDE; }
+  .card.warning::before  { background: #E87722; }
+
+  .card .snum   { font-size: 11px; color: #7a9aaa; letter-spacing: 2px; margin-bottom: 3px; text-transform: uppercase; }
+  .card .stitle { font-size: 16px; font-weight: 700; color: #1a1a1a; margin-bottom: 5px; }
+  .card .sdesc  { font-size: 13px; color: #425563; line-height: 1.6; }
+
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: 2px;
+    padding: 2px 8px; margin-top: 8px; text-transform: uppercase; border: 1px solid;
+  }
+  .card.process  .tag { color: #009CDE; border-color: rgba(0,156,222,0.4);  background: rgba(0,156,222,0.07); }
+  .card.check    .tag { color: #8A8D4A; border-color: rgba(138,141,74,0.4); background: rgba(138,141,74,0.07); }
+  .card.decision .tag { color: #B89D18; border-color: rgba(184,157,24,0.4); background: rgba(184,157,24,0.07); }
+  .card.action   .tag { color: #E87722; border-color: rgba(232,119,34,0.4); background: rgba(232,119,34,0.07); }
+  .card.operator .tag { color: #425563; border-color: rgba(66,85,99,0.4);   background: rgba(66,85,99,0.07); }
+  .card.auto     .tag { color: #009CDE; border-color: rgba(0,156,222,0.4);  background: rgba(0,156,222,0.07); }
+  .card.warning  .tag { color: #E87722; border-color: rgba(232,119,34,0.4); background: rgba(232,119,34,0.07); }
+
+  /* ── SECTION LABELS ── */
+  .section-label {
+    font-size: 11px; color: #7a9aaa; letter-spacing: 3px; text-transform: uppercase;
+    border-left: 2px solid #D1D1E6; padding-left: 10px;
+    margin: 10px 0 2px; align-self: flex-start;
+    margin-left: calc(50% + 40px); position: relative; z-index: 1;
+  }
+  .section-label.L {
+    align-self: flex-end; margin-right: calc(50% + 40px); margin-left: 0;
+    border-left: none; border-right: 2px solid #D1D1E6;
+    padding-left: 0; padding-right: 10px; text-align: right;
+  }
+
+  /* ── DIAMONDS ── */
+  .branch-block { width: 100%; position: relative; z-index: 1; }
+  .branch-diamond-row { display: flex; justify-content: center; align-items: center; height: 70px; }
+  .diamond {
+    width: 130px; height: 62px; background: #ffffff;
+    border: 1.5px solid #B89D18;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .diamond span { font-size: 11px; color: #B89D18; letter-spacing: 1px; text-align: center; }
+  .branch-labels {
+    display: flex; justify-content: space-between; padding: 0 60px;
+    font-size: 11px; letter-spacing: 2px; margin-top: -4px; margin-bottom: 6px;
+  }
+  .branch-yes { color: #8A8D4A; }
+  .branch-no  { color: #E87722; }
+  .branch-cards { display: flex; gap: 12px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  .branch-card  { flex: 1 1 220px; min-width: 0; }
+
+  /* ── LOOP LABELS ── */
+  .loop-label {
+    font-size: 12px; color: #B89D18; letter-spacing: 2px;
+    padding: 4px 20px 0; margin-top: 12px; margin-bottom: 8px;
+    width: 100%; position: relative; z-index: 1; display: block;
+  }
+  .loop-label.R { text-align: right; }
+  .loop-label.L { text-align: left; }
+
+  /* ── CYCLE BOXES ── */
+  .cycle-box {
+    width: 100%; max-width: 780px;
+    border: 1px dashed rgba(0,156,222,0.3);
+    background: rgba(0,156,222,0.02);
+    padding: 14px 16px 18px; position: relative; z-index: 1; margin: 4px 0;
+    box-sizing: border-box; word-wrap: break-word;
+  }
+  .cycle-box.auto-box  { border-color: rgba(138,141,74,0.3); background: rgba(138,141,74,0.02); }
+  .cycle-box.fire-box  { border-color: rgba(232,119,34,0.3); background: rgba(232,119,34,0.02); }
+  .cycle-label {
+    font-size: 11px; letter-spacing: 3px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+    color: #009CDE; text-transform: uppercase;
+  }
+  .cycle-label.green { color: #8A8D4A; }
+  .cycle-label.fire  { color: #E87722; }
+  .cycle-label::before, .cycle-label::after { content: ''; flex: 1; height: 1px; background: rgba(0,156,222,0.2); }
+  .cycle-box.auto-box .cycle-label::before, .cycle-box.auto-box .cycle-label::after { background: rgba(138,141,74,0.2); }
+  .cycle-box.fire-box .cycle-label::before, .cycle-box.fire-box .cycle-label::after { background: rgba(232,119,34,0.2); }
+
+  /* ── RULE BOXES ── */
+  .rule-wrap { max-width: 780px; margin: 0 auto; padding: 0 12px; }
+  .rule-box {
+    display: block; padding: 12px 16px; font-size: 13px;
+    margin-bottom: 8px; position: relative; z-index: 1;
+    word-wrap: break-word; overflow-wrap: break-word; white-space: normal;
+    width: 100%; box-sizing: border-box;
+  }
+  .rule-box.blue  { background: rgba(0,156,222,0.06);  border: 1px solid rgba(0,156,222,0.3);  color: #005f87; }
+  .rule-box.red   { background: rgba(232,119,34,0.06); border: 1px solid rgba(232,119,34,0.3); color: #c45a00; }
+  .rule-box.amber { background: rgba(184,157,24,0.06); border: 1px solid rgba(184,157,24,0.3); color: #7a6000; }
+
+  /* ── ESTOP ── */
+  .estop-note {
+    max-width: 780px; margin: 28px auto 0; padding: 0 12px;
+  }
+  .estop-inner {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: rgba(232,119,34,0.06); border: 1px solid rgba(232,119,34,0.3);
+    padding: 12px 16px; font-size: 13px; color: #c45a00;
+    word-wrap: break-word;
+  }
+  .estop-inner::before { content: '⚠'; font-size: 20px; flex-shrink: 0; }
+
+  /* ── LEGEND ── */
+  .legend {
+    max-width: 780px; margin: 32px auto 0; padding: 0 12px 40px;
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #425563; }
+  .legend-dot  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── PHASE DIVIDER ── */
+  .phase-divider {
+    width: 100%; max-width: 780px; margin: 14px 0 6px;
+    display: flex; align-items: center; gap: 12px; position: relative; z-index: 1;
+  }
+  .phase-divider::before, .phase-divider::after { content: ''; flex: 1; height: 2px; background: #D1D1E6; }
+  .phase-divider span {
+    font-size: 11px; color: #425563; letter-spacing: 3px;
+    text-transform: uppercase; white-space: nowrap;
+    background: #F1F7FA; padding: 0 10px;
+  }
+
+  /* ── ANIMS ── */
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideIn  { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes pulse    { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.82); } }
+
+  /* ── WIDTH SAFETY ── */
+  .card, .rule-box, .cycle-box, .branch-cards, .branch-card { max-width: 100% !important; }
+</style>
+</head>
+<body>
+
+<div class="spida-topbar">
+  <img class="spida-logo-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAABHCAYAAABVnJhaAAAgAElEQVR4Xu19B5iV1bX2mjnTYIbeO0hXpCpKsxMRC4IoVgIKKsaW8id/7r3JTfGaROM10QRQLBhFLLEXEEXEqCAoooDSpA0dBgYYppf/fdfa+5zvzMyZOQMI/k/m02HOnPN9u6y9yrvK3iehDJfUXrUU+DenQEKtIPybc0Dt9JUCtYJQywi1FKgVhFoeqKWAUSC2RShxJErgXSJl/K1XKf6kW8EfvgrFRcuEUveIv7tcuwloVzvSn9qrlgLHlwKxBaHMJKGMjJmQEGBPCIC6155h42NcE5uw/EQ1Ye/jDvRTe9VS4ERQoFJBINOWqoY2hq/InjQRjrHj5F1vP0wW+B/btYcT+U+tQTgR61/bp+fyyqJGZNoS1fpgVxqESshljGzgqPrL7jL4YwYlAq4SAK7QUq0gVE/G2ju+MwpU7SMQ2Cd4llVOdqxPxqYe57/xCYI9HBGEUicaZhfwXxg7fWdzrW24lgIxKVC1IJA5Fbc4YUg0ple/wf3EhYwMa7kLL9CmwiOYG7aVWCn8ql21WgocPwrEFIRSp+jJv4kOuYScCKhfW+Y4O6F81KgSC6Ha3jWizgUtjb1nMpKo8haXUB0/2tT29G9EgcoFAZxeVlYoZYnU1YlSoujegxgzEgmliCppWLX68KmPnJL/Q/Q5KElhS2OCUBs4/Tfiuu/hVGNYhDIwf4EyaClc2UIVBssgRECR9x2Uo6u9+FwKfpLwWJLiKy8MHmrVWoRqiVh7w3dGgZjQqAhd5hWXyqKNu2R55h4pJu/ipyQxWRJLiwPRIsIbD4eCsCgSdk0pzpeOzRvLsO5tpUlamiTTogSd41pP+Ttb4NqG46NAbGcZMOZAcbH8cclueefr/YBAiA8xyZZAfQ4mT8BravVS6PkQ7UUxxMGLC73hFGV2vpcAJ7tueor8vF9TubhzE5gEPm8DJExKZFthL+H4egoqj/EEvnSw8RA1EGWLur0c+IuzT2b04+nWNxe+N/BGtHqKZw7fh3ti0ZFjiw+F1GQW8QtCIlzlMtoJ6nMyBYCS1k0kSRkshGafy9IgGBhkKYKjoULIDIUFglMGP6L0sHRumih/uqCnnJTB2yksbBMihI+TIGT6XlzLXpMpHt97TxTTRUefg0wUYZroe44vXY62t++arkcuCJpsg2CQk+kBUwBKyNyASnCgE+Bo4w38XWI5B/yun3xQHh7RW3q3SpJSMn1JSEKQpdIkvIZajuSaj5ZsVT1fmSqOR+e6ypJqhhbPgsXXm++ohuPV2xmZc8+VkbaRQcdpiOJagJrNI64mY2alguM+9vZAkUmMjTnloVF5i6DEhiAgBZ2QrKgfqh0/JS405AUBcVj1ixOL5OyeLeT/ntlKmiUVWVoBQhPCMwkQpBLcf3zsQTihEViZ+EgbDxMde0Go4XjDguCmVw5bxTOH+Fj2u7Hdscb3/RUEQiOyM6EPGDkBVqCMVqGwCAx9GAgK0EiTyUlAUQnSrGGa/PL8TnJG0zqAQZZlLmMcikLCV/A9EqKK++JdjpreV0PGqrb5IOCwGqroyxejVNtQjBtqON64DUgFryIOW8e51fS5msw72La9tn+jafpdWKIaWgQ6vilgeCbE6CPQyQUUAiRKTEySEAxDs8ZJ0qtZonSFH5BmVRhqpls0bChDm2VIUnKSJJUgO4FHgYykCD8pcKgTS/EiVmFTTWgZuJfGjsIVvMLvaUKQVo3JkKPQk+55naa+5gsGFvBCm+cbR9N+kPdCcL8Q1FZrW07c3Bz8/DiWoLE3OthY/PtKmTjnH56f71b7oycf8EHcGMrTPP7lcxXPpJt7yAwc8kzM6vJlJWsaf/ux76yRICjmR14hXDGtghBC1CdfujcKybXdm8qgjs2lbioYAXydDM2fUFoAlQ9HGI50CAJQmJyL96H9i1PVrVBH2Uj6nbjJ5ZEfF8lnzT1ZHI2roWcVDE2hcgyhC6UMZv9Y/7SY8cGv8oPgWCPtBRgkwHTBOeooSXcflXNRp4gC4A0cr2e1yvQrO40hvLr4Nsoy+h+B68gFINJIxfXy1ZjBno6MllUtcI0EwUeNTNsYNEqGIFzULVWu79NWOtQrRmSUi5BsDjKsRgmc5ET8hDR6lCyloXzNVkspzAcVqN4GHwGE16zzMRaHoAYxJe3gS0DlxL8NIpo5okCC+0ONmuvHmAUz8trsCFQXBYGPm2Y0HlSfi/2oMTOrx99eCJSuuE/v8X268RlbRSwh670qhxqVC0J4PByDaztofWoiDGHL5BZA7UFA4zsbELEOYaVw7MFRDQUB0AhY3pRRiSSHCmR458Zy2+AO0pqsHyqS4kTuZEiWJECdRNzI7EIZ3tO9bBCeEjjdCcBEdI1LQ2yIgkJz7XyEYznHsOYzRuEi5uYXyKGcHEAMYwb1S+KXhGhWJsPr2JkLQa4kI0My6tTR1wwEFJeUyN79+zVXUoZ5H8lFGOpTlong7HrpGVInLdUJgoM7nBvoWQj/bF92tlYAkN1ZF0AYlZ6eLnXxTGFRsew/cNAkipeDcHHN3wkaiZiYFJI6ddKkXp1UCaH9I4UrwedKMM+DuQVy+HCuCgPHTUVLRZKEeTdq1AB9mWU90uU6QotQhoRaifxhyR6ZtwoJNcWlhfihJjcG7tMpQ349pI20SE2RulwwQKViKntYiSTgHvA/1AbKNfDD/0Jl+dD8aUBK9CnYAt+FtWA1ExJwYR/B0ETUZXCshlICQSBQ4c+e/Qfkm69XyxcrVsn2rZlSAKZISkqCxTpKZ1aFAEuGXMqAAQNk9GUXAxpCWaDPLdt2yBMzn5YcLG7QiVbBCOKdqlbIQRHeTqZr266tnHpyD+nd62Rp1KC+MYeGHRJl05ZMmf7o41IICEr6cVzJ8MmGn3e2nHfWIPly1Tp59bXX5cAhBDMU37uOw1iXIqJmJgCdgvfYI0mhkLRs2VJ6dD1JunfpJG3atJY08ICGv6NMUMDsqvhF1k+F21szvE8avfjaHPnyqxU6J1VU7mpQL0NGj7pYemHeIe9HVukrRNnquPRPzFojKSmWbDDsH5ZkybsrKAhUcrkYMjQ3MsMpCIf+engnubBVfSU4wI3rkBg8qGUd3nSYNjyq8Dwd1zvl5rF20OxrbiIwnbgFghYJBN2UuQNEflO+WvWNHM7NU6immXJCClqyyIbsuIgWvMlbhGQoh+bNm8mUSRPklJ5dwIUhWb9hk9x731/lQA60nOcn7c9K0OPyiihkGl0zhicd0uukS/++p8qYS0dI+9YtFY4SV65e963852//IMVMVNICoZ/0tCQZd/mlctnFw+XTpcvk0SefkX0HD6tmVUakRtICSqNxCUPa1PIcXdSaRbSTwi6MJiU5JC2aNZEzTusvZw8bJK2aN4X29jOlYqQ/SfY3nwS2Xz/kzHUNNOgCvxHdf758pUx78lnJPnjI3eWhHgQPjQ7s11smT7hOGjeo59qg1XXy6sbu21YfSD+M3wpXsWcZZrQoUe79fJ/MX7XbqkwTCqQMSWSa/n7t0+V353aSVsmucjTsXJkzuhcaeM/e/VJUzGy0IgW7ojjatHz9jHRJRQ1S/bp1scipSirlE78QnFMgaqATjtM6bNyyTZ74x2xZuW6jFKNkRBGx8iCLyj2sOTLny9dY6dTUnIucfebpctN1YyWtfn3ZsHGz3Hv/Q5Kdk2eMVd7MhcUj9gs/Rk8+HSmngPn369lZxl93jXRo00pzMSYIfwQchUUyTQLrlCxXj74kLAjTn5wt+2kRHP3I7J7WFB7yJtc3KASmMPz6OUjJQbDmDJ+F4At2P6mjXDl2jPTq2VWhjI9sWZTLrIH9eEFgOY453DuyDsgjj82U5V+vs3EDUlJAtU/2DUFNB59df/VYGXHBuTpe7yMZj1CpRWhoWwSOlSCgoYNFZfK7z/bI+19nUY9hUCjNhpVIkiL50bCTZFy3BpLmBqWOD0aYX1Ck0r3wo49lPRihuBBwCJMt0xqlwOUK7aiZ6mfUhZmvJ40b1pcO7drIKaecIi1QpFe/Xj21NppoU7zvw6HxMW7O4TyZOes5+eCjT6UIlOL2Uy9AiutB7FJH9Dh4MsYt5n9wYWi2R114rowbPVJS6tSVdbAI/wNBOHA4P8xItES6vrqAQa0QewTeGSUtiKV5sRWuw0XDL5CrrxglGRl14hKEqTOfc9Aowti635B8rUrWmLWCLlX4By2vUIzKzqyJanxod4RBpHXL5nLF6FFy5sD+8B8ZTQyudxAWMf9E/I/wOSD063PmyeyX3oBl4ADKAL0MGlkAwNQHhbNz+zZyx22TpR2sIMdHWB1WbJqN8jb2mEEj21CWC+frf5ZmoeiOgkDfwIrq6iAzfM/lveTsBhT1RJhScxrppK1Zv0lmABdvgCY2fxSMrMqpskV30ScwBydOzZEKTFsPTmfnDm1l2LDB0rN7d2lYv67CFxJDe4nD5LG/T5d9JdMe/wccxBwsmm0rYrSL4/W6SZcnuGBxSoTfqqq3q/kX6dC+vdx5y3ho6JbKJOs2ZMofH4AgwNxT29qiejrEJwSmX9h6KZxvQipVC2bUwAjNoEBuu/lG6XtqT9B+Q7UWYdqTz0n2oZwoi5AM6EGtG2Sj8ltwlXZOO+tS8rWW0zhG1dUvkzYtW8BKXSV94cMkgdB02DlmI7GbsxMC0nD95q3yl6mPSuaOPTT7dp9CJruXa03hp99A5r9o+DnyQ7TP195ylalw6qLaVXM5iF1iQbLkFxTLvYt3ypzV2SoIZXB6OdmMtAJ5cPTJ0p/Fc3RyXc8U6PkLP5HHn54t+UUOh6PkQn0ILdCLXN4lMNPGECOFwapQ/cLXS6+jjuFFw8+Tbl1OkhQsGAlrfkTV3FsMR3/mcy/JnPcWSiHKyTVCpOa8RDq1ayWnA3OmIcJjxK7Ylo//R0YcSc4pnR0zGOFNk3Xq1AHQoBv8J/wNxt+ffUg+/vQzdcy1H4Vi4YdrFP04fPiwfPHVStkAf0dZjl2oaJXK2EsvknFjLpFvN22uIAjlfYRpM2dDMCkIfJr+isiwQadJ+3btdJ2C8y1PYyqRrKws2bB5i+zZvUeyoGBYM8bVMH/DIjyn9ugit91ykzRv3ECFlWdfGdL1Z2KZ5ckFf/390Sfl46XLvW531chlGgjIOZyDtbNoHy+Or0G9unLXrTdKn149mdEyLlB0pHjRbjzWgsAF/AME4e1vDoDcLKUA8UoKpH6dUnloTA/pSz5iptlpe7L6gg8Xy4ynZkluke07UwAAAkQTudxoHazyYEH1pj7DLsukbQuYXDh8A+GUpTqfxPjP4E0wlu6ZOh9h0nv/Ml0+X/FN1D2N69WRO6dMhqXpInRwvXYLcIB7WYnG1re8y+puUwFTTCEhakBnYny7RRBIL7OGkk1w4naWFR4QtpTJim/WyRNPPyfbdmep8Co8wc+g0/rKnTePl8xt26MFAc+lp4ainOXpcEgPInxMbF7G6gAohrtuuwVwpp8xtM7QoFcwyuP9oWKGOeFjbALsfWPufPkGfgkhU8QxpaJMlvHXXCnnnz1EkhE6VP/SKQvCKJr+YvT/0eLPZSqiXHnUE84PYYidzH7FqFHy5YoVsnzFSnXgNbhBfwNrdnrvkyFoN0ojIIUEQigNqao0VFzGON+pcs/yYTiX9xIafQMtxBJrrS1KlAzkC+4bc7IMzsAEkQswuGLG+tstO2X6jCdkHUxeMTSxRiCCzlZgYLqYGic3QhA3Klup2bWwpM8zNG1YT8ZdNVaGDj5DsLb4zCYdhFxB/J+XVyC//9+psmL1OmcNjAG7n9ROfvnT26Vxvfo2H1UkFQlYKZBTonvtx2iLpad0EbyDpnram2kHwMKK1kVQ1DLEGdFwnMlfO/bskwcemi7rNmU6q8huS2UQMPkdk26Qbdu3yX/9BlGjRGTtHZ1jCgLHSEEqLZSf3XW7DD6jvwqVAR3XacBAeB+QzfrQ5s49exGIeE5D0kVIivooFKNiA07tLrdOniDNEP+3kCzL7NW70KgircmfoKjWrN+ogqHrjbYZdaIAXQvHePOmLfLIjMdlO+ZdqsEauy8F90y4dqxcfOH5sGg19x0rk40qEmpwluFI/u/y/fL6lzTHCJtSuouRLMM2zh8Oai03ndxU6uiam+knM5Mg36xZL2/BAdq9NwtIhJEFY46IxTIpJkGZTT5w4IAmuWBEXHTI8CcJZBqUgbcyaVC/nkyacL0MGtBHHdNSCo4zh+XhTX5hofz+/oehRddaWbgTulRQ+srLRkrfPr0Ud9oCx6k2dIruGTzEJE9DxvI5BmhWtWKaOLO5cgw7du1GEMSHluPvJ3ynGhsOsFSWfbFCXnn7PbRb5GjJsGoZIlWnyZSbbpDNWykI90YJQt2UpKio0TREjajRVcMStEAQfn737QiB9tGAhAM6SpMoi6C0do6+owFnlbl1u9z34MOydRdD7Cbc/Ldxgwz5yY8mSy/AJGUN7c0iVCXgkWdfniOvvDkH0IcOryEbrnNLhGPvmDJJuiNHUYR5Pgt4O3f+QuUNLd1XhVkmHVo3kx//6Gbp2LaV0V812hHQ1z1S5XEuORjYX746IC8vycQk4SNgJ1pCaSq0UJ707VxPfn9WR2mXzAFQw5FQHCPTY/QvihCzz1WNT6sQlgLXsepG+gQQhuwD+2Vv1j5EPTbK0s+/kN379mtSjjPjPZa9hDCgHzqkP5kyUdojieNo4ghthPAwicz3/Ktvy2tvvq0wjYKoFoYaBdJXDxEpHVSYsasiIu/jGEwQqP3JRo0aNdQoV99Te8mpvXogclMXBlJNjGpkJrj+Nm0GoIiFT1UZeMFV7FSZ3Ykeh/lX1MKlUBa5iKxYtEWZC+NIA/3HXzNOLrzgbOQtNsp/MY+QkBK2COUFgVEjFQTXTSItwp0/kiED+1owQo2Bs2SB4XkFELa6rgiK031zznvy2NMvgD9YWmP0ITyacM1YGX7uULf+XANrcM2GLfLnhx6VXVn7la7k3xA2faWgnP/SkSPkyjEXwzLY++th/abBj/g2c5tFHjE2VvoTFVx03lDMfaz5jmoxjrUgYLy0+kUIl76wqVgeeudbKYIgSCI0PysBWVBXekB+fXEfJNTgKABrJoEwTPqoNqSmtZUKs71qGmo31TQGJRTe0KQqQyL5hVXI3LZbXnl9jixZ9oXk5yOTHUL2V7GhwQAyxrlDB8rtt0xQpla3OcoqGDW4oN+s/1Ye/vujsh1xamVdhVuOXr5QTsfklygWIQ0waJ2NiqezIjo9E9nevU6RsWNHS7fO7bWUhKKwduMWhE8f1oSaggI3d6OFwazoq+JK0pk1MTYGdUDSbE5JobRr1UJuvXmynNyto6wBXv/V7/+IUDGCmY4m5aHRVESNDuQws2xXCArmZ3dOkcEUBIUtAXqG73KwJ2ANVYGDbgyQZG7bJb/873vU+eX4tDwC7Z47+HS5bdIPNfHGVee9+UVF8hSEZh6CKoYsbc5MsPXo3FGmwMlu27KZ87X4TILMfW+BzPrn65KTizo1zXXQ/S6VhvAl7rh1ovTtDevuQF10sWD8khHz7FOkEACBEKnITZJfvZkpOw6gUWSTtcxCC+hKpF/HuvKroa2lZd1USYXmTkBMmE6YxpopBKxOddpFBQicwIpT+hQUnkSmq/mGLjIzdVbZeggL9e78D+SNd+Yj1IesLDQNNbzXxk3qw+zeeav06NYZsSyaVnIo/2VbEbyfh4V57a135CWY4AKkL71Y2j5pv8o8oaNqzRzxPei8O0jGpXWYmr9DsDJdO3eSyZPGS6dWTTGuYlm3cZv89s9TEbfPBXO42DiZTzWv+UJRl1f1wTfVIuBZqkHSlX2qEUaSKSWEko5L5UJE1TLqpgFvW0KNRSsKI3BvOGo08gL59LMvhM7yfhUEB3Owbj+/+zYZTGjkLaTZrsAoHPQoJ7Ye8GVnH5B7//SgrIVfKCFGEZU4MvT03nL3bZOgsRnfYc5AZDHH8MSzkgu0oD6hQlyB45shP4SDPXjQAL1f8yxqghMlC9G3GTOfkSXLV5nPrRJEy1gqp/ftBV9kojRFDoqOM/nKIFg0L5QbeoU/YwsCGkuGs5wL5n3g013y6mqYU+5BLkVyiLvKUDPEjOJl3ZNk8mldpTk24ujWZFoOkDSZWUddC9bzkO60GrjBh6vhZCsLOw2diHOUStGAmjhcOSiFeAuCQGE4nFeoNUEqL6oJi1A7M1huvvEGqaPaxuNXW7DwEoIw+xAqfPLpZ2Xpl6vMwngsqZbA329Or0GVyn7bwpIDDSLQMpIvTXCptakdKQyDBg6QCddfKc3qp6og/Ob+aYBGYDxnvRSbQ5P7vEYUz7veo1ZJ+6NCccVmbsdfet0UOXNAP7n2qtEK0SjYtAhHIgi/uOs2GQJB4Bw8vIiVBS+vMkownqx92XLPH/8sW3buBSzD+rPaGJNQQQDeT0GkrxRKb/P2nfLXaY8rZDSONoRACzLozEEy8YaxKORLU91uoWHyCK+QLPvyK3nkiac1J0Qh9wnWuqhxmnj91XIuSjxQ+aPwzsPdePJNntaV+wicrYa0inUb8qLsIrn3vfWyIzsdij0b0AhvlgASlaRAWefIIOzGH9+3mfQiRgZeQyGGaupUaHtaidIQTCasg4ZgldnM+Q0xSReOnkQ271tGUVAKkCsvvPSavPP+v0zDuQgTP20IDfKH3/yntGpKJrA8ga1iQMsC/xISZR/Kk4UfL5YFCxYiDr5P8iHgVLB0oo2/bVGqvFzTPhegVkCZFPuvteDQIF5Gepr84sc/kj492snaDdvkdw88IvsPHgxDKkIHelEVN9dEF5r5sRAyaMsqhIlSByUTLVDTdM5ZQ2XI4IGABxlWhwTy+BKLoEUIl1iMRK3RZ8tkOnyE/YcOoXlXGgOF9Yu7f4QQLC2CWXDTBxUjaX5MQVKRfqtWr5H/vuc+OOnYYkXLjzaSsSYjzxsmE68bo8WNhYWl8vIbb8srsND5hdiIFQ5U8P5EOeXkntKpTQt7llt3uUCcNzroBdjZo0c3efGlV+Wtue8CssPq6MKZ5WLG+dZJE6Vrx7amFPVJrok7aKKapeXHsZ1ldQdKUC2aIPtgFWYt3SyzVh7G32BmaDT1icDIZKKEkhxp1SxNRvVtL0OapUpLxLdS8TmLICnyCgXCMk75Jhea+eKwU2EKkwTFcJigbfawqlGWZnyNCNTfpj8uu7Oy3XRYgsZsdoJMumGcjISTaHDBg393m64WRZLt4ZAyhHI3Z26X9YAPmdu2oQYKBeJab0TGjE72xaYbyOvi1iXAuhs2bpLtu/cjTAwhdwKViEW8AVp61IhzkODahhDudDinyGxzVoSPgH9dO7SSzh3bV+gmliwa9UjKROl8UidAQljgJo0lDdBI+VYRRGJcgmAlFiYIvBKxlj+/C87y6f3CUNZbv+gBVoRHHC/zJI8/NVvmLvgQYwDDQ7ERttWvkyyTrr8KmvoM7esbVBywnmjzjt1hZRWGlrri5jBbspDQ1Qr2yGWscr39lklSWJAvf/37dNm8M0ujc5pHAW+lQjEPR8j1OoRc06EofHSqJnmFGNCIVZtwAtUEISSK4Ww4XCR/XZwpn27KV0k0y8Z/iH+oXQogFoelY+M60gYx/4ZpGVD2JrV2mgVMHqERyUDrwF1rWMU0vB7Urbn0q1cq6XCMVU8R5ylmSpRDeXkybcYzsgiVkxqAUyeT+xlEzjpzgGYZrWSioiCUadk4P7E9cEogB53ouHr2j637Aqxga6LGmtq5CIK1as1GmTX7edmwaas7HtPyIKyU/MmUCbJ52075/QPTwHg5Gia2nWGJcs0VlyBBODJou6qSPVM6DrV5dlSn3WlFPkxRicciVBSEArUIg5GsJEVIl2id4i2s/Q4mLyn8X61aDbgzQ/YCspRBA6t/iHm2bd5I7kZ4s1un9pKNEuuZKHz86NPPBQUHTonapMJJUX3bTjyxsK31xzwBk6hXXDpSLr1ouMz/4EN5CiFV5in9+nFlGa6dctN46Q/HOZkYyTgtNl3LfRJTEArBREkon+BxK7zyQPnl2YVy/4ebZdMehkVTVZcSL9uONBZk0YxwBxoZD0RRFcetOSrvGDkP/SIjY6opFBIwKvIMbZMKZCysyehT20qGrbAuLYlSBGrPm/+h/GP2y9DqgFi6x4BxlzLpj/qaHyNWXa9uHZtycN7KtIrv1MqYxeciGRTy2lchR2VOankSqkybsKkQ4e+9qCGa/sjjSCittkVRtS1ySrdu8uuf3SZbtu+Qex6YjihNji6ohZghCCiHuHL0xeUc0lhr5hiw3NJG3rWZxBKE8s7yVJZYuP0IbMPCp/ARTveCYOHa8CHPPvgQNj2msXORsFyzdp3M/udrqBfKtIQXiKPhclDjPGD2CTdcrRr6w0Wfo+zmeTkEgbBAkVsoLeKzaB5nYVYvEhkzkqI9WJiB/fsgAjVRa6KmPv4MfL6vXNTJWTYI0Zn9e8vE8ddi3zxLOwL9xCEOMfcjlKg2TdGBcNXNMiTIR1k5Mm1ZFuK6cGB5QgU9RfgS6tYA1yUkoYyajAZclKA125w6rQYjTXjJw8D0gGE4RClukw8ST82Qpf7D8G7SH9DKTKZpzyIw8SeLl8jUx55RbBn+XgUwVY/OHeSnd9wiLZo2rnSq3CG2DxEH7szyly5+WAzioFDwFoyfmp2tFQAarVqzTl5GqDdrH8OzpAOtRZJcgOz3rRPHaVjxN/dPVWhk6Ssm3BI0wXVV3IJQlb1yZqrGgsD9ES5dBmj0i7vvUB9B4SgYjTRjyXrwoqYvIyzEm5mZmfL16rWyDCHu7Sj3KAUkMtfWYC+rACZPuEH6gzF37dwl0x77h6xcu8ksskaJWONETUXzYO8p+HMBiSBQ5X0Mk06AQzwEgYgkQKJV69bJgw9PVyuksXynzDIAx8aNGSU/uOAcWBFDDfFeVSTUIApYdU4sBMll1CY3lMVyuT0AABgVSURBVCp1wbQr9+bKE9/sk0+2HoCJQnc8z0hDRFS71AwQEGzg1z1ohdi8z5kxd55E4QI5ivAeQVBCOuaRpgSmOfvtua1kRHvUj6iGNseNjt8niz+Tv4GYeUjS+Tg3NVaPTm3lpzDrzZs0Ug0QxNj8ey+iGc++8BKwOqCLg0ZW1h28M15SUR/4VsgUJQjrISN+2PlL6lzSsU1UE/2DYaehDH2r/P5B+AjYHmlONgQBOO7YCUJk7JxRPNAokll2zyIC9wtklplHQH2bbERZw8xnnpc8hjcDl0NmSv992H6agyJALdumn6dH+YBPMLc6WP7z4chfM240tnSmyBtvzYWTPFfykCVWcwr602dMg1/YtHFDV1BnkDVsKMLLY2F4FlzegKRhQwRjqEiYV5r1wsvy2px3AeFBWQ27U7hKpSug2JSbJyDh2gp1TkcJjTh/K+giv9I55YzBuGD6EuD+Umj0PfnFMn/9fpmzDtZhL4osQogiqUSDMYgd/NkU2NdM56kMUMrewj2sBsUpFirNHGxiDvb6Jsj/DO8iw5rDlwgKAgTrE/gHD01/QgrwnCoSjdigbgiT/tmdt6ggKI4OYEvOYRe01d8AXVhvVAatxYU2ixDNQPGTy6MvC2f6bLU5bbSAJdK8WVP52R23SvcOLWTtpu2IGsEiOEHwYd6rFRpdEpfGinds8QoCN+YQGmkyj/QoLXIlFn3lcH6+zETB5AeffArFV64Wyt2vAqHRMj7sEo2m1qDMRAb27Y0NNFeoM78aZeEsqtu+ay+WGvDZWRSGU68afZn0632Kc4hjwxgijYaoC2sCoVErYuIkW3fukYextqtR6s6kG8fk/YkRsAhjQd/6gMzxXjEtgk7Y/WMxHIZCLf/F2iIywWH8sSGnWBZv2C+fb8mSzdiVlp1XhJBrOoQFESD6BQrKoQ1UYxJc03KYOdMGy/IkoyxHzu3ZVm4d2A4RJ9u/4CNHLNDixhqtaEUIziwCmy1BAV0HEwRAI2OYaLbZuXefPDT1MVmxdgOeodagM2iiYN1bWXCFxFYl1HPrrp+E8w9aasGhEvszeZUsYy4ZIRfDqWN+Yz2iRvf8+WHkMrBnWZnGBPgaLJL5CPFe5S2YSn3UdEmX1evWy3/87j7MkcFrfowxAaNfO+ZSuWTEeZZQY/gUuZXwphpahB/fLqejfmvN2vVy3/3/K4cAQUvs8P4Kl8Iap7pVGIDxQ7COLHPgnoirrxyjZSf7AQdnP/uivP/JElVeum7qI5VJH5TW33X7zRoCVyxPmiqP2fpVMlsHvDhv8kyJbrSaO/9fsPgvO75QDalQnvVfk+ErnDngVA3dapteiLzZKTez2NAorjWidSiVHAwqGzPNzCuRTQdKZfv+Itm575DG62kuS+AvlMHrTnQagcmJMhSDlcLrSIWQ9G/dUM5rX09awlwmK140p5KhyryCQnl8pmmpQj37xbCkWgQIAn2EiCBEDzosCOs2KRzy4UvCLRJb4/m6f7nyRQ+2FlwiKxOjMaNgc2FY8yOo9zlfrkBBXwPsFiPduU30nvv+IlmH8jUsyKfSuOXwqsvlsovOLye2VRGco/U/zqZFCYKVInBjzn8gs8ykJuPw1JI8SICCd5nLI3A/AmuNdDxq9Yvkp3CWB8FZ3r5rl/zpvgdR7Qnc72ntGcc5tMGN9bpJCHNvgNzJBecMlZEjzscuwwYKXd7/4GON7hyGU+1D23R607Ed95Ybf4jEYz+LpIXl2fmS1fGdShUgMgQw60CuPPbkLPkUxYhM7Cnywu9UhJUnXjdOhp+DJBsikeULMivr4igFgVCFJ2GrJ6EZZGoMk36Gwuy7dkIaNoXjyzIDtRPGhpYoL9WNLNwbYBlFj+AtjLYFIcgHHnxIMgFzmFegKg9Do2oEYQee+fujT8hXq9cbJNIMLWt+rDgMVfHhjfzV0d+pFXs+fLAVDq5JSpa2rZoj0z0U5QEDbXO5lmTz9MsS+fDjRTL3/Q9RGboDAttEzh92ppwz9ExpCugQ/0V6WYLJgF15cEeaJ8qabzeg6A57llVIwAB4pg4E4cpRl8joiy+URUioPToTJRY80oXH6vC/knz52d13Yq9HP2XgV197S1564y0NDyufho2sRYQsEcYSsGRl+vY4VYMbp3iaRTqcVV47QfeHseuM0MjnaqjcUvDs4DNOlwnjr1MHONoi1kQQgEjcnoav125Enukx2YMNQxwYnfpTe/aUm2+agBBug/AECMv8vvdjLgg0Z2R3NW/EaSoAjnKBNXPBASlOIqRCWJZMyO9VwPlG/rS7fNyfhtZSNDxK3yFRclAS8fqbc+WNOe/AMhgcUzOqMIMbxqu2CDkobViK+hQ6td5schFLXKSBGspnF+JnSnMQefHfRoiQdEe4tHnTRpZppvVW5W31TEyQ8qyhZV98KSf37C4tmzdB9auzbFVkb6PHU4kghPGDEt1q/BG9+hAZdNX2WqXI/b8h6YmarG6dO8p2RHCWffU16q4IVe3wgkTAmoED+mK/MbK6eIbnCn2yZJk6w8HLaO6SXWgzHVaAx6s0bthIM8GmtqzOZ8euPfIZtTQDiQ7KUoGkorq0P3wInnxhuZ+aXs4qcg1dYpObx1bidJItKAentYKHjoRjF+lyUnsVPJ/3qK6no7QIhr2MAGYm1RJoXQwgkTqUEThrrwGXqPcZHVXNCtIh/8ASDBbhsYxb8wdodxm2Jj6F+PPO3Xudb8DPLazKmpLqBIFHbhS5cm7F5xbFph0I2yRXlV8dnfTz8thVhYHmGL9LuO+CNGBUwwmJFdeZTxO1i44Pep8prp59734EpLV/kB0ws21xfF6W/Xb5APeuRzjGQB7omWpRsQ4UwKnVDYzLM6xpVc7FR3hcVaxaIPIAS2dYV2TnLPnkWNiyqMxaBbHCynKSUJ6+kY8jAVXTMaaIjPdcSFb/dt4GblKZYBfesXfziQWTjokgcEJmF8xGRJbIYWl1tM2kao6B9/LQLwzcDD0zz4QtIa1V4VlEqxDpeXrW87IRZRHq9mlUxrSfLV/1FoGCQO2v/WEB+GUkFu7zjrv5GuG4XWDxLfnlrZuNOfylh2FsG7104d1ySgoukO1hCLCsaUjKC/VrkJm9F6EL5xbQ878uNhnc9nyYs++YWTtglt77OYFkoUvgkX7q5LJPtmNspP+q5xIYh8X0bfxhuuhcImzpe3DTdMxmSsY1qvTySjAMgZyVNDr5e/18bVz6bmA85pj7N+w3YaD66apgLGChBYMObHle9CM+Dj4C+cuVWgdmEEZ7DiYpoOHI+T81BxdD6c+jYcz5JXH43EEcfcJkzXOI/29hXYrb6KKhuhoKAnfHHQakSkTkgE4qoRDHUAzzmQ8nnK/rIKkHS1/x0r68JjfCH8rnkfdIM8LR9xtHbK9s5ApGJ+jAso8iJN8O5+Xr7wR0xjOc0lE1maxn9ziG1Aia0cTzIUvPWROVhuMalbyuL/rnhcjnpKba0Y/+cObyk9DnAR1ScJ8+rvDGc5qxXRkWghl7bqTiUZI80cLfy+dzAU951pTuHQmvsZ+zMXEJpDsX84tYGidDdNbRpn4PTHhwJgTqRuFzBkOKiKEwKT0IwFn8dFSh0h+JpAIidCYM1LGhz7o8dlK/mMY0DPMZuSjLSYIPwxNR7AtrbB39vCpZbfJWUGdVdksV7ykDOwsQSF5ohaUygTECWbwU8AesCGku1qwsNRR7ZgUqneDd2K20adNGWfTpUjh9GxHZQEJHtZNpFhLSl0IwBMowWXXQKAvh3Fdef0vqY4vnxRf9QOv32dC+g3ny/D9f1WNjRuEEuHpI1FR2BeEM9xQ89+Kreqz9WIQjMxCjtuMW7QrrV11hgwb82Qm8/N77qHrduwcCZwtDhhk2+EzpjYpKtmdbPH07hsXJ7N+iqI8nV1wGR5dHN1ofZbIbcXlWkp5/zlla7aqFj+GRKKV04YnV/wWfYQSc2fqoUrV+2JFFuvhIKQIZny1fIfPefU/69OkrF553FsZkW1uJu998+x0ZO2okTvFjZajX8W6s3FOBl5tRYvHkM7MlPaOe/u2jaU0RHBg54gfYftkwmrzU6PiPvsoLL7+G7Z47nACa9k+DojjjjIHS79STdd4RIfL9CvydnRjbPJyB1VNOQzl6itJRZAt2sr3z7vso6z4N20S7geaVabmKq31UgsBJB9PhvnkOnAKqVMENJTwVG4m4EHAsGf7ddxdoaTI3m/D4D0TYoP23YY/zHimEBkrEvcWIuIQQTqX0R0yl9RCvIDB68cgT/5BDqLa8dfJN0qUDjyouRbhtlTw9+wVp3aKFTJn8Q0R6uJE/9kWm+gAMtWTpF6qFz0CokQ4mGcPkP5Kr5qkQmq+A1SlAZdhjOFeJgsZIUcNGjbRac/nK1bIeewcuR86hZYtm2o7ZQ9LMaWQs/1crv0YOZZFMQrgxTc9TtWsLsr/zsHFpLA7Taty4vomdFj46Z53N4ObN2Cjz+ttz5QYkuBrh+yl8GFPLV5zFY7Rv/gcfyedfrpQ8HJ9y3jnDENo8DWsQknWIQs1AxeiPEaJu06aNKaMAmaxGKEHWYi6znn9JLkXoOAUWllFDava6KanSHiXSac4iBSlMQS9A1cFDU2domXVbnAXFi0hoB5DAtzgcbdwVl2N+VjcUvNgvw8NMtC74YKFcjhMvemBv9F7kjd6G4DKPwKRaPQi/krQctKtspY9KEIxDzSKYA2NDVu2E/7kDwZaXx8KztCKEjTYL5ZU33pGs/DzV9YxahFCJWozjJJmEw+YFJYbqLUAb1WDqbVrbfgtiPBZh+x6UWGCB0lLTpB1q3ZlUKgYBH0dyLrlBQzmEjfXjUcPSBJGf8lfQTublHpb7/zpVLrjwQkR8kmTRosUyXpmL4Tl3OXmlM0hBKIEg8OzTmTh+5fZbJ0lrRIs8ixfiGMwdyIwyhMpTpRXyOJ/E+jW4yGjIm3MWyOgxIxH9wdf6OquxfccO+RKMe/W4sRgDND2e0EJfHYPD5vh7E/yrV19/U3d+NW7MMhR+M5FZU4OZjOqE5L0P/oWaoT3So0sXeRsRupEjLpAB/frIeljmJ7Az7E4kv9q0ahWAKbbSPru8GqXys158Wa668kqpi92KNGcsk27dDKXiTLC4mQdpzGhaAeDdVGSHBw8eJF26dFTOIbRZj7Dr56hjGofkXMUckdGKbfIAusVLvsCxL6vkrGFD5bOlS9Ti0mI3xJ507/IfFx8hoq7Ly63/xJkGDH77rmzEl2fImo2ZUuhDkGQAJUGwBNcJU5Qp8OiWkIqnaZdhI0Y7ZJZvlpaaWfa2yUEDtLkTx4C8AAg0ZMgQWbBwoVyLjd7ZqJN5A5tDhgweIkuXfCo3jr8GGU4vCBHTT0eeI2ON1QcLP5KPP1ksN+NEuRLE19nmYBSA0TIodPZMSM1DBqHA4tX7Cz+U+Qv+Jb/99S8RYrRIjx0Zb3sqNADASIwO2XwEBwL111crv5GnZr0oXbt01sSkVnZCUx+ENSVGvhGFbSbEnv09q2mpJOqGMnF4wRzU6UAQ3C429bX0tojLOw95jl27d8s47LlehAPJliADfdGFP9AxPPHkU3I3tsW2bQ1B4OgUp3p3mxAMZ66i+PAhlGL37XOq7rdg23Vw5OUF5w7TcLEFvaMvtsCzp/6KPeU8rYK77Fjwx5B3A5wb269/PzkNRXvJQAURFevbsEAL97vkAUHMm/e+fPb5MljX5jIa51/x6MkgbK3QeSVvHKVFiKcLIzqvRUu/1OMg96C6kfFefxkqpiNLS1KRaBWIaCEU6YmN8jTbsQRhB7A0d7hdgw0bZIjWKMTKxg61DGDZHt27QvvNkxtvuEYaoJbdM4eNlVlowoxE2Yfk04OwBnTAunY+Setltm7fLk1wlMtNN01U2GOBSw9cDHXwL+4hfgaRr9tvv0WaNW1qETJqYVgECimd4EZYdGNyO1DXR5oIL1Z8vUYhEBNQaTzMh1TCB9uxsWjBh5/gnKcrcD5TRsDZ92Mw537D5m2wKO/IdbivSROcL6Shy3AMx0aMG2kRdu7aCTpdBecaScB/faJ+Qy/sGluw4H0IwhScN9o6nAkOx504T7RHi/AKLM+NE8cjEOAceKxlehqqlyEYGt8vd7Hv/AJCo8elN3yBDp06Sg7KMt59b4H0BLa/8Afnad7Bh6crg0e0bloOj2ODZj37gpxz9jCUeZyiW2Y5uThYKcKDR+Us10AOOPGD2If8CDDzos+Wa91d+PQJ1WjE1qbNq7tM78JZRtHdT++aokV3qmn1ClgE5B8oCGSYzMyt8tLLr8LvSJJbJt+oiSPCALUIwJQRQTDmsJ1SgtPYlsryL1dgsXrZ6Qy4sQCRjmVfLJf+2IBz1tDButmcN0di1rZAeUWF8uiMmQqhzj//HCSfGsL3QfUuvqdhFZh8CBzmnth9RUGwkmSun0FB9r0C9xG/3wpLxPOYfOiTzukc7OW+btwVas2inGBtJSIIPM5m/DVXQeNijhh78MRBEwSRdyEIu3Zsh8W8StcgD5CFVnPp0s9Qjl0k/+end+mZpr4kwisLDSlDYbC048VXXpfrYXHpQ9kqwCdk9hm05YHA5ZmS88vDjrO/P/IkrM8F0g2KiTZq5Yqv5Z158+UybMRh1ala0iBXqJKh9UQPLsvNjU/PI8p4ztlnYTdbJ9NEfKYGknB8LIIOvkx3ui3/8muU+T6nx8Z76tjuLYNGcQ2emg0/nTp1lLum3IRyXuDfSgRhD7Tum3PnyahLL9Ez9mfAcaZzesWYy3Eq3A75ALudrhpzWdipCoogacl9BP989XUZADN9CrKoRlyEXyHF/K6BlStXQduOlnrQ6moRSH/VfgY/eDwNd6+99/4HcjjnkDSEIBAG5OXlSm/spBqGPcepyQiNMuqjkIlqjExs9oVl1YsBVa6BL8Dwr10JshU+wsKPFsvF0JoNGtCZ9HF+H4k3jciyjnnzF+D4RGBmQiieDVXJN/csRB1X1t7dMhp0sjJEzv2QzMGRjqvXrpXbcGJdi+bNde4RGrkvYcFYN8AX+vuMJw0+BbK5TWEFLzz/XFTkViwnoX9BhfKP2S9CmQySrl076/QLIBxz5y0ARMrB9z9cJBnck+1m7n8xUmlFlGabmAV/DaXe3MN9UnvuW66ZEOj9x8UiKNSw0mWeSLHm202SD6gRvoKeablJV/VnOg4JpkZNQ4Vl5IpYBEYWsnGKHjEnnagslDqkQEvxG1gKYJZzcU4OGcRvpI8SBKj0Yjjr+1Ce0RDMlgxLYsJGRoFQA9+ywrIJsC01un2lkbVgc+VrpArxCI8u2Ypvz+FYUlJSpDXOImqGsuKQd4DVmlguJegj8EtNeHQl+7CTwG2BmY84gEPDOC9G3dRHCGs/ZxnBoMXIDRxCUILH66svo2HWCDTyNCMuJ63qwbowmsOIo55rhbLs/YcOSlNEuxjmrUxJKUOjWnUHrK8/jMy3S3zP8mke3FXZRZ9n3/5shIDx/RjIq6glhO+Tj34PYe5N2C+tbSWCYMxue97LMPYDgLB10+ui4A47I53/U5MvcDxOguDj1tR2ZA4PY6LZt+K7VUsFWcDwZ7SjzKc8S/kW+LdvvzwrBEFV7B59CxUZKeoZl0fw1s7KDOgfk5Et3m/fMWBXVUAwMge+ciFPdbKjxxDdRmCcURPz/Vc9/iDdytMwFm2qWrd4gG5kZYI9VAWTK6531ZxS/afHVxC47LEKzTTBE5+PUJF9YrFydSxe3ecVdFE1rKsc7wSTc61sPtWzRsVlCwiC0s+EK8qvCYtUVbTgZ9UIsnYeL13iVV3ViXv5dqrjg/9vBQET9VZAmaMSArq4djzOcnyLyQUNYOZKlUKcWr56hRK5Q+fp5leps3akguBo6CBXtCAEGTxI2yiw58Z1IgShKtsXS5iqEx5P8iOhZ8UFPU4WobyOqSwfXRNui2cxT5Ag1GQacdxbkeFdZCnKIlBI6AR4be6ZK0inaoQ+bATitQZxDD58S7RCqkz/16S1qu6NpQaqa/+4CIIz7DqWSOyjcgBQ3YAr0y2xCRuvRQhql9gaJh4iB432sdBZx04QODK2VkntjXYSVE7VQZMYqxSTQFULgl/T6kWwamE+GgE7LoIQD3PX3lNLgRNJgVpBOJHUr+37e0OBWkH43ixF7UBOJAVqBeFEUr+27+8NBWoF4XuzFLUDOZEUqBWEE0n92r6/NxSoFYTvzVLUDuREUqBWEE4k9Wv7/t5Q4P8Bh3SewcEem7kAAAAASUVORK5CYII=" alt="Spida Machinery">
+</div>
+
+<header>
+  <div class="header-badge">TORNADO M500 // AUTOMATED LINEAR SAW // OP GUIDE REV 1.0</div>
+  <h1>Tornado <span>M500</span></h1>
+  <p class="subtitle">7-AXIS · AUTOMATED · INFEED → SAW CABINET → OUTFEED · DUAL PRINTERS · 500mm BLADE</p>
+</header>
+
+<!-- RULE BOXES -->
+<div class="rule-wrap">
+
+  <div class="rule-box blue">
+    <strong>CABINET CLEAR RULE — BEFORE ANY INFEED LOADING:</strong><br>
+    All 4 cabinet clamps must show OPEN (reed switch sensors ON): 2 horizontal + 2 vertical. Both cabinet eye sensors must be NOT detecting timber. Top printer must be UP (above timber stack height). If any cabinet eye sensor detects timber when Start Board is pressed → infeed does NOT load → infeed rollers run BACKWARDS to eject until sensors clear.<br><br>
+    <strong>TROUBLESHOOTING:</strong> If nothing loads after pressing Start Board, check cabinet eye sensors — sawdust buildup may be triggering false detection. Clean sensors and retry.
+  </div>
+
+  <div class="rule-box blue">
+    <strong>TIMBER SIZE TOLERANCE RULE:</strong><br>
+    After first horizontal and vertical clamps engage, analog sensors measure actual stack height and width. Tolerance is ~10%. If outside tolerance → machine stops → operator decides to continue or reload. Example: triple stack 90×45mm = 90mm wide, 135mm tall ±10%.
+  </div>
+
+  <div class="rule-box blue">
+    <strong>POST LASER — BOARD LENGTH CHECK:</strong><br>
+    Before pushing begins, the post laser measures actual board length against stock length.<br>
+    · Board LONGER than stock → process regardless, software adds extra waste.<br>
+    · Board SHORTER than stock but has waste → recalculate, remove waste, process.<br>
+    · Board TOO SHORT — members won't fit → machine stops → operator chooses: continue anyway or reload correct timber.
+  </div>
+
+  <div class="rule-box blue">
+    <strong>MEMBER LENGTH — WASTE CONVEYOR vs OUTFEED:</strong><br>
+    Members &lt;~520mm → drop down to waste conveyor below saw cabinet → conveyor drives RIGHT if waste, or LEFT if usable offcut.<br>
+    Members &gt;~520mm → driven out via outfeed rollers to outfeed deck.
+  </div>
+
+  <div class="rule-box amber">
+    <strong>SHORT MEMBER SUPPORT:</strong><br>
+    If a member is classified as short, the short support flap rises just before the cut is made to prevent it falling inside the cabinet during cutting.
+  </div>
+
+</div>
+
+<div class="flowchart" style="padding-top:20px;">
+
+  <!-- START -->
+  <div class="node-terminal">▶ START — POWER ON</div>
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- STARTUP -->
+  <div class="section-label L">STARTUP</div>
+  <div class="row">
+    <div class="left">
+      <div class="card process">
+        <div class="snum">STEP // 01</div>
+        <div class="stitle">Home All 7 Servo Axes</div>
+        <div class="sdesc">Operator commands HOME. All 7 axes drive to home reference positions: Pusher, Saw Blade Angle, Saw Blade Offset (forward/backward), Saw Up/Down, Top Printer Up/Down, Outfeed Rollers, Infeed Rollers. Controller confirms all axes referenced and ready.</div>
+        <span class="tag">PROCESS</span>
+      </div>
+    </div>
+    <div class="spine"><div class="spine-dot"></div></div>
+    <div class="right"></div>
+  </div>
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- JOB SETUP -->
+  <div class="section-label">JOB SETUP</div>
+  <div class="row">
+    <div class="left"></div>
+    <div class="spine"><div class="spine-dot dot-purple"></div></div>
+    <div class="right">
+      <div class="card operator">
+        <div class="snum">STEP // 02</div>
+        <div class="stitle">Open Job File on Screen</div>
+        <div class="sdesc">Operator opens job file on the machine screen. Program reads all members. If this is a batch file, the boards will have been created already. If this is a job file, the software will start optimising the members to boards using the local optimising settings and local stock table.</div>
+        <span class="tag">OPERATOR</span>
+      </div>
+    </div>
+  </div>
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#425563" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#425563"/></svg></div>
+
+  <!-- INFEED LOADING -->
+  <div class="section-label L">INFEED LOADING</div>
+  <div class="cycle-box">
+    <div class="cycle-label">OPERATOR LOADS BOARDS — PRESS LOAD BOARD FOR EACH</div>
+
+    <div class="row">
+      <div class="left">
+        <div class="card operator">
+          <div class="snum">STEP // 03</div>
+          <div class="stitle">Press Load Board — Load Timber onto Infeed Chains</div>
+          <div class="sdesc">Operator places board(s) onto the chain conveyor — boards can be stacked 1, 2, or 3 high. Each press of Load Board indexes the infeed chains forward slightly. Operator repeats for each board to be processed in this batch.</div>
+          <span class="tag">OPERATOR</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-purple"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="loop-label L">↩ REPEAT — PRESS LOAD BOARD FOR EACH ADDITIONAL BOARD</div>
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- START BOARD — FULL AUTO FROM HERE -->
+  <div class="phase-divider"><span>OPERATOR PRESSES START BOARD — FULLY AUTOMATIC FROM THIS POINT</span></div>
+
+  <div class="row">
+    <div class="left"></div>
+    <div class="spine"><div class="spine-dot dot-purple"></div></div>
+    <div class="right">
+      <div class="card operator">
+        <div class="snum">STEP // 04</div>
+        <div class="stitle">Press Start Board</div>
+        <div class="sdesc">Operator presses Start Board on screen. Machine takes full control — no further operator input required until the batch is complete.</div>
+        <span class="tag">OPERATOR</span>
+      </div>
+    </div>
+  </div>
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- CABINET CHECK -->
+  <div class="section-label L">CABINET CHECK</div>
+  <div class="cycle-box">
+    <div class="cycle-label">CABINET CLEAR CHECK — AUTO BEFORE EVERY BOARD</div>
+
+    <div class="row">
+      <div class="left">
+        <div class="card check">
+          <div class="snum">CHECK // 01</div>
+          <div class="stitle">Cabinet Eye Sensors Clear?</div>
+          <div class="sdesc">Program checks both cabinet eye sensors. If neither is detecting timber — cabinet is clear. Proceed to infeed sequence. If either sensor detects timber → infeed does NOT load → infeed drive rollers run BACKWARDS to eject timber until both sensors clear.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- INFEED AUTO SEQUENCE -->
+  <div class="section-label">INFEED AUTO SEQUENCE</div>
+  <div class="cycle-box auto-box">
+    <div class="cycle-label green">INFEED — FULLY AUTOMATED AFTER START BOARD</div>
+
+    <!-- Deck down check -->
+    <div class="row">
+      <div class="left">
+        <div class="card check">
+          <div class="snum">CHECK // 02</div>
+          <div class="stitle">Deck DOWN Sensor Confirmed</div>
+          <div class="sdesc">Before chains can drive, the infeed deck (cylinder driven) must be confirmed DOWN. Deck DOWN sensor must be active before chains are permitted to move.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Gripper eye sensors clear check -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card check">
+          <div class="snum">CHECK // 03</div>
+          <div class="stitle">Gripper Eye Sensors All Clear?</div>
+          <div class="sdesc">Before chains can drive, all 4 gripper eye sensors must be OFF — not detecting anything. If any one gripper eye sensor is detecting → chains will NOT drive → machine pauses → log displays error: "HAV INFEED" (timber detected on infeed). Operator must clear the obstruction before the machine can continue.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Chains drive forward -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 05</div>
+          <div class="stitle">Infeed Chains Drive Timber Forward</div>
+          <div class="sdesc">Infeed chains (VFD driven) drive forward, advancing the timber stack toward the grippers and saw cabinet entry.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Eye sensors detect -->
+    <div class="row">
+      <div class="left">
+        <div class="card check">
+          <div class="snum">CHECK // 04</div>
+          <div class="stitle">3 Sensors Must Confirm Before Grippers Can Grip</div>
+          <div class="sdesc">Chains stop when all 3 conditions are met: (1) Entry sensor (closest to saw cabinet) detects timber is correctly loaded flush to the infeed loading point. (2) Any 2 of the 4 gripper eye sensors (upward-facing, one per gripper) detect timber flush up against the fence. Once all 3 confirmed → grippers grip the timber stack (1, 2, or 3 boards high).</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Chains reverse, gap created -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 06</div>
+          <div class="stitle">Chains Reverse — Gap Created Between Boards</div>
+          <div class="sdesc">Infeed chains drive backwards slightly while grippers hold the timber. This creates a gap between the grabbed boards and the remaining timber on the infeed deck.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Deck lifts up -->
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 07</div>
+          <div class="stitle">Deck Lifts UP — Supports Timber</div>
+          <div class="sdesc">Infeed deck cylinder extends, lifting the deck UP to support the timber from below. Deck UP sensor must be confirmed active before grippers are permitted to release.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Grippers pull to fence line -->
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 08</div>
+          <div class="stitle">Grippers Release Timber Against Fence — Move Out of Way</div>
+          <div class="sdesc">Deck UP sensor confirmed. Grippers pull timber to the fence line (a few mm) and release. Timber rests on the supported deck against the fence. Grippers move further inside fence line, out of the way. Gripper sensors confirm gripped/ungripped and in/out positions throughout.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Pusher moves to stock length position -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 09</div>
+          <div class="sdesc">The pusher (long arm at far end of infeed) servo-drives to the position matching the expected stock length of this board.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Post laser check -->
+    <div class="row">
+      <div class="left">
+        <div class="card check">
+          <div class="snum">CHECK // 05</div>
+          <div class="stitle">Post Laser — Measures Actual Board Length</div>
+          <div class="sdesc">Post laser fires down onto the end of the timber and measures actual board length against the expected stock length. See Post Laser rule box at top for all 3 outcomes. If too short and members won't fit → machine stops → operator decides to continue or reload.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Pusher own laser drops down -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 10</div>
+          <div class="stitle">Pusher Laser Drops 70mm — Confirms Board Exists</div>
+          <div class="sdesc">Pusher drops its own laser 70mm behind the end of the board to confirm the board actually exists at that position. Board confirmed → pusher slowly moves forward until it touches the board, then begins pushing the timber into the saw cabinet.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Deck sent DOWN after board pushed in -->
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 11</div>
+          <div class="stitle">Board Pushed Into Cabinet — Deck Sent DOWN</div>
+          <div class="sdesc">Board has been fully pushed into the saw cabinet. Infeed deck cylinder retracts, sending the deck DOWN. Deck DOWN sensor must confirm before chains are permitted to drive forward for the next board.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- SAW CABINET ENTRY -->
+  <div class="phase-divider"><span>SAW CABINET — ENTRY &amp; MEASUREMENT</span></div>
+
+  <div class="cycle-box">
+    <div class="cycle-label">SAW CABINET ENTRY — ALL CHECKS MUST PASS</div>
+
+    <!-- All cabinet clamps open + top printer up -->
+    <div class="row">
+      <div class="left">
+        <div class="card check">
+          <div class="snum">CHECK // 06</div>
+          <div class="stitle">Cabinet Entry Checks — All Clear</div>
+          <div class="sdesc">Program confirms all 4 clamp sensors showing OPEN (2 horizontal + 2 vertical reed switch sensors ON). Both cabinet eye sensors not detecting timber. Top printer servo UP — above timber stack height and out of the way. All clear → pusher continues pushing timber in.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- First clamps engage + measure -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card check">
+          <div class="snum">CHECK // 07</div>
+          <div class="stitle">First Clamps Engage — Analog Size Measurement</div>
+          <div class="sdesc">First horizontal clamp and first vertical clamp engage. Analog sensors on cylinders measure actual stack height and width. Compared against expected size ±10% tolerance. Within tolerance → pusher continues. Outside tolerance → machine stops → operator decides: continue or reload.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Saw blade starts -->
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 12</div>
+          <div class="stitle">Saw Blade Starts Spinning (First Board Only)</div>
+          <div class="sdesc">If this is the first board of the batch, the saw blade starts spinning now. On subsequent boards it will already be spinning. Saw blade servo moves to the required angle and offset position, then rises above the timber stack height ready for the first cut.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-orange"></div></div>
+      <div class="right"></div>
+    </div>
+
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- CUT SEQUENCE -->
+  <div class="phase-divider"><span>CUT SEQUENCE — REPEATS FOR EVERY CUT ON THE BOARD</span></div>
+
+  <div class="cycle-box">
+    <div class="cycle-label">CUT CYCLE — FULLY AUTOMATED · REPEATS PER CUT POSITION</div>
+
+    <!-- Pusher advances to cut position -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 13</div>
+          <div class="stitle">Pusher Advances — Timber to Cut Position</div>
+          <div class="sdesc">Pusher servo drives timber to the exact cut position for this cut. First cut is typically a trim cut (10–20mm off the front of the board, based on settings). Outfeed eye sensors detect timber as it advances — outfeed clamps engage progressively.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Outfeed clamps engage -->
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 14</div>
+          <div class="stitle">Outfeed Clamps Engage Progressively</div>
+          <div class="sdesc">As timber advances into the outfeed: 1st eye sensor detects → 1st horizontal + vertical clamp engage. 2nd eye sensor detects → 2nd horizontal + vertical clamp engage. Outfeed clamps are on rollers — pusher can continue pushing while clamps are engaged. Short support flap rises just before the cut is made if member is classified as short.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+    <!-- Both printers print simultaneously -->
+    <div class="row">
+      <div class="left"></div>
+      <div class="spine"><div class="spine-dot dot-orange"></div></div>
+      <div class="right">
+        <div class="card auto">
+          <div class="snum">STEP // 15</div>
+          <div class="stitle">Both Printers Print Simultaneously</div>
+          <div class="sdesc">Fixed back printer and top printer (servo-positioned to correct height) both fire simultaneously, marking the timber just before the saw blade position. Top printer servo has already been positioned to the correct height for this timber stack.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#E87722" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#E87722"/></svg></div>
+
+    <!-- Saw cuts -->
+    <div class="cycle-box fire-box" style="margin:4px 0;">
+      <div class="cycle-label fire">SAW CUT — AUTOMATED</div>
+
+      <div class="row">
+        <div class="left">
+          <div class="card warning">
+            <div class="snum">STEP // 16</div>
+            <div class="stitle">Saw Blade Cuts — Timber at Cut Position</div>
+            <div class="sdesc">Saw blade (already spinning and at correct angle + offset) cuts through the timber stack. Off-cut drops. Saw blade rises back up after cut completes.</div>
+            <span class="tag">AUTO</span>
+          </div>
+        </div>
+        <div class="spine"><div class="spine-dot dot-red"></div></div>
+        <div class="right"></div>
+      </div>
+    </div>
+
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+    <!-- Off-cut routing -->
+    <div class="branch-block">
+      <div class="branch-diamond-row"><div class="diamond"><span>MEMBER<br>LENGTH?</span></div></div>
+      <div class="branch-labels">
+        <span class="branch-yes">▲ &gt;520mm</span>
+        <span class="branch-no">&lt;520mm ▶</span>
+      </div>
+      <div class="branch-cards">
+        <div class="branch-card">
+          <div class="card auto">
+            <div class="snum">ROUTE // OUTFEED</div>
+            <div class="stitle">Member → Outfeed Rollers</div>
+            <div class="sdesc">Member is long enough for outfeed. Outfeed clutch engages. Outfeed rollers drive timber out several meters. As eye sensors clear, clamps open in smooth timed sequence. Timber hits angled powered rollers on outfeed deck and is flung out down to operator.</div>
+            <span class="tag">AUTO</span>
+          </div>
+        </div>
+        <div class="branch-card">
+          <div class="card auto">
+            <div class="snum">ROUTE // WASTE CONVEYOR</div>
+            <div class="stitle">Member → Waste Conveyor Below</div>
+            <div class="sdesc">Member is short — drops down to waste conveyor below the saw cabinet. Conveyor drives RIGHT if waste, or LEFT if usable offcut.</div>
+            <span class="tag">AUTO</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+    <!-- More cuts? -->
+    <div class="branch-block">
+      <div class="branch-diamond-row"><div class="diamond"><span>MORE<br>CUTS THIS<br>BOARD?</span></div></div>
+      <div class="branch-labels">
+        <span class="branch-yes">▲ YES</span>
+        <span class="branch-no">NO ▶</span>
+      </div>
+      <div class="branch-cards">
+        <div class="branch-card">
+          <div class="card auto">
+            <div class="snum">AUTO // NEXT CUT</div>
+            <div class="stitle">Pusher Advances to Next Cut Position</div>
+            <div class="sdesc">Saw blade moves to new angle + offset for next cut. Pusher advances timber to next cut position. Repeat cut cycle from Step 16.</div>
+            <span class="tag">AUTO</span>
+          </div>
+        </div>
+        <div class="branch-card">
+          <div class="card check">
+            <div class="snum">COMPLETE // BOARD DONE</div>
+            <div class="stitle">All Cuts Complete — Board Done</div>
+            <div class="sdesc">All members on this board have been cut. Proceed to end-of-board sequence.</div>
+            <span class="tag">CHECK</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="loop-label L">↩ AUTO LOOPS — PUSHER ADVANCES → PRINTERS PRINT → SAW CUTS → ROUTE MEMBER</div>
+
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- END OF BOARD -->
+  <div class="phase-divider"><span>END OF BOARD</span></div>
+
+  <div class="cycle-box auto-box">
+    <div class="cycle-label green">END-OF-BOARD SEQUENCE — ALL 3 CONDITIONS MUST COMPLETE</div>
+
+    <div class="row">
+      <div class="left">
+        <div class="card auto">
+          <div class="snum">STEP // 17</div>
+          <div class="stitle">Outfeed Completes + Eye Sensors Clear + Pusher Returns</div>
+          <div class="sdesc">Three things complete simultaneously: (1) Both outfeed eye sensors turn off — timber fully cleared. (2) Outfeed rollers finish their drive run (~5 metres). (3) Pusher servo returns to waiting position ready for next board. Once all three are done, infeed chains start driving forward for the next board.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="spine"><div class="spine-dot dot-green"></div></div>
+      <div class="right"></div>
+    </div>
+
+  </div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#009CDE" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#009CDE"/></svg></div>
+
+  <!-- MORE BOARDS? -->
+  <div class="branch-block">
+    <div class="branch-diamond-row"><div class="diamond"><span>MORE<br>BOARDS<br>LOADED?</span></div></div>
+    <div class="branch-labels">
+      <span class="branch-yes">▲ YES</span>
+      <span class="branch-no">NO ▶</span>
+    </div>
+    <div class="branch-cards">
+      <div class="branch-card">
+        <div class="card auto">
+          <div class="snum">AUTO // NEXT BOARD</div>
+          <div class="stitle">Infeed Chains Drive — Next Board Sequence</div>
+          <div class="sdesc">More boards remain in the batch. Infeed chains drive forward. Machine loops back to cabinet clear check (Step 05) and repeats full infeed and cut sequence for the next board.</div>
+          <span class="tag">AUTO</span>
+        </div>
+      </div>
+      <div class="branch-card">
+        <div class="card check">
+          <div class="snum">COMPLETE // BATCH DONE</div>
+          <div class="stitle">Last Board — Batch Complete</div>
+          <div class="sdesc">No more boards loaded. Pusher moves to halfway rest position. Saw blade continues spinning for 30 seconds then stops. Waste conveyors run for set time then stop. Machine returns to ready state waiting for operator to load next batch.</div>
+          <span class="tag">CHECK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="loop-label L">↩ AUTO LOOPS BOARD BY BOARD — INFEED → CABINET → CUT → OUTFEED → NEXT BOARD</div>
+
+  <div class="arrow"><svg width="14" height="28" viewBox="0 0 14 28"><line x1="7" y1="0" x2="7" y2="20" stroke="#8A8D4A" stroke-width="2"/><polygon points="0,18 7,28 14,18" fill="#8A8D4A"/></svg></div>
+
+  <!-- END -->
+  <div class="node-terminal end">■ BATCH COMPLETE — READY</div>
+
+</div>
+
+<!-- ESTOP -->
+<div class="estop-note">
+  <div class="estop-inner">
+    EMERGENCY STOP — Can be triggered at any point. Immediately stops all axes, stops saw blade, drops all air. Machine must be fully assessed and reset before resuming operation.
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#009CDE"></div> PROCESS / AUTO</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8A8D4A"></div> CHECK / SENSOR</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#B89D18"></div> DECISION</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#E87722"></div> ACTION / SAW CUT</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#425563"></div> OPERATOR</div>
+</div>
+
+</body>
+</html>

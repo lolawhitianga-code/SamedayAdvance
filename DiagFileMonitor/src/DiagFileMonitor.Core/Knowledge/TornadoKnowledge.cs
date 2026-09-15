@@ -20,11 +20,19 @@ public static class TornadoKnowledge
         ("Sterling", "thinnest", "lowest")
     };
 
+    /// <summary>
+    /// Members shorter than this drop to the waste conveyor below the saw cabinet rather than
+    /// going out on the outfeed rollers. The conveyor runs right for waste, left for a usable
+    /// offcut, and a short support flap rises before the cut so the piece cannot fall inside.
+    /// </summary>
+    public const int ShortMemberMillimetres = 520;
+
     /// <summary>The normal run-up, for telling how far a machine got before it stopped.</summary>
     public static readonly IReadOnlyList<string> StartupSequence = new[]
     {
         "Power on.",
-        "Press Home Machine - all 7 servo axes reset.",
+        "Press Home Machine - all 7 servo axes reset: pusher, saw blade angle, saw blade offset, "
+            + "saw up/down, top printer up/down, outfeed rollers, infeed rollers.",
         "Open the job file and confirm the members show in the Members tab.",
         "Check the Infeed tab: board created, members assigned, stock board listed in the stock table.",
         "Review board selection - the machine suggests a stack height of 1, 2 or 3 high from the job.",
@@ -39,8 +47,58 @@ public static class TornadoKnowledge
         Model = "TornadoM500",
         AlsoMatches = new[] { "Tornado M500", "TornadoM500" },
 
-        KnownSerials = Array.Empty<string>(),
-        Axes = Array.Empty<AxisRole>(),
+        KnownSerials = new[] { "M20421" },
+
+        // The seven axes from the op guide flowchart, paired with the tags a real M20421 export
+        // uses. The geometry ones carry their letter in the log tag, which makes those solid; the
+        // pusher is the one that has not been tied to a tag.
+        Axes = new AxisRole[]
+        {
+            new()
+            {
+                LogName = "SawRotation(R)", PlainName = "Saw blade angle",
+                Role = "Swings the blade to the cut angle. The R axis in the machine config.",
+                Confidence = Confidence.Confirmed
+            },
+            new()
+            {
+                LogName = "SawOffset(Y)", PlainName = "Saw blade offset",
+                Role = "Moves the blade forward and back. The Y axis.",
+                Confidence = Confidence.Confirmed
+            },
+            new()
+            {
+                LogName = "SawHeight(Z)", PlainName = "Saw up/down",
+                Role = "Raises and lowers the blade. The Z axis.",
+                Confidence = Confidence.Confirmed
+            },
+            new()
+            {
+                LogName = "InBelt(X1)", PlainName = "Infeed rollers",
+                Role = "Drives timber in. XInAxis in the machine config.",
+                Confidence = Confidence.Inferred
+            },
+            new()
+            {
+                LogName = "OutBelt(X2)", PlainName = "Outfeed rollers",
+                Role = "Drives cut members out. XOutAxis in the machine config.",
+                Confidence = Confidence.Inferred
+            },
+            new()
+            {
+                LogName = "TopTimPrinterServo", PlainName = "Top printer up/down",
+                Role = "Sets printer height. This is the one with no software setting for its "
+                       + "physical position - see the print fault below.",
+                Confidence = Confidence.Inferred
+            },
+            new()
+            {
+                LogName = "(not yet identified)", PlainName = "Pusher",
+                Role = "The op guide lists a pusher as one of the seven homed axes. No tag in a "
+                       + "real export has been tied to it yet.",
+                Confidence = Confidence.Unconfirmed
+            }
+        },
 
         Faults = new KnownFault[]
         {
@@ -88,6 +146,21 @@ public static class TornadoKnowledge
         {
             new()
             {
+                Title = "Nothing loads after pressing Start Board",
+                Serials = Array.Empty<string>(),
+                Detail =
+                    "Before any infeed loading all four cabinet clamps must read OPEN on their reed "
+                    + "switches - two horizontal, two vertical - both cabinet eye sensors must be "
+                    + "clear of timber, and the top printer must be up above the stack. If an eye "
+                    + "sensor still sees timber when Start Board is pressed, the infeed does not "
+                    + "load and the infeed rollers run backwards to eject until it clears. The "
+                    + "usual cause is sawdust on the cabinet eye sensors giving a false detection: "
+                    + "clean them and retry.",
+                Confidence = Confidence.Confirmed,
+                Signals = new[] { "cabinet", "eye sensor", "will not load", "does not load" }
+            },
+            new()
+            {
                 Title = "Print running off the edge of the timber",
                 Serials = Array.Empty<string>(),
                 Detail =
@@ -116,9 +189,8 @@ public static class TornadoKnowledge
         {
             "A permanent fix for the post laser reflecting off the infeed deck. Black tape is only a "
                 + "partial measure and Spida have not been asked yet whether this is a known issue.",
-            "Whether the M500 axis names in MachineLog.txt match the M450, whose config lists "
-                + "XInAxis, XOutAxis, YAxis, ZAxis and RAxis - five, where the M500 is described as "
-                + "having seven servo axes. No M500 log has been read yet.",
+            "Which log tag is the pusher. The op guide names seven homed axes and six are now "
+                + "matched to tags in a real M20421 export; the pusher is not.",
             "Whether a \"Board not expected size\" error ever comes from the clamp sensor drifting "
                 + "rather than from genuinely undersized timber."
         }
