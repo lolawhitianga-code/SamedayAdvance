@@ -1,3 +1,4 @@
+using DiagFileMonitor.Core.Models;
 using DiagFileMonitor.Core.SpidaLogs;
 
 namespace DiagFileMonitor.Core.Tests;
@@ -505,5 +506,87 @@ public class StepProfileOpenStepTests
         // Unit 1's step 20 ran to the end of unit 1 (7s), unit 2's to its step 30 (8s).
         // The idle time between units is not charged to either.
         Assert.Equal(TimeSpan.FromSeconds(7.5), profile.MedianDuration[20]);
+    }
+}
+
+public class LatestSettingChangeTests
+{
+    private static readonly DateTime Session = new(2026, 7, 27, 22, 15, 0, DateTimeKind.Utc);
+
+    private static ChangeLogEntry Change(string date, string setting) => new()
+    {
+        Timestamp = DateTime.Parse(date), User = "Spida", Category = "Settings",
+        Setting = setting, OldValue = "1", NewValue = "2"
+    };
+
+    private static SpidaLogAnalysis Analyse(params ChangeLogEntry[] changes) =>
+        new SpidaLogAnalyser().Analyse(
+            Array.Empty<MachineLogEntry>(), Array.Empty<ErrLogEntry>(), changes, Session);
+
+    [Fact]
+    public void TheLastFourChangesAreKeptHoweverOldTheyAre()
+    {
+        // The real M20716 file had nothing changed near the session but plenty changed months
+        // earlier, and the report said only "None." - which reads as "nothing was ever changed".
+        var analysis = Analyse(
+            Change("2025-02-28 12:16:19", "Oldest"),
+            Change("2026-01-20 14:12:54", "Older"),
+            Change("2026-04-21 14:26:51", "Old"),
+            Change("2026-05-05 13:09:03", "Newer"),
+            Change("2026-05-05 13:09:04", "Newest"));
+
+        Assert.Empty(analysis.RecentSettingChanges);
+
+        Assert.Equal(
+            new[] { "Newest", "Newer", "Old", "Older" },
+            analysis.LatestSettingChanges.Select(c => c.Setting));
+    }
+
+    [Fact]
+    public void FewerThanFourChangesGivesWhateverThereIs()
+    {
+        var analysis = Analyse(Change("2025-02-28 12:16:19", "Only"));
+
+        Assert.Equal("Only", Assert.Single(analysis.LatestSettingChanges).Setting);
+    }
+
+    [Fact]
+    public void AnEmptyChangeLogGivesNoLatestChanges()
+    {
+        Assert.Empty(Analyse().LatestSettingChanges);
+    }
+
+    [Fact]
+    public void ChangesAroundTheSessionStillShowSeparately()
+    {
+        var analysis = Analyse(
+            Change("2026-02-01 09:00:00", "Old"),
+            Change("2026-07-27 09:00:00", "OnTheDay"));
+
+        Assert.Equal("OnTheDay", Assert.Single(analysis.RecentSettingChanges).Setting);
+        Assert.Equal(new[] { "OnTheDay", "Old" }, analysis.LatestSettingChanges.Select(c => c.Setting));
+    }
+
+    [Fact]
+    public void TheReportShowsOldChangesRatherThanSayingNone()
+    {
+        var analysis = Analyse(Change("2026-05-05 13:09:03", "NailDistFromEdgeOfTimber"));
+        var text = SpidaReportFormatter.Format(new DiagnosticFileSummary { ArrivedAtUtc = Session }, analysis);
+
+        Assert.Contains("Nothing was changed around this session.", text);
+        Assert.Contains("Last 1 change(s) on this machine, whenever they happened:", text);
+        Assert.Contains("NailDistFromEdgeOfTimber", text);
+        Assert.Contains("month(s) before", text);
+    }
+
+    [Fact]
+    public void AChangeAlreadyListedAroundTheSessionIsNotRepeated()
+    {
+        var analysis = Analyse(Change("2026-07-27 09:00:00", "OnTheDay"));
+        var text = SpidaReportFormatter.Format(new DiagnosticFileSummary { ArrivedAtUtc = Session }, analysis);
+
+        Assert.Single(analysis.RecentSettingChanges);
+        Assert.DoesNotContain("whenever they happened", text);
+        Assert.Equal(1, text.Split("OnTheDay").Length - 1);
     }
 }

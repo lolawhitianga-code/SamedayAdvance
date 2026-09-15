@@ -61,6 +61,16 @@ public class SpidaLogAnalysis
     public IReadOnlyList<string> RepeatingBackgroundErrors { get; init; } = Array.Empty<string>();
 
     public IReadOnlyList<ChangeLogEntry> RecentSettingChanges { get; init; } = Array.Empty<ChangeLogEntry>();
+
+    /// <summary>
+    /// The most recent settings changes whatever their date, newest first. Machines often run for
+    /// months on a setting somebody changed once, so "nothing changed this week" is not the same
+    /// as "nothing was changed".
+    /// </summary>
+    public IReadOnlyList<ChangeLogEntry> LatestSettingChanges { get; init; } = Array.Empty<ChangeLogEntry>();
+
+    /// <summary>The session date the changes are measured against, for reporting how long ago.</summary>
+    public DateTime SessionDateUtc { get; init; }
     public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
 }
 
@@ -74,6 +84,9 @@ public class SpidaLogAnalyserOptions
 
     /// <summary>Settings changed within this long of the session count as "around the session".</summary>
     public int RecentChangeDays { get; set; } = 1;
+
+    /// <summary>How many of the most recent changes to show whatever their date.</summary>
+    public int AlwaysShowLatestChanges { get; set; } = 4;
 
     /// <summary>An error seen at least this many times is background noise rather than this fault.</summary>
     public int RepeatingErrorThreshold { get; set; } = 5;
@@ -150,6 +163,11 @@ public class SpidaLogAnalyser
             ErrorsOutsideLogWindow = outside,
             RepeatingBackgroundErrors = backgroundNoise,
             RecentSettingChanges = RecentChanges(changeLog, sessionDateUtc),
+            LatestSettingChanges = changeLog
+                .OrderByDescending(c => c.Timestamp)
+                .Take(_options.AlwaysShowLatestChanges)
+                .ToList(),
+            SessionDateUtc = sessionDateUtc,
             Notes = notes
         };
     }

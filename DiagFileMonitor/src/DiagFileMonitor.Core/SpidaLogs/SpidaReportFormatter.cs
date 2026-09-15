@@ -227,18 +227,61 @@ public static class SpidaReportFormatter
 
         if (analysis.RecentSettingChanges.Count == 0)
         {
-            text.AppendLine("  None.");
-            return;
+            text.AppendLine("  Nothing was changed around this session.");
+        }
+        else
+        {
+            foreach (var change in analysis.RecentSettingChanges.Take(15))
+            {
+                text.AppendLine($"  {change.Display}");
+            }
+
+            text.AppendLine();
+            text.AppendLine("  Listed as context. Ask the customer to confirm whether any of these are related");
+            text.AppendLine("  rather than assuming they are.");
         }
 
-        foreach (var change in analysis.RecentSettingChanges.Take(15))
-        {
-            text.AppendLine($"  {change.Display}");
-        }
+        AppendLatestChanges(text, analysis);
+    }
+
+    /// <summary>
+    /// The last few changes whatever their date. A machine can run for months on a setting
+    /// somebody changed once, so the most recent change is worth seeing even when it is old -
+    /// otherwise this section reads "none" on a machine whose settings were quietly altered.
+    /// </summary>
+    private static void AppendLatestChanges(StringBuilder text, SpidaLogAnalysis analysis)
+    {
+        if (analysis.LatestSettingChanges.Count == 0) return;
+
+        var alreadyListed = analysis.RecentSettingChanges.Take(15).ToHashSet();
+        var latest = analysis.LatestSettingChanges.Where(c => !alreadyListed.Contains(c)).ToList();
+
+        if (latest.Count == 0) return;
 
         text.AppendLine();
-        text.AppendLine("  Listed as context. Ask the customer to confirm whether any of these are related");
-        text.AppendLine("  rather than assuming they are.");
+        text.AppendLine($"  Last {analysis.LatestSettingChanges.Count} change(s) on this machine, whenever they happened:");
+
+        var sessionLocal = analysis.SessionDateUtc.ToLocalTime();
+        foreach (var change in latest)
+        {
+            text.AppendLine($"    {change.Display}{Age(change.Timestamp, sessionLocal)}");
+        }
+    }
+
+    /// <summary>How long before this bundle a change was made.</summary>
+    private static string Age(DateTime changedAt, DateTime sessionLocal)
+    {
+        var days = (sessionLocal.Date - changedAt.Date).Days;
+
+        return days switch
+        {
+            < 0 => "   after this file",
+            0 => "   same day",
+            1 => "   1 day before",
+            < 31 => $"   {days} days before",
+            < 365 => $"   about {days / 30} month(s) before",
+            _ => $"   about {days / 365} year(s) before"
+        };
     }
 
     private static void AppendWhereToLook(

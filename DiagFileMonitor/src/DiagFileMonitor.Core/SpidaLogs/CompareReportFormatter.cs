@@ -62,12 +62,18 @@ public static class CompareReportFormatter
         }
 
         var percent = steps.CyclePercentOfMaster ?? 0;
-        var verdict = percent >= 125 ? "  <-- slower than the benchmark"
-            : percent <= 80 ? "  faster than the benchmark"
-            : "  in line with the benchmark";
+
+        // Said as a multiple for the same reason as the step table: "9% of master" sitting next
+        // to the word "faster" reads as "9% faster" rather than eleven times faster.
+        var multiple = StepDifference.Describe(
+            steps.MasterCycle.TotalMilliseconds, steps.ComparedCycle.TotalMilliseconds);
+
+        var verdict = percent >= 125 ? $"{multiple} than the benchmark  <--"
+            : percent <= 80 ? $"{multiple} than the benchmark"
+            : "in line with the benchmark";
 
         text.AppendLine($"  master   {StepDifference.Describe(steps.MasterCycle)}");
-        text.AppendLine($"  compared {StepDifference.Describe(steps.ComparedCycle)}  ({percent:0}% of master){verdict}");
+        text.AppendLine($"  compared {StepDifference.Describe(steps.ComparedCycle)}  {verdict}");
     }
 
     private static void AppendSequence(StringBuilder text, StepTimingComparison steps)
@@ -104,6 +110,7 @@ public static class CompareReportFormatter
     {
         text.AppendLine();
         text.AppendLine("TIME IN EACH STEP (median across units)");
+        text.AppendLine("  how much faster or slower this machine is than the benchmark, as a multiple");
 
         if (steps.Differences.Count == 0)
         {
