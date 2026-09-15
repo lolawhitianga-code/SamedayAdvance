@@ -186,13 +186,38 @@ public static class SpidaReportFormatter
 
         text.AppendLine($"  This machine's axes: {hardware.Summary}.");
 
-        if (!hardware.IsMixed) return;
-
-        text.AppendLine("  It runs both families, so check the faulting axis is a CLX one:");
-        foreach (var axis in hardware.InUse.OrderBy(a => a.Family))
+        if (hardware.IsMixed)
         {
-            text.AppendLine($"    {axis.Name,-20} {AxisHardwareMap.Describe(axis.Family)}");
+            text.AppendLine("  It runs both families, so check the faulting axis is a CLX one:");
+            foreach (var axis in hardware.InUse.OrderBy(a => a.Family).ThenBy(a => a.DisplayName))
+            {
+                text.AppendLine($"    {axis.DisplayName,-46} {AxisHardwareMap.Describe(axis.Family)}");
+            }
         }
+
+        if (hardware.HasOmron) AppendOmronNote(text);
+    }
+
+    /// <summary>
+    /// What to do when the axis in question is an Omron one. The CLX codes above do not apply to
+    /// it, so the drive has to be read directly - it shows its own alarm as "Er" and two bytes.
+    /// </summary>
+    private static void AppendOmronNote(StringBuilder text)
+    {
+        text.AppendLine();
+        text.AppendLine("  The Omron axes run 1S-series drives (R88D-1SN..-ECT) on EtherCAT. The CLX codes");
+        text.AppendLine("  above do not apply to them. An Omron drive shows its own alarm as \"Er\" and two");
+        text.AppendLine("  bytes - Er 16 00 is Overload - so ask site to read the display and the LEDs:");
+
+        foreach (var (name, meaning) in OmronServoDrives.Indicators.Take(4))
+        {
+            text.AppendLine($"    {name,-9} {ReportText.Wrap(meaning, 14)}");
+        }
+
+        text.AppendLine();
+        text.AppendLine("  Safety: CHARGE stays lit after power off. Wait the drive's discharge time before");
+        text.AppendLine("  touching anything - 10 minutes on the 400 V models, 15 to 20 on 100 and 200 V.");
+        text.AppendLine("  A dark display is not proof the bus is discharged.");
     }
 
     private static void AppendUnits(StringBuilder text, SpidaLogAnalysis analysis)

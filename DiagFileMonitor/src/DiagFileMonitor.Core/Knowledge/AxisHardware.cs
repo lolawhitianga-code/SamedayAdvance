@@ -28,6 +28,20 @@ public class AxisHardwareEntry
     public string RawType { get; init; } = string.Empty;
 
     public bool InUse { get; init; }
+
+    /// <summary>
+    /// The path without the root element, so the four ServoGun entries on a wall extruder can be
+    /// told apart - FixedSide/ServoGuns/ServoGun against FloatingSide/DualServoGuns/... - rather
+    /// than listing the same bare name four times.
+    /// </summary>
+    public string DisplayName
+    {
+        get
+        {
+            var cut = Path.IndexOf('/');
+            return cut >= 0 && cut + 1 < Path.Length ? Path[(cut + 1)..] : Path;
+        }
+    }
 }
 
 public class AxisHardwareMap
