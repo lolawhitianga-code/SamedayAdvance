@@ -279,6 +279,8 @@ const eBack = (k) => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(k -
 function fadeWindow(t, a, b, fin = 0.45, fout = 0.45) { return Math.min(eOut(prog(t, a, fin)), 1 - eInOut(prog(t, b - fout, fout))); }
 function rise(el, k, dist = 40) { el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dist}px)`; }
 function segFrac(id, f) { const s = S[id]; return s.start + (s.end - s.start) * f; }
+// word-level sync points from the voiceover alignment (fallback: fraction of the line)
+const M = (name, fb) => (TL.marks && TL.marks[name] != null ? TL.marks[name] : fb);
 
 // ---- scene boundaries, all derived from the voiceover timeline ----
 const T1_END = S.v2.start - 0.15;
@@ -287,7 +289,7 @@ const T3_START = S.v3a.start - 0.35, T3_END = S.v4.start - 0.2;
 const T4_START = S.v4.start - 0.45, T4_END = S.v5a.start - 0.15;
 const T5_START = S.v5a.start - 0.45, T5_END = S.v6.start - 0.25;
 const T6_START = S.v6.start - 0.55;
-const T_MILLION = S.v5d.start + 0.8 * (S.v5d.end - S.v5d.start);
+const T_MILLION = M("million", S.v5d.start + 0.8 * (S.v5d.end - S.v5d.start));
 
 // ---- build the ledger texture once (real category labels from the console) ----
 (function buildLedger() {
@@ -331,7 +333,7 @@ function renderAt(t) {
   });
   $("sweep").style.width = (eInOut(prog(t, 0.35, 1.3)) * 900) + "px";
   $("sweep").style.opacity = 1 - 0.6 * prog(t, 2.0, 1.2);
-  rise($("tag"), eOut(prog(t, segFrac("v1", 0.36), 0.8)), 24);
+  rise($("tag"), eOut(prog(t, M("tag", segFrac("v1", 0.36)) - 0.1, 0.8)), 24);
 
   // ===== Phone (scenes 2+3) =====
   const phoneIn = eOut(prog(t, T2_START + 0.1, 1.1));
@@ -373,7 +375,7 @@ function renderAt(t) {
   const fr = [0.30, 0.50, 0.66, 0.82];
   let score = 0;
   vals.forEach((v, i) => {
-    const k = eOut(prog(t, segFrac("v3d", fr[i]), 0.7));
+    const k = eOut(prog(t, M("f" + (i + 1), segFrac("v3d", fr[i])), 0.7));
     $("cb" + (i + 1)).style.width = (k * v) + "%";
     $("cv" + (i + 1)).textContent = Math.round(k * v);
     score += k * v * [0.32, 0.32, 0.21, 0.15][i];
@@ -387,7 +389,7 @@ function renderAt(t) {
   // ===== Scene 2 copy =====
   $("s2").style.opacity = fadeWindow(t, T2_START + 0.2, T2_END, 0.6, 0.4);
   $("s2").style.transform = `translateX(${-30 * prog(t, T2_END - 0.4, 0.4)}px)`;
-  [["b1", segFrac("v2", 0.06)], ["b2", segFrac("v2", 0.36)], ["b3", S.v2.end - 2.4]].forEach(([id, at]) => {
+  [["b1", M("b1", segFrac("v2", 0.06))], ["b2", M("b2", segFrac("v2", 0.36))], ["b3", M("b3", S.v2.end - 2.4)]].forEach(([id, at]) => {
     const k = eOut(prog(t, at, 0.55)); const el = $(id); el.style.opacity = k; el.style.transform = `translateX(${(1 - k) * -30}px)`;
   });
 
@@ -414,10 +416,10 @@ function renderAt(t) {
     const dir = c % 2 === 0 ? -1 : 1;
     $("lc" + c).style.transform = `translateY(${-400 + dir * (t - T4_START) * (48 + c * 10)}px)`;
   }
-  const kf = [0.0, 0.27, 0.52, 0.78];
+  const kAt = [S.v4.start, M("k2", segFrac("v4", 0.27)), M("k3", segFrac("v4", 0.52)), M("k4", segFrac("v4", 0.78))];
   ["k1", "k2", "k3", "k4"].forEach((id, i) => {
-    const k = eOut(prog(t, segFrac("v4", kf[i]) - 0.05, 0.5));
-    const el = $(id); el.style.opacity = k * (i < 2 ? 1 - 0.55 * prog(t, segFrac("v4", 0.52), 0.5) : 1);
+    const k = eOut(prog(t, kAt[i] - 0.08, 0.5));
+    const el = $(id); el.style.opacity = k * (i < 2 ? 1 - 0.55 * prog(t, kAt[2], 0.5) : 1);
     el.style.transform = `translateY(${(1 - k) * 36}px)`; el.style.filter = `blur(${(1 - k) * 8}px)`;
   });
 
@@ -455,9 +457,9 @@ function renderAt(t) {
   const s6 = eOut(prog(t, T6_START, 0.7));
   $("s6").style.opacity = s6;
   $("s6").style.transform = `scale(${1.03 - 0.03 * s6})`;
-  rise($("e1"), eOut(prog(t, segFrac("v6", 0.33), 0.5)), 18);
-  rise($("e2"), eOut(prog(t, segFrac("v6", 0.57), 0.5)), 18);
-  const cta = eOut(prog(t, segFrac("v6", 0.8), 0.55));
+  rise($("e1"), eOut(prog(t, M("e1", segFrac("v6", 0.33)) - 0.08, 0.5)), 18);
+  rise($("e2"), eOut(prog(t, M("e2", segFrac("v6", 0.57)) - 0.08, 0.5)), 18);
+  const cta = eOut(prog(t, M("e3", segFrac("v6", 0.8)) - 0.08, 0.55));
   $("cta").style.opacity = cta;
   $("cta").style.transform = `translateX(-50%) scale(${0.9 + 0.1 * eBack(cta)})`;
   $("fadeblack").style.opacity = prog(t, TL.total - 0.9, 0.9);

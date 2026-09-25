@@ -22,7 +22,7 @@ existing palette), clean sans-serif/monospace type, subtle motion (fades and
 slides, no gimmicky transitions), real screenshots from the working product
 wherever possible instead of stock photography.
 
-**Total runtime**: 60 seconds. **Word count**: ~155 words (~2.6 words/sec,
+**Total runtime**: ~61 seconds. **Word count**: ~150 words (~2.5 words/sec,
 comfortable pace for clear AU delivery — do not rush it to fit; trim visuals
 instead if it's running long).
 
@@ -30,35 +30,43 @@ instead if it's running long).
 
 ## 2. Full voiceover script (word-for-word, timed)
 
-> **[0:00–0:05]**
-> Same Day Advance — because your next payday shouldn't decide your today.
+> **[0:01–0:04]**
+> Same Day Advance, because your next payday shouldn't decide your today.
 >
-> **[0:05–0:15]**
+> **[0:05–0:14]**
 > We're a mobile-first wage advance platform, giving everyday Australians
-> fair, fast access to money they've already earned — before payday, without
-> the fees of a payday loan.
+> fair, fast access to money they've already earned, before payday, and
+> without the fees of a payday loan.
 >
-> **[0:15–0:28]**
-> Here's how it works. Someone applies from their phone. We securely read
-> their real bank transaction data. Our own risk-scoring engine — built
-> in-house — checks income stability, account conduct, existing debt, and
+> **[0:15–0:31]**
+> Here's how it works. Someone applies from their phone, and we securely
+> read their real bank transaction data. Our own risk-scoring engine, built
+> in-house, checks income stability, account conduct, existing debt and
 > spare cash flow, and returns a decision in seconds. Approved funds land
 > the same day.
 >
-> **[0:28–0:34]**
-> No spreadsheets. No guesswork. Just data-driven lending, done responsibly.
+> **[0:32–0:36]**
+> No spreadsheets, no guesswork. Just data-driven lending, done responsibly.
 >
-> **[0:34–0:55]**
+> **[0:37–0:55]**
 > We've modelled three growth scenarios over three years, on the same
 > twenty-one-thousand-dollar starting pool. Conservative: two hundred and
 > sixty-four thousand dollars profit. Our base case: six hundred and
 > ninety-nine thousand. And our high-growth case: nearly one point two
-> million dollars — currently capped by capital, not by demand.
+> million dollars; currently capped by capital, not by demand.
 >
-> **[0:55–1:00]**
-> Same Day Advance. Smarter lending. Real returns. Let's talk.
+> **[0:55–0:59]**
+> Same Day Advance. Smarter lending, real returns. Let's talk.
 
-**Word count check**: 154 words.
+**Word count check**: 150 words (61s including the end card; ~59s of speech at a natural, unhurried pace).
+
+**Delivery notes** (learned building the rendered version): read each block
+as one continuous passage rather than line by line, and let the voice flow
+through the commas at "from their phone, and…", "spare cash flow, and…" and
+"smarter lending, real returns". The one deliberate beat inside a sentence
+is after "…million dollars" — land the number, pause briefly, then the
+"capped by capital" aside. Keep comma pauses around 0.3s and sentence
+pauses under half a second.
 
 ---
 

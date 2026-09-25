@@ -25,7 +25,8 @@ if [ ! -s JetBrainsMono.ttf ]; then
   python3 -c "import zipfile;open('JetBrainsMono.ttf','wb').write(zipfile.ZipFile('jbmono.zip').read('fonts/variable/JetBrainsMono[wght].ttf'))"
 fi
 
-VO_SPEED="${VO_SPEED:-1.08}" python3 build_vo.py
+VO_SPEED="${VO_SPEED:-1.0}" python3 build_vo.py
+python3 flow_check.py || true   # objective flow report (pitch at joins, pauses)
 python3 -c "import json;open('timeline.js','w').write('window.TL = '+json.dumps(json.load(open('timeline.json')))+';')"
 python3 build_audio.py
 node render.js

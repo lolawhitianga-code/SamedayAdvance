@@ -83,7 +83,7 @@ T_INTRO_END = SEG["v2"]["start"] - 0.2
 T_B = SEG["v3a"]["start"] - 0.1          # process section: groove comes in
 T_C = SEG["v4"]["start"] - 0.1           # "No spreadsheets" — pull the drums back
 T_D = SEG["v5a"]["start"] - 0.1          # scenarios — build
-T_MILLION = SEG["v5d"]["start"] + 0.8 * (SEG["v5d"]["end"] - SEG["v5d"]["start"])
+T_MILLION = tl.get("marks", {}).get("million", SEG["v5d"]["start"] + 0.8 * (SEG["v5d"]["end"] - SEG["v5d"]["start"]))
 T_OUTRO = SEG["v6"]["start"] - 0.35      # drums stop, final chord rings
 
 L = np.zeros(N, dtype=np.float32)
@@ -334,7 +334,7 @@ for i in range(N):
 env = env / (env.max() or 1.0)
 duck = 1.0 - 0.6 * np.clip(env * 4.0, 0, 1)   # up to ~ -8 dB under speech
 
-MUSIC_GAIN = 0.3   # music bus sits well under the voice (~12-15 dB below it)
+MUSIC_GAIN = 0.39  # music bus under the voice; raised 30% (0.30 -> 0.39) on request
 SFX_GAIN = 0.5
 sfx_duck = 1.0 - 0.3 * np.clip(env * 4.0, 0, 1)
 music_l = L * duck * MUSIC_GAIN + SL * sfx_duck * SFX_GAIN
