@@ -1,0 +1,13 @@
+# downloaded at build time by build.sh
+*.onnx
+voices-v1.0.bin
+*.ttf
+*.zip
+# generated
+*.wav
+*.mp3
+*.mp4
+*.jpg
+*.png
+timeline.json
+timeline.js

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Same Day Advance — Investor Film</title>
+<style>
+  @font-face { font-family: "Inter"; src: url("InterVariable.ttf") format("truetype"); font-weight: 100 900; }
+  @font-face { font-family: "JBMono"; src: url("JetBrainsMono.ttf") format("truetype"); font-weight: 100 800; }
+  :root {
+    --bg: #07080A; --panel: #0F1115; --line: #1E2229;
+    --cream: #EDE9E0; --muted: #8A8F98; --dim: #5A606B;
+    --gold: #C9A227; --gold2: #E6C35C; --green: #5FA777; --rust: #B5533C; --caution: #D8B94B; --blue: #8FA8CB;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; transition: none !important; animation: none !important; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+  body { font-family: "Inter", sans-serif; color: var(--cream); -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  .bgglow { position: absolute; inset: -20%; background: radial-gradient(ellipse at 50% 45%, rgba(201,162,39,0.16), rgba(201,162,39,0.0) 55%); }
+  .grain { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 120%, rgba(143,168,203,0.08), transparent 60%); }
+  .scene { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+  .mono { font-family: "JBMono", monospace; }
+  .kicker { font-family: "JBMono", monospace; font-size: 22px; letter-spacing: 6px; color: var(--gold); text-transform: uppercase; }
+
+  /* ---------- scene 1: logo ---------- */
+  #s1 .wordmark { position: absolute; left: 0; right: 0; top: 400px; text-align: center; font-size: 132px; font-weight: 750; letter-spacing: -4px; }
+  #s1 .wordmark span { display: inline-block; margin: 0 16px; }
+  #s1 .sweep { position: absolute; top: 580px; left: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); transform: translateX(-50%); }
+  #s1 .tag { position: absolute; left: 0; right: 0; top: 622px; text-align: center; font-size: 38px; font-weight: 400; color: var(--muted); letter-spacing: -0.3px; }
+  #s1 .tag b { color: var(--cream); font-weight: 600; }
+
+  /* ---------- phone ---------- */
+  .phonewrap { position: absolute; left: 1180px; top: 90px; width: 450px; height: 920px; perspective: 1800px; }
+  .phone { position: absolute; inset: 0; border-radius: 74px; background: linear-gradient(145deg, #2a2d33, #121418 60%, #23262c); padding: 15px;
+           box-shadow: 0 0 0 2px #3b3f47, 0 0 0 5px #0c0d10, 0 60px 140px rgba(0,0,0,0.7), 0 0 120px rgba(201,162,39,0.10); transform-style: preserve-3d; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 60px; overflow: hidden; background: linear-gradient(180deg, #0E1014, #090A0D); }
+  .island { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); width: 128px; height: 38px; border-radius: 22px; background: #000; z-index: 20; }
+  .statusbar { position: absolute; top: 24px; left: 44px; right: 40px; display: flex; justify-content: space-between; font-size: 19px; font-weight: 650; z-index: 19; }
+  .appscreen { position: absolute; inset: 0; padding: 92px 30px 30px; opacity: 0; }
+  .apphdr { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 650; color: var(--cream); margin-bottom: 26px; }
+  .applogo { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--gold2), var(--gold)); color: #111; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .card { background: #14171C; border: 1px solid #242830; border-radius: 26px; padding: 26px; }
+  .muted { color: var(--muted); }
+  .bigamt { font-family: "JBMono", monospace; font-size: 86px; font-weight: 700; color: var(--gold2); letter-spacing: -3px; line-height: 1; }
+  .btn { margin-top: 22px; height: 70px; border-radius: 20px; background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #15130c; font-size: 22px; font-weight: 750; display: flex; align-items: center; justify-content: center; }
+  .row { display: flex; justify-content: space-between; align-items: center; font-size: 18px; padding: 14px 2px; border-bottom: 1px solid #1d2027; }
+  .pill { font-family: "JBMono", monospace; font-size: 14px; padding: 5px 10px; border-radius: 8px; }
+  .bar { height: 12px; border-radius: 7px; background: #20242b; overflow: hidden; margin-top: 10px; }
+  .bar > i { display: block; height: 100%; width: 0; border-radius: 7px; background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+  .slider { position: relative; height: 10px; border-radius: 6px; background: #23272e; margin: 34px 4px 10px; }
+  .slider > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+  .slider > b { position: absolute; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .check { width: 150px; height: 150px; border-radius: 50%; margin: 60px auto 30px; background: rgba(95,167,119,0.14); border: 3px solid var(--green); display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- left copy ---------- */
+  .leftcopy { position: absolute; left: 190px; top: 250px; width: 860px; }
+  .h1 { font-size: 104px; font-weight: 760; letter-spacing: -4px; line-height: 1.02; }
+  .h1 .g { color: var(--gold2); }
+  .bullets { margin-top: 56px; }
+  .bullet { display: flex; align-items: center; gap: 22px; font-size: 36px; font-weight: 500; margin-bottom: 26px; opacity: 0; }
+  .bullet i { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 18px rgba(201,162,39,0.6); flex: none; }
+
+  .steps { margin-top: 54px; }
+  .step { display: flex; align-items: center; gap: 26px; margin-bottom: 30px; opacity: 0.25; }
+  .step .num { width: 66px; height: 66px; border-radius: 20px; border: 2px solid #2c313a; display: flex; align-items: center; justify-content: center; font-family: "JBMono", monospace; font-size: 26px; font-weight: 700; color: var(--muted); flex: none; position: relative; }
+  .step .txt { font-size: 38px; font-weight: 620; letter-spacing: -0.8px; }
+  .step .sub { font-size: 21px; color: var(--muted); margin-top: 4px; font-weight: 400; letter-spacing: 0; }
+
+  /* ---------- scene 4: ledger ---------- */
+  .ledger { position: absolute; inset: 0; display: flex; gap: 34px; padding: 0 60px; opacity: 0.32; filter: blur(0.6px); }
+  .ledcol { flex: 1; }
+  .ledrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; height: 64px; border-bottom: 1px solid #16191e; font-size: 17px; color: #9aa0a9; font-family: "JBMono", monospace; white-space: nowrap; }
+  .badge { font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600; padding: 5px 11px; border-radius: 7px; border: 1px solid; }
+  .b-inc { color: #8FCBA3; border-color: #5FA777; background: rgba(95,167,119,0.14); }
+  .b-risk { color: #E09B87; border-color: #B5533C; background: rgba(181,83,60,0.14); }
+  .b-cau { color: #D8B94B; border-color: #D8B94B; background: rgba(216,185,75,0.12); }
+  .b-neu { color: #b9bec6; border-color: #3a3f48; background: rgba(255,255,255,0.03); }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse 62% 58% at center, rgba(7,8,10,0.96) 0%, rgba(7,8,10,0.9) 45%, rgba(7,8,10,0.35) 100%); }
+  .kinetic { position: absolute; left: 0; right: 0; top: 330px; text-align: center; }
+  .kline { font-size: 118px; font-weight: 780; letter-spacing: -4.5px; line-height: 1.08; opacity: 0; }
+  .kline.g { color: var(--gold2); }
+
+  /* ---------- scene 5: projections ---------- */
+  #s5 .title { position: absolute; left: 190px; top: 110px; }
+  #s5 .title .h2 { font-size: 64px; font-weight: 740; letter-spacing: -2.4px; margin-top: 14px; }
+  #s5 .title .h2 span { color: var(--gold2); }
+  .chart { position: absolute; left: 190px; right: 190px; top: 330px; height: 560px; border-bottom: 2px solid #262a31; }
+  .gridline { position: absolute; left: 0; right: 0; height: 1px; background: #15181d; }
+  .col { position: absolute; bottom: 0; width: 300px; }
+  .colbar { position: absolute; bottom: 0; left: 0; right: 0; height: 0; border-radius: 18px 18px 4px 4px; }
+  .colval { position: absolute; left: -40px; right: -40px; text-align: center; font-family: "JBMono", monospace; font-weight: 700; font-size: 64px; letter-spacing: -2px; opacity: 0; }
+  .collbl { position: absolute; top: 578px; left: -40px; right: -40px; text-align: center; opacity: 0; }
+  .collbl .n { font-family: "JBMono", monospace; font-size: 22px; letter-spacing: 5px; color: var(--cream); }
+  .collbl .a { font-size: 20px; color: var(--muted); margin-top: 8px; }
+  .capnote { position: absolute; left: 190px; top: 350px; text-align: left; opacity: 0; }
+  .capnote .p { display: inline-block; border: 2px solid var(--gold); border-radius: 999px; padding: 16px 30px; font-size: 32px; font-weight: 650; color: var(--gold2); background: rgba(201,162,39,0.08); }
+  .capnote .s { font-family: "JBMono", monospace; font-size: 19px; color: var(--muted); margin-top: 14px; }
+  .disclaim { position: absolute; left: 190px; right: 190px; bottom: 44px; font-family: "JBMono", monospace; font-size: 16px; color: var(--dim); letter-spacing: 0.5px; }
+
+  /* ---------- scene 6: end card ---------- */
+  #s6 .wordmark { position: absolute; left: 0; right: 0; top: 330px; text-align: center; font-size: 128px; font-weight: 750; letter-spacing: -4px; }
+  #s6 .lines { position: absolute; left: 0; right: 0; top: 520px; text-align: center; font-size: 46px; font-weight: 500; color: var(--muted); letter-spacing: -0.8px; }
+  #s6 .lines span { display: inline-block; margin: 0 14px; opacity: 0; }
+  #s6 .lines span.g { color: var(--cream); }
+  #s6 .cta { position: absolute; left: 50%; top: 650px; transform: translateX(-50%); opacity: 0; padding: 22px 52px; border-radius: 999px; background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #15130c; font-size: 34px; font-weight: 760; letter-spacing: -0.5px; box-shadow: 0 0 60px rgba(201,162,39,0.35); }
+  #s6 .foot { position: absolute; left: 0; right: 0; bottom: 60px; text-align: center; font-family: "JBMono", monospace; font-size: 17px; color: var(--dim); }
+  #fadeblack { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bgglow" id="bgglow"></div>
+  <div class="grain"></div>
+
+  <!-- ===== Scene 1: logo ===== -->
+  <div class="scene" id="s1">
+    <div class="wordmark"><span id="w1">Same</span><span id="w2">Day</span><span id="w3" style="color:var(--gold2)">Advance</span></div>
+    <div class="sweep" id="sweep"></div>
+    <div class="tag" id="tag">Because your next payday shouldn't decide <b>your today.</b></div>
+  </div>
+
+  <!-- ===== Scene 4: ledger + kinetic type (behind phone scenes) ===== -->
+  <div class="scene" id="s4">
+    <div class="ledger" id="ledger"></div>
+    <div class="vignette"></div>
+    <div class="kinetic">
+      <div class="kline" id="k1">No spreadsheets.</div>
+      <div class="kline" id="k2">No guesswork.</div>
+      <div class="kline g" id="k3" style="font-size:84px;letter-spacing:-3px;margin-top:22px;">Just data-driven lending,</div>
+      <div class="kline g" id="k4" style="font-size:84px;letter-spacing:-3px;">done responsibly.</div>
+    </div>
+  </div>
+
+  <!-- ===== Scene 2 + 3 copy ===== -->
+  <div class="scene" id="s2">
+    <div class="leftcopy">
+      <div class="kicker">Introducing</div>
+      <div class="h1" style="margin-top:22px;">Your pay.<br><span class="g">Before payday.</span></div>
+      <div class="bullets">
+        <div class="bullet" id="b1"><i></i>Mobile-first wage advances</div>
+        <div class="bullet" id="b2"><i></i>For everyday Australians</div>
+        <div class="bullet" id="b3"><i></i>No payday-loan fees</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scene" id="s3">
+    <div class="leftcopy" style="top:170px;">
+      <div class="kicker">How it works</div>
+      <div class="h1" style="margin-top:20px;font-size:88px;">Approved in <span class="g">seconds.</span></div>
+      <div class="steps">
+        <div class="step" id="st1"><div class="num" id="sn1">1</div><div><div class="txt">Apply on your phone</div><div class="sub">Pick an amount. No paperwork.</div></div></div>
+        <div class="step" id="st2"><div class="num" id="sn2">2</div><div><div class="txt">Real bank data, read securely</div><div class="sub">Open-banking feed, not a guess.</div></div></div>
+        <div class="step" id="st3"><div class="num" id="sn3">3</div><div><div class="txt">In-house risk engine</div><div class="sub">Income · conduct · debt · cash flow</div></div></div>
+        <div class="step" id="st4"><div class="num" id="sn4">4</div><div><div class="txt">Funds land the same day</div><div class="sub">Decision in seconds.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Phone (shared by scenes 2 & 3) ===== -->
+  <div class="phonewrap" id="phonewrap">
+    <div class="phone" id="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>9:41</span><span class="mono" style="font-size:16px;">5G ▮▮▮</span></div>
+
+        <!-- home -->
+        <div class="appscreen" id="scrHome">
+          <div class="apphdr"><div class="applogo">S</div>Same Day Advance</div>
+          <div style="font-size:30px;font-weight:650;letter-spacing:-0.8px;margin-bottom:22px;">Hi Sam</div>
+          <div class="card">
+            <div class="muted" style="font-size:18px;">Available today</div>
+            <div class="bigamt" style="margin-top:14px;">$400</div>
+            <div class="muted" style="font-size:18px;margin-top:14px;">Your pay, before payday</div>
+            <div class="btn">Get my advance</div>
+          </div>
+          <div style="margin-top:20px;">
+            <div class="row"><span class="muted">Next payday</span><span>Thu 14th</span></div>
+            <div class="row"><span class="muted">Repay</span><span>Automatically</span></div>
+            <div class="row" style="border:none;"><span class="muted">Fee</span><span>One small flat fee</span></div>
+          </div>
+        </div>
+
+        <!-- apply -->
+        <div class="appscreen" id="scrApply">
+          <div class="apphdr"><div class="applogo">S</div>New advance</div>
+          <div style="font-size:30px;font-weight:650;letter-spacing:-0.8px;">How much do you need?</div>
+          <div class="bigamt" id="applyAmt" style="margin-top:40px;text-align:center;">$250</div>
+          <div class="slider"><i id="sliderFill"></i><b id="sliderKnob"></b></div>
+          <div style="display:flex;justify-content:space-between;" class="muted mono"><span style="font-size:15px;">$100</span><span style="font-size:15px;">$800</span></div>
+          <div class="btn" id="applyBtn" style="margin-top:60px;">Continue</div>
+        </div>
+
+        <!-- bank connect -->
+        <div class="appscreen" id="scrBank">
+          <div class="apphdr"><div class="applogo">S</div>Secure check</div>
+          <div style="font-size:30px;font-weight:650;letter-spacing:-0.8px;">Reading your bank data</div>
+          <div class="muted" style="font-size:18px;margin-top:10px;">Read-only. Encrypted. Never stored.</div>
+          <div class="card" style="margin-top:34px;">
+            <div style="display:flex;justify-content:space-between;font-size:18px;"><span>Transactions analysed</span><span class="mono" id="txnCount" style="color:var(--gold2);">0</span></div>
+            <div class="bar"><i id="bankBar"></i></div>
+            <div style="display:flex;justify-content:space-between;font-size:18px;margin-top:22px;"><span>Income detected</span><span class="mono" id="incDet" style="color:var(--green);opacity:0;">Fortnightly ✓</span></div>
+          </div>
+          <div id="catChips" style="margin-top:26px;display:flex;flex-wrap:wrap;gap:10px;"></div>
+        </div>
+
+        <!-- assess -->
+        <div class="appscreen" id="scrAssess">
+          <div class="apphdr"><div class="applogo">S</div>Assessing</div>
+          <div style="font-size:30px;font-weight:650;letter-spacing:-0.8px;">Risk engine</div>
+          <div class="card" style="margin-top:28px;">
+            <div style="font-size:18px;">Income stability <span class="mono" style="float:right;" id="cv1">0</span></div><div class="bar"><i id="cb1"></i></div>
+            <div style="font-size:18px;margin-top:22px;">Account conduct <span class="mono" style="float:right;" id="cv2">0</span></div><div class="bar"><i id="cb2"></i></div>
+            <div style="font-size:18px;margin-top:22px;">Existing debt <span class="mono" style="float:right;" id="cv3">0</span></div><div class="bar"><i id="cb3"></i></div>
+            <div style="font-size:18px;margin-top:22px;">Spare cash flow <span class="mono" style="float:right;" id="cv4">0</span></div><div class="bar"><i id="cb4"></i></div>
+          </div>
+          <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline;">
+            <span class="muted" style="font-size:20px;">Score</span>
+            <span class="mono" style="font-size:56px;font-weight:700;color:var(--gold2);" id="scoreVal">0</span>
+          </div>
+        </div>
+
+        <!-- approved -->
+        <div class="appscreen" id="scrOk" style="text-align:center;">
+          <div class="check" id="okCheck">
+            <svg width="78" height="78" viewBox="0 0 78 78"><path id="okPath" d="M18 40 L33 55 L61 24" fill="none" stroke="#5FA777" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="70" stroke-dashoffset="70"/></svg>
+          </div>
+          <div style="font-size:40px;font-weight:760;letter-spacing:-1.4px;">Approved</div>
+          <div class="bigamt" style="font-size:72px;margin-top:18px;">$400</div>
+          <div class="muted" style="font-size:20px;margin-top:16px;">Funds arriving today</div>
+          <div class="card" style="margin-top:40px;text-align:left;">
+            <div class="row"><span class="muted">Decision time</span><span class="mono" style="color:var(--green);">4.2s</span></div>
+            <div class="row" style="border:none;"><span class="muted">Repayment</span><span>Next payday</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Scene 5: projections ===== -->
+  <div class="scene" id="s5">
+    <div class="title" id="s5title">
+      <div class="kicker">3-year projections</div>
+      <div class="h2">Three scenarios. <span>Same $21,000 starting pool.</span></div>
+    </div>
+    <div class="capnote" id="capnote">
+      <div class="p">Capped by capital — not by demand</div>
+      <div class="s">27,580 applications unfunded in the high case</div>
+    </div>
+    <div class="chart" id="chart">
+      <div class="gridline" style="bottom:140px"></div><div class="gridline" style="bottom:280px"></div><div class="gridline" style="bottom:420px"></div>
+      <div class="col" id="c1" style="left:120px;"><div class="colbar" id="cb_1" style="background:linear-gradient(180deg,#8FA8CB,#56657a);"></div><div class="colval" id="cvv_1" style="color:#b9c9df;">$0</div><div class="collbl" id="cl_1"><div class="n">CONSERVATIVE</div><div class="a">15 applicants/day peak</div></div></div>
+      <div class="col" id="c2" style="left:620px;"><div class="colbar" id="cb_2" style="background:linear-gradient(180deg,#78c08f,#3f7a55);"></div><div class="colval" id="cvv_2" style="color:#8FCBA3;">$0</div><div class="collbl" id="cl_2"><div class="n">BASE CASE</div><div class="a">30 applicants/day peak</div></div></div>
+      <div class="col" id="c3" style="left:1120px;"><div class="colbar" id="cb_3" style="background:linear-gradient(180deg,#F0CF6A,#9a7a17);"></div><div class="colval" id="cvv_3" style="color:var(--gold2);">$0</div><div class="collbl" id="cl_3"><div class="n">HIGH GROWTH</div><div class="a">50 applicants/day peak</div></div></div>
+    </div>
+    <div class="disclaim" id="s5disc">Profit after tax over 3 years · outputs of the Same Day Advance simulation model under stated assumptions — projections, not guarantees.</div>
+  </div>
+
+  <!-- ===== Scene 6: end card ===== -->
+  <div class="scene" id="s6">
+    <div class="wordmark"><span>Same Day </span><span style="color:var(--gold2)">Advance</span></div>
+    <div class="lines"><span id="e1" class="g">Smarter lending.</span><span id="e2" class="g">Real returns.</span></div>
+    <div class="cta" id="cta">Let's talk.</div>
+    <div class="foot">Projections are model outputs from stated assumptions, not guarantees.</div>
+  </div>
+
+  <div id="fadeblack"></div>
+</div>
+
+<script src="timeline.js"></script>
+<script>
+const S = {}; TL.segments.forEach((s) => { S[s.id] = s; });
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, start, dur) => clamp((t - start) / dur);
+const eOut = (k) => 1 - Math.pow(1 - k, 3);
+const eInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const eBack = (k) => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+function fadeWindow(t, a, b, fin = 0.45, fout = 0.45) { return Math.min(eOut(prog(t, a, fin)), 1 - eInOut(prog(t, b - fout, fout))); }
+function rise(el, k, dist = 40) { el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dist}px)`; }
+function segFrac(id, f) { const s = S[id]; return s.start + (s.end - s.start) * f; }
+
+// ---- scene boundaries, all derived from the voiceover timeline ----
+const T1_END = S.v2.start - 0.15;
+const T2_START = S.v2.start - 0.5, T2_END = S.v3a.start - 0.1;
+const T3_START = S.v3a.start - 0.35, T3_END = S.v4.start - 0.2;
+const T4_START = S.v4.start - 0.45, T4_END = S.v5a.start - 0.15;
+const T5_START = S.v5a.start - 0.45, T5_END = S.v6.start - 0.25;
+const T6_START = S.v6.start - 0.55;
+const T_MILLION = S.v5d.start + 0.8 * (S.v5d.end - S.v5d.start);
+
+// ---- build the ledger texture once (real category labels from the console) ----
+(function buildLedger() {
+  const cats = [
+    ["Income / Wages", "b-inc", "+1,734.95", "SM2012 LIMITED SALARY"], ["Rent / Housing", "b-neu", "-834.20", "LOAN PAYMENT 0088884"],
+    ["Retail Purchases", "b-neu", "-96.25", "NEW WORLD WH"], ["Bills & Utilities", "b-neu", "-262.66", "MERCURY NZ LTD"],
+    ["Cash Withdrawal", "b-cau", "-203.00", "ACU AAP2440 ATM"], ["Gambling", "b-risk", "-100.00", "TAB NZ OE"],
+    ["Cash Deposit", "b-cau", "+2,450.00", "PBKAS3A1554 QUEEN ST"], ["BNPL / Other Credit", "b-cau", "-30.00", "STRAWBERRY LOANS"],
+    ["Subscriptions", "b-neu", "-16.99", "SPOTIFY P3F8"], ["Insurance", "b-neu", "-51.04", "AA INSURANCE"],
+    ["Retail Purchases", "b-neu", "-40.32", "PAK N SAVE"], ["Income / Wages", "b-inc", "+93.00", "SPIDA MACHIN SM2012"],
+  ];
+  const led = $("ledger");
+  for (let c = 0; c < 3; c++) {
+    const col = document.createElement("div"); col.className = "ledcol"; col.id = "lc" + c;
+    for (let r = 0; r < 40; r++) {
+      const [lab, cls, amt, desc] = cats[(r * 5 + c * 7) % cats.length];
+      const row = document.createElement("div"); row.className = "ledrow";
+      row.innerHTML = `<span>${desc}</span><span class="badge ${cls}">${lab}</span><span style="color:${amt[0] === "+" ? "#8FCBA3" : "#c9cdd3"}">${amt}</span>`;
+      col.appendChild(row);
+    }
+    led.appendChild(col);
+  }
+  const chips = [["Income / Wages", "b-inc"], ["Rent / Housing", "b-neu"], ["Bills & Utilities", "b-neu"], ["Retail Purchases", "b-neu"], ["Cash Withdrawal", "b-cau"], ["BNPL / Other Credit", "b-cau"]];
+  const cc = $("catChips");
+  chips.forEach(([l, c], i) => { const s = document.createElement("span"); s.className = "badge " + c; s.id = "chip" + i; s.textContent = l; s.style.opacity = 0; cc.appendChild(s); });
+})();
+
+function fmtK(v) { return v >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : "$" + Math.round(v / 1000) + "K"; }
+
+function renderAt(t) {
+  // background glow breathes a little and warms up on the projections
+  $("bgglow").style.opacity = 0.55 + 0.25 * Math.sin(t * 0.6) * 0.5 + 0.35 * fadeWindow(t, T5_START, T5_END, 1.2, 0.8);
+
+  // ===== Scene 1 =====
+  const s1 = fadeWindow(t, 0.0, T1_END, 0.01, 0.6);
+  $("s1").style.opacity = s1;
+  $("s1").style.transform = `scale(${1 + 0.04 * prog(t, T1_END - 0.6, 0.6)})`;
+  ["w1", "w2", "w3"].forEach((id, i) => {
+    const k = eOut(prog(t, 0.45 + i * 0.22, 0.9));
+    const el = $(id); el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * 60}px)`; el.style.filter = `blur(${(1 - k) * 10}px)`;
+  });
+  $("sweep").style.width = (eInOut(prog(t, 0.35, 1.3)) * 900) + "px";
+  $("sweep").style.opacity = 1 - 0.6 * prog(t, 2.0, 1.2);
+  rise($("tag"), eOut(prog(t, segFrac("v1", 0.36), 0.8)), 24);
+
+  // ===== Phone (scenes 2+3) =====
+  const phoneIn = eOut(prog(t, T2_START + 0.1, 1.1));
+  const phoneOut = eInOut(prog(t, T3_END - 0.55, 0.55));
+  const pw = $("phonewrap");
+  pw.style.opacity = t < T2_START ? 0 : phoneIn * (1 - phoneOut);
+  const rotY = lerp(-28, -10, phoneIn) + 6 * eInOut(prog(t, T3_START, 1.0)) + 4 * Math.sin(t * 0.35) * 0.5;
+  const ty = (1 - phoneIn) * 260 - 30 * phoneOut;
+  pw.querySelector(".phone").style.transform = `translateY(${ty}px) rotateY(${rotY}deg) rotateX(${2 + Math.sin(t * 0.5) * 1.2}deg)`;
+
+  // app screen crossfades
+  const screens = [
+    ["scrHome", T2_START, S.v3b.start - 0.1],
+    ["scrApply", S.v3b.start - 0.1, S.v3c.start - 0.05],
+    ["scrBank", S.v3c.start - 0.05, S.v3d.start + 0.3],
+    ["scrAssess", S.v3d.start + 0.3, S.v3e.end - 0.05],
+    ["scrOk", S.v3e.end - 0.05, T3_END + 1],
+  ];
+  screens.forEach(([id, a, b]) => {
+    const k = fadeWindow(t, a, b, 0.3, 0.3);
+    const el = $(id); el.style.opacity = k; el.style.transform = `translateX(${(1 - eOut(prog(t, a, 0.35))) * 40}px)`;
+  });
+  // apply: slider drag
+  const sl = eInOut(prog(t, S.v3b.start + 0.2, 1.1));
+  const amt = Math.round((250 + sl * 150) / 10) * 10 + 0;
+  const slPct = (amt - 100) / 700 * 100;
+  $("applyAmt").textContent = "$" + Math.min(400, amt);
+  $("sliderFill").style.width = slPct + "%"; $("sliderKnob").style.left = slPct + "%";
+  const press = prog(t, S.v3b.end - 0.35, 0.25);
+  $("applyBtn").style.transform = `scale(${1 - 0.05 * Math.sin(press * Math.PI)})`;
+  // bank read
+  const br = eInOut(prog(t, S.v3c.start + 0.15, 2.2));
+  $("bankBar").style.width = (br * 100) + "%";
+  $("txnCount").textContent = Math.round(br * 281);
+  $("incDet").style.opacity = eOut(prog(t, S.v3c.start + 1.7, 0.4));
+  for (let i = 0; i < 6; i++) { const k = eOut(prog(t, S.v3c.start + 0.5 + i * 0.28, 0.35)); const c = $("chip" + i); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 12}px)`; }
+  // assess: bars fill as each factor is spoken
+  const vals = [82, 74, 61, 70];
+  const fr = [0.30, 0.50, 0.66, 0.82];
+  let score = 0;
+  vals.forEach((v, i) => {
+    const k = eOut(prog(t, segFrac("v3d", fr[i]), 0.7));
+    $("cb" + (i + 1)).style.width = (k * v) + "%";
+    $("cv" + (i + 1)).textContent = Math.round(k * v);
+    score += k * v * [0.32, 0.32, 0.21, 0.15][i];
+  });
+  $("scoreVal").textContent = Math.round(score);
+  // approved
+  const ok = prog(t, S.v3e.end - 0.05, 0.5);
+  $("okCheck").style.transform = `scale(${0.6 + 0.4 * eBack(clamp(ok * 1.2))})`;
+  $("okPath").setAttribute("stroke-dashoffset", 70 * (1 - eOut(prog(t, S.v3e.end + 0.1, 0.45))));
+
+  // ===== Scene 2 copy =====
+  $("s2").style.opacity = fadeWindow(t, T2_START + 0.2, T2_END, 0.6, 0.4);
+  $("s2").style.transform = `translateX(${-30 * prog(t, T2_END - 0.4, 0.4)}px)`;
+  [["b1", segFrac("v2", 0.06)], ["b2", segFrac("v2", 0.36)], ["b3", S.v2.end - 2.4]].forEach(([id, at]) => {
+    const k = eOut(prog(t, at, 0.55)); const el = $(id); el.style.opacity = k; el.style.transform = `translateX(${(1 - k) * -30}px)`;
+  });
+
+  // ===== Scene 3 copy =====
+  $("s3").style.opacity = fadeWindow(t, T3_START + 0.15, T3_END, 0.55, 0.45);
+  const stepAt = [S.v3b.start, S.v3c.start, S.v3d.start, S.v3f.start];
+  const stepDone = [S.v3c.start, S.v3d.start, S.v3e.end, T3_END];
+  stepAt.forEach((at, i) => {
+    const on = eOut(prog(t, at - 0.1, 0.4));
+    const done = prog(t, stepDone[i] - 0.05, 0.3);
+    const st = $("st" + (i + 1)), num = $("sn" + (i + 1));
+    st.style.opacity = 0.22 + 0.78 * on - 0.25 * done * (i < 3 ? 1 : 0);
+    st.style.transform = `translateX(${(1 - on) * 18}px)`;
+    const activeK = on * (1 - done * (i < 3 ? 1 : 0));
+    num.style.borderColor = done > 0.5 ? "#5FA777" : `rgba(201,162,39,${0.2 + 0.8 * activeK})`;
+    num.style.color = done > 0.5 ? "#5FA777" : (activeK > 0.5 ? "#E6C35C" : "#8A8F98");
+    num.style.boxShadow = `0 0 ${30 * activeK}px rgba(201,162,39,${0.45 * activeK})`;
+    num.textContent = done > 0.5 && i < 3 ? "✓" : String(i + 1);
+  });
+
+  // ===== Scene 4 =====
+  $("s4").style.opacity = fadeWindow(t, T4_START, T4_END, 0.5, 0.45);
+  for (let c = 0; c < 3; c++) {
+    const dir = c % 2 === 0 ? -1 : 1;
+    $("lc" + c).style.transform = `translateY(${-400 + dir * (t - T4_START) * (48 + c * 10)}px)`;
+  }
+  const kf = [0.0, 0.27, 0.52, 0.78];
+  ["k1", "k2", "k3", "k4"].forEach((id, i) => {
+    const k = eOut(prog(t, segFrac("v4", kf[i]) - 0.05, 0.5));
+    const el = $(id); el.style.opacity = k * (i < 2 ? 1 - 0.55 * prog(t, segFrac("v4", 0.52), 0.5) : 1);
+    el.style.transform = `translateY(${(1 - k) * 36}px)`; el.style.filter = `blur(${(1 - k) * 8}px)`;
+  });
+
+  // ===== Scene 5 =====
+  $("s5").style.opacity = fadeWindow(t, T5_START, T5_END, 0.55, 0.45);
+  rise($("s5title"), eOut(prog(t, S.v5a.start, 0.7)), 30);
+  $("s5disc").style.opacity = eOut(prog(t, S.v5a.start + 1.2, 0.8));
+  const cols = [
+    { i: 1, v: 264123, at: S.v5b.start + 0.2, done: S.v5b.start + 1.4 },
+    { i: 2, v: 699352, at: S.v5c.start + 0.2, done: S.v5c.start + 1.4 },
+    { i: 3, v: 1189968, at: S.v5d.start + 0.3, done: T_MILLION },
+  ];
+  const maxV = 1189968, maxH = 470;
+  cols.forEach((c) => {
+    const k = eOut(prog(t, c.at, c.done - c.at));
+    const h = k * (c.v / maxV) * maxH;
+    $("cb_" + c.i).style.height = h + "px";
+    const val = $("cvv_" + c.i);
+    val.style.bottom = (h + 22) + "px";
+    val.style.opacity = eOut(prog(t, c.at, 0.3));
+    val.textContent = fmtK(k * c.v);
+    rise($("cl_" + c.i), eOut(prog(t, c.at - 0.1, 0.5)), 16);
+    // the ones not being talked about sit back a little once the next one arrives
+  });
+  // impact flash on the high bar
+  const flash = Math.max(0, 1 - Math.abs(t - T_MILLION) / 0.5) * (t >= T_MILLION - 0.05 ? 1 : 0);
+  $("cb_3").style.boxShadow = `0 0 ${20 + 120 * flash + 40 * prog(t, T_MILLION, 1)}px rgba(230,195,92,${0.25 + 0.55 * flash})`;
+  $("c3").style.transform = `scale(${1 + 0.03 * flash})`;
+  $("c3").style.transformOrigin = "bottom center";
+  const dimOthers = prog(t, S.v5e.start - 0.1, 0.5);
+  $("c1").style.opacity = 1 - 0.45 * dimOthers; $("c2").style.opacity = 1 - 0.45 * dimOthers;
+  rise($("capnote"), eOut(prog(t, S.v5e.start - 0.05, 0.6)), 20);
+
+  // ===== Scene 6 =====
+  const s6 = eOut(prog(t, T6_START, 0.7));
+  $("s6").style.opacity = s6;
+  $("s6").style.transform = `scale(${1.03 - 0.03 * s6})`;
+  rise($("e1"), eOut(prog(t, segFrac("v6", 0.33), 0.5)), 18);
+  rise($("e2"), eOut(prog(t, segFrac("v6", 0.57), 0.5)), 18);
+  const cta = eOut(prog(t, segFrac("v6", 0.8), 0.55));
+  $("cta").style.opacity = cta;
+  $("cta").style.transform = `translateX(-50%) scale(${0.9 + 0.1 * eBack(cta)})`;
+  $("fadeblack").style.opacity = prog(t, TL.total - 0.9, 0.9);
+}
+
+window.renderAt = renderAt;
+window.TOTAL = TL.total;
+renderAt(parseFloat(new URLSearchParams(location.search).get("t") || "0"));
+</script>
+</body>
+</html>
